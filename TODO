@@ -1,0 +1,4 @@
+1 - Generate indexed optional paths instead of max flow paths for optional paths
+2 - Select path design based on worst flow path
+3 - Propagate pressures for each optional path based o ramal index  , because max flow paths leads to higher pressure loss on shared paths. Thus leading to underestimated pressure in the path
+4 - Calculate Sprinkler pressure with normal pressure
