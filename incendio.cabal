@@ -20,6 +20,6 @@ executable incendio
   -- other-modules:       
   -- other-extensions:    
   ghc-options :   -O2 -threaded
-  build-depends:       base >=4.7 && <4.8,hmatrix-gsl , containers ,diagrams-svg ,diagrams-lib,hmatrix
+  build-depends:       base >=4.7 && <4.8,hmatrix, hmatrix-gsl , containers ,bytestring,text
   -- hs-source-dirs:      
   default-language:    Haskell2010
