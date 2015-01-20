@@ -7,7 +7,8 @@ import Control.Monad.Trans.Writer
 import Control.Monad
 import Data.Monoid
 import Sprinkler
-import Tee
+import Tee hiding (ktubo)
+import Element
 import Data.Reflection
 import qualified Data.List  as L
 import Numeric.GSL.Root

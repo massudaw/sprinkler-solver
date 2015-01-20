@@ -6,6 +6,7 @@ import Data.Monoid
 import Data.Maybe
 import Sprinkler
 import Tee
+import Element
 import Numeric.AD
 import qualified Data.Map as M
 import Control.Applicative
@@ -23,8 +24,8 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip (fmap f
         sp i = (i,Sprinkler (Just (0.013,8))  (Just 0.025) 12 6.1)
         tubo' i h  d l = (i,h,h+1,[Tubo (Just d) l 100])
         tubo i h t d l = (i,h,t,[Tubo (Just d) l 100])
-        bomba = Bomba (Just (240,800)) (bombaSF ) [] []
-        te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (1000)))
+        bomba = Bomba (Just (240,1166)) (bombaSF ) [] []
+        te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (100)))
         snodes = [(212,0)]
         nodes = [te 239 [73,74,75] 0.08 0.08 , te 240 [74,31,77] 0.08 0.08]
                 <> [ te 237 [71,72,73] 0.08 0.025 , te 238 [70,72,77]  0.065 0.025
@@ -45,13 +46,13 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip (fmap f
                 , te 202 [23,27,21] 0.065 0.025, sp 103, sp 104, sp 105, sp 106,te 206 [12,18,16] 0.08 0.025
                 , te 203 [21,26,22] 0.065 0.025, sp 107, sp 108, sp 109, sp 110,te 207 [16,19,17] 0.08 0.025
                 , te 204 [22,24,32] 0.065 0.025, sp 111, sp 112, sp 113, sp 114,te 208 [17,20,33] 0.08 0.025
-                , (300,Open 0),(301,Open 0 ),(302,Open 0),(303,Open 0)
+                , (300,Open 0),(301,Open 0 ),(302,Open 0)
                 ]
         patchT (i,j) (idt,idn) = [tubo (idt + 1) (idn +1) (idn + 2) 0.025 (1.4 + 3*2.92) , tubo (idt +2 ) i (idn +1)  0.065 4.0, tubo (idt +3 ) j (idn +2)  0.08 4.0]
         patchS (i,j) (idt,idn) (ti,tj)= [te (idn +2) [idt +3,idt +1,ti] 0.08 0.025, te (idn +1) [idt +2,idt +1,tj] 0.065 0.025]
 
         links = [ (31, 212 ,240, [bomba,tubod 2.889 0.08 ])]
-                <>[path 77 240 238 [tubod 1.0 0.08 ,tubod 5.57 0.065 ,tubod 12.3674 0.065,jd 0.065, tubod 1.507 0.065]]
+                <> [path 77 240 238 [tubod 1.0 0.08 ,tubod 5.57 0.065 ,tubod 12.3674 0.065,jd 0.065, tubod 1.507 0.065]]
                 <> [tubo 73 239 237 0.08 1.5072,tubo 74 239 240 0.08 1.7208  ]
                 <> [tubo 70 238 236 0.065 2.25 ,tubo 71 237 235 0.08 2.25 ,tubo 72 237 238 0.025 20.6617]
                 <> [tubo 67 234 236 0.065 2.25 ,tubo 68 233 235 0.08 2.25 ,tubo 69 235 236 0.025 20.6617]
@@ -66,20 +67,19 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip (fmap f
                 <> patchT (215,216) (39,216)
                 <> patchT (213,214) (36,214)
                 <> patchT (210,209) (33,212)
-                <> [
-                  tubo 14 210 209 0.025 (1.4 + 3*2.92)
-                , tubo 25 210 201 0.065 4.0, tubo 13 209 205 0.08 4.0
-                , tubo 28 201 101 0.025 (0.7 + 2*2.92) , tubo' 1 101 0.025 2.92, tubo 11 102 205 0.025 0.7
-                , tubo 23 201 202 0.065 4.0, tubo 12 205 206 0.08 4.0
-                , tubo 27 202 103 0.025 0.7, tubo' 2 103 0.025 2.92 ,tubo' 3 104 0.025 2.92 ,tubo' 4 105 0.025 2.92,tubo 18 206 106 0.025 0.7
-                , tubo 21 202 203 0.065 4.0, tubo 16 206 207 0.08 4.0
-                , tubo 26 203 107 0.025 0.7, tubo' 7 107 0.025 2.92 ,tubo' 6 108 0.025 2.92 ,tubo' 5 109 0.025 2.92,tubo 19 207 110 0.025 0.7
-                , tubo 22 203 204 0.065 4.0 , tubo 17 207 208 0.08 4.0
-                , tubo 24 204 111 0.025 0.7, tubo' 8 111 0.025 2.92 ,tubo' 9 112 0.025 2.92 ,tubo' 10 113 0.025 2.92,tubo 20 208 114 0.025 0.7
-                , tubo 32 204 300 0.065 0.01,tubo 33 208 301 0.08 0.01 ,tubo 75 239 302 0.08 0.01]
+                <> [ tubo 14 210 209 0.025 (1.4 + 3*2.92)
+                  , tubo 25 210 201 0.065 4.0, tubo 13 209 205 0.08 4.0
+                  , tubo 28 201 101 0.025 (0.7 + 2*2.92) , tubo' 1 101 0.025 2.92, tubo 11 102 205 0.025 0.7
+                  , tubo 23 201 202 0.065 4.0, tubo 12 205 206 0.08 4.0
+                  , tubo 27 202 103 0.025 0.7, tubo' 2 103 0.025 2.92 ,tubo' 3 104 0.025 2.92 ,tubo' 4 105 0.025 2.92,tubo 18 206 106 0.025 0.7
+                  , tubo 21 202 203 0.065 4.0, tubo 16 206 207 0.08 4.0
+                  , tubo 26 203 107 0.025 0.7, tubo' 7 107 0.025 2.92 ,tubo' 6 108 0.025 2.92 ,tubo' 5 109 0.025 2.92,tubo 19 207 110 0.025 0.7
+                  , tubo 22 203 204 0.065 4.0 , tubo 17 207 208 0.08 4.0
+                  , tubo 24 204 111 0.025 0.7, tubo' 8 111 0.025 2.92 ,tubo' 9 112 0.025 2.92 ,tubo' 10 113 0.025 2.92,tubo 20 208 114 0.025 0.7
+                  , tubo 32 204 300 0.065 0.01,tubo 33 208 301 0.08 0.01 ,tubo 75 239 302 0.08 0.01]
 
 
-test4 :: (Show a ,Ord a,Floating a )=> Iteration a
+test4 :: (Show a ,Ord a,Floating a ) => Iteration a
 test4 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 1 )) ( zip (fmap fst nodes) (repeat 200) ) grid
   where
         grid = ( Grid  links snodes nodes [] metric)

@@ -5,6 +5,7 @@ import Numeric.GSL.Minimization
 import Numeric.GSL.Root
 import Numeric
 import Data.Ord
+import Element
 import Data.Maybe
 import Data.Monoid
 import Tee
@@ -20,8 +21,6 @@ import qualified Data.Map as M
 import Control.Applicative hiding ((<|>))
 import Debug.Trace
 
-justError e Nothing = error e
-justError _ (Just i) = i
 
 minPressure =(\i -> if null i then [] else pure . minimumBy (comparing pNode) $ i)
 
@@ -496,117 +495,8 @@ backedzero i
   | i <100 = "00"
   | i <1000 = "0"
 
-data Direction
-  = DLeft
-  | DRight
-  deriving(Eq,Show)
-
 showJust f (Just i ) = f i
 showJust _ Nothing = ""
-
-data TeTipo
-  = TeLateral
-  | TeFrontal
-  deriving(Eq,Show)
-
-data Curva a = Curva (a -> a)
-           | Poly [(a,a)]
-
-instance Eq (Curva  a) where
-  _ == _ = True
-instance Show (Curva  a) where
-  show _ = ""
-
-data Element a
-  = Tubo
-  { diametro :: Maybe a
-  , comprimento :: a
-  , atrito :: a
-  }
-  | Gravidade
-  { distanciaQueda :: a
-  }
-  | Reservatorio
-  { tempo :: a
-  , volume :: Maybe a
-  , element :: Element a
-  }
-  | Tip
-  | Open
-  { openFlow :: a
-  }
-  | Resistive
-  {  load :: a
-  ,  power :: a
-  }
-  | DiameterChange
-  { input :: Maybe a
-  , output :: Maybe a
-  , material :: a
-  }
-  | Bocal
-  { diametroJ :: Maybe a}
-  | Bomba
-  { nominalValues :: Maybe (a,a)
-  , curva :: Curva a
-  , recalqueElements :: [Element a]
-  , succaoElements :: [Element a]
-  }
-  | Tee (TeeConfig a)
-  | Joelho
-  { diametroJ :: Maybe a
-  , tipoJ :: (String,String,String)
-  , direction :: Direction
-  , material :: a
-  }
-  | Sprinkler
-  { tipo :: Maybe (a,a)
-  , diametroJ :: Maybe a
-  , areaCobertura :: a
-  , densidadeMin ::a
-  }
-  | Te
-  { diametro :: Maybe a
-  , tipoTe ::  TeTipo
-  , pathRight :: [Element a]
-  , pathLeft :: [Element a]
-  }
-  | OptTe
-  { tipoTe ::  TeTipo
-  , pathRight :: [Element a]
-  , pathLeft :: [Element a]
-  }
-  | Origem
-  { elements :: [Element a]
-  }
-  | OptionalPath
-  { pathOption :: [Element a]
-  }
-  | RamalElement
-  { pathElement :: [Element a]
-  }deriving(Eq,Show)
-
-data Node a
-  = Node
-  { pressaoNode :: Double
-  , vazao :: Double
-  , elemento :: a
-  }
-  | RamalNode
-  { pressaoNode :: Double
-  , vazao :: Double
-  , pathNode :: [Node a]
-  }
-  | OptionalNodes
-  { pressaoNode :: Double
-  , vazao :: Double
-  ,pathNodes :: [[Node a]]
-  }
-  | OptionalNode
-  { pressaoNode :: Double
-  , vazao :: Double
-  ,pathNode :: [Node a]
-  }deriving(Eq,Foldable,Show)
 
 
 extractElement (Node _ _ e) = e
@@ -640,24 +530,6 @@ pNode (OptionalNode p _ _  ) = p
 vNode (Node _ v _ ) = v
 vNode (RamalNode _ v _  ) = v
 vNode (OptionalNode _ v _  ) = v
-
-diametroE :: Element a -> Maybe a
-diametroE (Tubo d _ _ ) = d
-diametroE (Joelho d _ _ _) = d
-diametroE i = Nothing
-
-
-distanciaE :: (Show a,Ord a,Fractional a )=> Element a -> a
-distanciaE (Tubo _ d _ ) = d
-distanciaE (Joelho (Just dtubom) tipo _ c) =  justError (show (tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
-
-materialE :: Show a => Element  a -> a
-materialE (Tubo _ _ c) =  c
-materialE (Joelho _ _ _ c) = c
-materialE i = error $ "No Material Defined" ++ show i
-
-elementE (Node _ _ e) = Just e
-elementE i = Nothing
 
 
 bombaSuccaoFrontal, bombaBipartida :: (Num a ,Fractional a )=> a -> a
