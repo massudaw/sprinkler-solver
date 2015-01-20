@@ -16,7 +16,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 executable incendio
-  main-is:             Grid.hs
+  main-is:             Test.hs
   -- other-modules:       
   -- other-extensions:    
   ghc-options :   -O2 -threaded

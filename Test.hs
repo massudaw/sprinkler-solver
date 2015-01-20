@@ -17,7 +17,7 @@ tubod l d = Tubo (Just d) l 100
 jd d = Joelho (Just d) ("Conexao","Joelho","90")  DRight 100
 
 test3 :: (Show a ,Ord a,Floating a )=> Iteration a
-test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 3 )) ( zip (fmap fst nodes) (repeat 100) ) grid
+test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip (fmap fst nodes) (repeat 100) ) grid
   where
         grid = ( Grid  links snodes nodes [] metric)
         sp i = (i,Sprinkler (Just (0.013,8))  (Just 0.025) 12 6.1)
@@ -26,9 +26,8 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 3 )) ( zip (fmap f
         bomba = Bomba (Just (240,800)) (bombaSF ) [] []
         te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (1000)))
         snodes = [(212,0)]
-        nodes = [ te 211 [30,31,29] 0.08 0.08]
-
-                <> [te 237 [71,72,30] 0.08 0.025 , te 238 [70,72,29]  0.065 0.025
+        nodes = [te 239 [73,74,75] 0.08 0.08 , te 240 [74,31,77] 0.08 0.08]
+                <> [ te 237 [71,72,73] 0.08 0.025 , te 238 [70,72,77]  0.065 0.025
                   , te 235 [68,69,71] 0.08 0.025 , te 236 [67,69,70]  0.065 0.025
                   , te 233 [65,66,68] 0.08 0.025 , te 234 [64,66,67]  0.065 0.025
                   , te 231 [63,62,65] 0.08 0.025 , te 232 [61,62,64]  0.065 0.025]
@@ -46,13 +45,15 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 3 )) ( zip (fmap f
                 , te 202 [23,27,21] 0.065 0.025, sp 103, sp 104, sp 105, sp 106,te 206 [12,18,16] 0.08 0.025
                 , te 203 [21,26,22] 0.065 0.025, sp 107, sp 108, sp 109, sp 110,te 207 [16,19,17] 0.08 0.025
                 , te 204 [22,24,32] 0.065 0.025, sp 111, sp 112, sp 113, sp 114,te 208 [17,20,33] 0.08 0.025
-                , (300,Open 0),(301,Open 0 )
+                , (300,Open 0),(301,Open 0 ),(302,Open 0),(303,Open 0)
                 ]
         patchT (i,j) (idt,idn) = [tubo (idt + 1) (idn +1) (idn + 2) 0.025 (1.4 + 3*2.92) , tubo (idt +2 ) i (idn +1)  0.065 4.0, tubo (idt +3 ) j (idn +2)  0.08 4.0]
         patchS (i,j) (idt,idn) (ti,tj)= [te (idn +2) [idt +3,idt +1,ti] 0.08 0.025, te (idn +1) [idt +2,idt +1,tj] 0.065 0.025]
 
-        links = [ (31, 212 ,211, [bomba,tubod 1.0 0.08 ]),tubo 30 211 237 0.08 14.0,path 29 211 238 [ tubod 7.0 0.08 , tubod 7.0 0.065  ]]
-                <> [tubo 70 236 238 0.065 2.25 ,tubo 71 235 237 0.08 2.25 ,tubo 72 237 238 0.025 20.6617]
+        links = [ (31, 212 ,240, [bomba,tubod 2.889 0.08 ])]
+                <>[path 77 240 238 [tubod 1.0 0.08 ,tubod 5.57 0.065 ,tubod 12.3674 0.065,jd 0.065, tubod 1.507 0.065]]
+                <> [tubo 73 239 237 0.08 1.5072,tubo 74 239 240 0.08 1.7208  ]
+                <> [tubo 70 238 236 0.065 2.25 ,tubo 71 237 235 0.08 2.25 ,tubo 72 237 238 0.025 20.6617]
                 <> [tubo 67 234 236 0.065 2.25 ,tubo 68 233 235 0.08 2.25 ,tubo 69 235 236 0.025 20.6617]
                 <> [tubo 64 232 234 0.065 2.25 ,tubo 65 231 233 0.08 2.25 ,tubo 66 233 234 0.025 20.6617]
                 <> [tubo 61 229 232 0.065 2.25 ,path 63 230 231  $ ($0.080) <$> [tubod 2.12 , jd ,tubod 7.44 , jd ,tubod 0.465],tubo 62 231 232 0.025 20.6617]
@@ -75,7 +76,7 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 3 )) ( zip (fmap f
                 , tubo 26 203 107 0.025 0.7, tubo' 7 107 0.025 2.92 ,tubo' 6 108 0.025 2.92 ,tubo' 5 109 0.025 2.92,tubo 19 207 110 0.025 0.7
                 , tubo 22 203 204 0.065 4.0 , tubo 17 207 208 0.08 4.0
                 , tubo 24 204 111 0.025 0.7, tubo' 8 111 0.025 2.92 ,tubo' 9 112 0.025 2.92 ,tubo' 10 113 0.025 2.92,tubo 20 208 114 0.025 0.7
-                , tubo 32 204 300 0.065 0.01,tubo 33 208 301 0.08 0.01 ]
+                , tubo 32 204 300 0.065 0.01,tubo 33 208 301 0.08 0.01 ,tubo 75 239 302 0.08 0.01]
 
 
 test4 :: (Show a ,Ord a,Floating a )=> Iteration a
@@ -101,6 +102,7 @@ testConservation = do
     putStrLn $unlines $  fmap (show .continuity) flws
     putStrLn $unlines $ fmap (show )$    fmap  flows $ flws
 -}
+
 testIter2 =  Iteration lflows nheads grid
   where nheads = [(1,40),(2,35),(3,30)]
         lflows =  [(1,4.5),(2,2),(3,2),(4,0.5)]
