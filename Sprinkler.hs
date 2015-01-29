@@ -279,7 +279,6 @@ unConsPath n l =  fmap (:l) $ removeElement n (head l)
 backSolveN c assoc left right = do
           let li = (head left)
               ri = (head right)
-              te d = Joelho Nothing ("Conexao","Te","Lateral") d 100
           (Node pn vn res) <- solveRamalN (RamalNode (pNode li ) ((vNode li ) `assoc`  (vNode ri )) left) ri
           return (c pn (vn `assoc` vNode ri) res : right)
 
@@ -287,7 +286,6 @@ backSolveN c assoc left right = do
 backSolveE c assoc left right = do
           let li = (head left)
               ri = (head right)
-              te d = Joelho Nothing ("Conexao","Te","Lateral") d 100
           (Node pn vn res) <- solveRamal (RamalElement $ fmap extractElement left) ri
           return   (c pn (vn `assoc` vNode ri) res : right)
 
@@ -305,16 +303,16 @@ bifurcationSolve  solve i j = filter (not .null) $do
 
 pressurePath :: Element Double  -> [[Node (Element Double )]]
 pressurePath (Origem i) = filter (not.null) $ constructPath i
-pressurePath (Te d _ i j) = bifurcationSolve (\l -> join . fmap (consPath (maybe (te  DRight) ted d) ) . backSolveE RamalNode (+) l )  i j
+pressurePath (Te d _ i j) = bifurcationSolve (\l ->  backSolveE RamalNode (+) l )  ((Joelho Nothing ("Conexao","Te","Lateral" ) DRight 100 ):i) ((Joelho Nothing ("Conexao","Te","Direta" ) DRight 100 ):j)
 
 -- pressurePath (OptTe _ i j) = bifurcationSolve (\l -> join . fmap (consPath (te DRight)) .backSolveN OptionalNode max l) i j
-pressurePath (OptTe _ i j) = join $ join [consPath (Joelho Nothing ("Conexao","Te","Lateral" ) DRight 100 ) <$> constructPath i , consPath (Joelho Nothing ("Conexao","Te","Direta" ) DRight 100 ) <$> constructPath j]
+pressurePath (OptTe _ i j) =  join [constructPath ((Joelho Nothing ("Conexao","Te","Lateral" ) DRight 100 ):i) , constructPath ((Joelho Nothing ("Conexao","Te","Direta" ) DRight 100 ):j)]
 pressurePath s@(Sprinkler _ _ _ _) = fmap pure $ initialSprinkler s
 pressurePath (Reservatorio t v b) = do
-  let vmax =  maximumBy (comparing (vazao .head))  pb
-      pb = pressurePath b
-  i <- pb
-  return $ (Node 0 (vazao $ head i) $Reservatorio t (Just $ (vazao . head $ vmax)*t) b ) : i
+    let vmax =  maximumBy (comparing (vazao .head))  pb
+        pb = pressurePath b
+    i <- pb
+    return $ (Node 0 (vazao $ head i) $Reservatorio t (Just $ (vazao . head $ vmax)*t) b ) : i
 pressurePath g@(Bomba _ (Curva c) e suc )  = do
   let
       rawPaths =  do
@@ -559,18 +557,6 @@ invLinFun (a,b) x = (x - b)/a
 regr (x,fx) (y,fy)  =  (a, b)
             where a = (fx - fy)/(x - y)
                   b = fx - x*a
-
-joelhos :: (Ord a ,Fractional a,Num a )=> M.Map ((String,String,String),a) (M.Map a a)
-joelhos = M.fromList
-    [((("Conexao","Joelho","90"),130),M.fromList [(32,1.5),(40,3.2),(50,3.4),(65,3.7)])
-    ,((("Conexao","Joelho","90"),100),M.fromList [(25,0.8),(32,1.1),(40,1.3),(50,1.7),(65,2.0),(75,2.5),(80,2.5),(100,3.4),(125,4.2),(150,4.9)])
-    ,((("Valvula","","Gaveta"),100),M.fromList [(25,0.2),(32,0.2),(40,0.3),(50,0.4),(65,0.4),(75,0.5),(80,0.5),(100,0.7),(125,0.9),(150,1.1)])
-    ,((("Bocais","Saida",""),100),M.fromList [(25,0.7),(32,0.9),(40,1.0),(50,1.5),(65,1.9),(75,2.2),(80,2.2),(100,3.2),(125,4.0),(150,5.0)])
-    ,((("Valvula","Retencao",""),100),M.fromList [(25,2.1),(32,2.7),(40,3.2),(50,4.2),(65,5.2),(75,6.3),(80,6.3),(100,8.4),(125,10.4),(150,12.5)])
-    ,((("Conexao","Joelho","45"),100),M.fromList [(25,0.4),(32,0.5),(40,0.6),(50,0.8),(65,0.9),(75,1.2),(80,1.2),(100,1.5),(125,1.9),(150,2.3)])
-    ,((("Conexao","Te","Lateral"),130),M.fromList [(32,4.6),(40,7.3),(50,7.6),(65,7.8),(75,8.0)])
-    ,((("Conexao","Te","Direta"),100),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4)])
-    ,((("Conexao","Te","Lateral"),100),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0)])]
 
 bomb =fmap (\(p,v)-> (p,v*1000.0/60)) [(250,60),(250,70),(250,80),(250,90),(300,60),(300,70),(300,80),(300,90),(350,60),(350,70),(350,80),(350,90),(400,60),(400 ,70),(400,80),(400,90),(450,60),(450,70), (450,80),(450,90)]
 
