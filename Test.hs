@@ -37,11 +37,11 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip (fmap f
         bomba = Bomba (Just (300,1166)) (bombaSF ) [] []
         te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (100)))
         snodes = [(212,9.81*20*2.89)]
-        nodes = [te 239 [73,74,75] 0.08 0.08 , te 240 [74,31,77] 0.08 0.08]
+        nodes = [te 239 [73,74,75] 0.08 0.08 , te 240 [77,31,74] 0.08 0.08]
                 <> [ te 237 [71,72,73] 0.08 0.025 , te 238 [77,72,70]  0.065 0.025
-                  , te 235 [68,69,71] 0.08 0.025 , te 236 [67,69,70]  0.065 0.025
-                  , te 233 [65,66,68] 0.08 0.025 , te 234 [64,66,67]  0.065 0.025
-                  , te 231 [63,62,65] 0.08 0.025 , te 232 [61,62,64]  0.065 0.025]
+                  , te 235 [68,69,71] 0.08 0.025 , te 236 [70,69,67]  0.065 0.025
+                  , te 233 [65,66,68] 0.08 0.025 , te 234 [67,66,64]  0.065 0.025
+                  , te 231 [63,62,65] 0.08 0.025 , te 232 [64,62,61]  0.065 0.025]
                 <> patchS (227,228) (57,228) (63,61)
                 <> patchS (225,226) (54,226) (60,59)
                 <> patchS (223,224) (51,224) (57,56)
@@ -53,42 +53,43 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip (fmap f
                 <> patchS (210,209) (33,212) (39,38)
                 -- <>  [te (214) [39,34 ,36] 0.08 0.025, te (213) [38,34,35] 0.065 0.025]
                 <> [ te 210 [35,14,25] 0.065 0.025, te 209 [13,14,36] 0.08 0.025
-                  , te 201 [25,28,23] 0.065 0.025, sp 101 ,sp 102,te 205 [13,11,12] 0.08 0.025
-                  , te 202 [23,27,21] 0.065 0.025, sp 103, sp 104, sp 105, sp 106,te 206 [12,18,16] 0.08 0.025
-                  , te 203 [21,26,22] 0.065 0.025, sp 107, sp 108, sp 109, sp 110,te 207 [16,19,17] 0.08 0.025
-                  , te 204 [22,24,32] 0.065 0.025, sp 111, sp 112, sp 113, sp 114,te 208 [17,20,33] 0.08 0.025
+                  , te 201 [25,28,23] 0.065 0.025, sp 101 ,sp 102,te 205 [12,11,13] 0.08 0.025
+                  , te 202 [23,27,21] 0.065 0.025, sp 103, sp 104, sp 105, sp 106,te 206 [16,18,12] 0.08 0.025
+                  , te 203 [21,26,22] 0.065 0.025, sp 107, sp 108, sp 109, sp 110,te 207 [17,19,16] 0.08 0.025
+                  , te 204 [22,24,32] 0.065 0.025, sp 111, sp 112, sp 113, sp 114,te 208 [33,20,17] 0.08 0.025
                   , (300,Open 0),(301,Open 0 ),(302,Open 0)]
 
         patchT (i,j) (idt,idn) = [tubo (idt + 1) (idn + 2) (idn + 1) 0.025 (1.4 + 3*2.92) , tubo (idt +2 )  i (idn +1)   0.065 2.25, tubo   (idt +3 )  j (idn +2)        0.08 (2.25)]
-        patchS (i,j) (idt,idn) (ti,tj)= [te (idn +2) [ti,idt+1,idt +3 ] 0.08 0.025, te (idn +1) [tj,idt+1,idt +2] 0.065 0.025]
+        patchS (i,j) (idt,idn) (ti,tj)= [te (idn +2) [idt+3,idt+1,ti ] 0.08 0.025, te (idn +1) [tj,idt+1,idt +2] 0.065 0.025]
 
-        links = [ (31, 212 ,240, [bomba,tubod ({-20*2.89+-}2.889) 0.10 ])]
+        links = [ (31, 212,240 , [bomba,tubod ({-20*2.89+-}2.889) 0.10 ])]
                 <> [path 77 240 238 [tubod (1.0) 0.08 ,tubod 5.57 0.065 ,tubod 12.3674 0.065,jd DLeft 0.065, tubod (1.507) 0.065]]
-                <> [tubo 73 239 237 0.08 1.5072,tubo 74 240 239 0.08 1.7208  ]
-                <> [tubo 70 238 236 0.065 2.25 ,tubo 71 235 237 0.08 2.25 ,tubo 72 238 237 0.025 (20.6617)]
-                <> [tubo 67 234 236 0.065 2.25 ,tubo 68 235 233 0.08 2.25 ,tubo 69 236 235 0.025 20.6617]
-                <> [tubo 64 234 232 0.065 2.25 ,tubo 65 231 233 0.08 2.25 ,tubo 66 234 233 0.025 20.6617]
-                <> [tubo 61 229 232 0.065 2.25 ,path 63 231 230  $ ($0.080) <$> [tubod 1.775 , jd DRight ,tubod 10.502 , jd DLeft ,tubod 0.475],tubo 62 232 231 0.025 20.6617]
-                <> [tubo 58 230 229 0.025 (1.4 + 3*2.92) , tubo 59 229 227 0.065 2.25, tubo 60 228 230 0.08 2.25 ]
-                <> [tubo 55 228 227 0.025 (1.4 + 3*2.92) , tubo 56 225 227 0.065 2.25, tubo 57 228 226 0.08 2.25]
-                <> [tubo 52 226 225 0.025 (1.4 + 3*2.92) , tubo 53 225 223 0.065 2.25, tubo 54 224 226 0.08 2.25]
-                <> [tubo 49 224 223 0.025 (1.4 + 3*2.92) , tubo 50 221 223 0.065 2.25, tubo 51 224 222 0.08 2.25]
-                <> [tubo 46 222 221 0.025 (1.4 + 3*2.92) , tubo 47 221 219 0.065 2.25, tubo 48 220 222 0.08 2.25]
-                <> [tubo 43 220 219 0.025 (1.4 + 3*2.92) , tubo 44 217 219 0.065 2.25, tubo 45 220 218 0.08 2.25]
-                <> [tubo 40 218 217 0.025 (1.4 + 3*2.92) , tubo 41 217 215 0.065 2.25, tubo 42 216 218 0.08 2.25]
-                <> [tubo 37 216 215 0.025 (1.4 + 3*2.92) , tubo 38 213 215 0.065 2.25, tubo 39 216 214 0.08 2.25]
+                <> [tubo 73 237 239 0.08 1.5072,tubo 74 239 240 0.08 1.7208  ]
+                <> [tubo 70 236 238 0.065 2.25 ,tubo 71 237 235 0.08 2.25 ,tubo 72 238 237 0.025 (20.6617)]
+                <> [tubo 67 236 234 0.065 2.25 ,tubo 68 233 235 0.08 2.25 ,tubo 69 235 236 0.025 20.6617]
+                <> [tubo 64 232 234 0.065 2.25 ,tubo 65 233 231 0.08 2.25 ,tubo 66 234 233 0.025 20.6617]
+                <> [tubo 61 232 229 0.065 2.25 ,path 63 230 231  $ ($0.080) <$> [tubod 1.775 , jd DRight ,tubod 10.502 , jd DLeft ,tubod 0.475],tubo 62 231 232 0.025 20.6617]
+                <> [tubo 58 229 230 0.025 (1.4 + 3*2.92) , tubo 59 227 229 0.065 2.25, tubo 60 230 228 0.08 2.25 ]
+                <> [tubo 55 228 227 0.025 (1.4 + 3*2.92) , tubo 56 227 225 0.065 2.25, tubo 57 226 228 0.08 2.25]
+                <> [tubo 52 225 226 0.025 (1.4 + 3*2.92) , tubo 53 223 225 0.065 2.25, tubo 54 226 224 0.08 2.25]
+                <> [tubo 49 224 223 0.025 (1.4 + 3*2.92) , tubo 50 223 221 0.065 2.25, tubo 51 222 224 0.08 2.25]
+                <> [tubo 46 221 222 0.025 (1.4 + 3*2.92) , tubo 47 219 221 0.065 2.25, tubo 48 222 220 0.08 2.25]
+                <> [tubo 43 220 219 0.025 (1.4 + 3*2.92) , tubo 44 219 217 0.065 2.25, tubo 45 218 220 0.08 2.25]
+                <> [tubo 40 217 218 0.025 (1.4 + 3*2.92) , tubo 41 215 217 0.065 2.25, tubo 42 218 216 0.08 2.25]
+                <> [tubo 37 216 215 0.025 (1.4 + 3*2.92) , tubo 38 215 213 0.065 2.25, tubo 39 214 216 0.08 2.25]
+                <> [tubo 34 213 214 0.025 (1.4 + 3*2.92) , tubo 35 210 213 0.065 2.25, tubo 36 214 209 0.08 2.25]
                 -- <> patchT (213,214) (36,214)
-                <> patchT (210,209) (33,212)
-                <> [ tubo 14 210 209 0.025 (1.4 + 3*2.92)
+                -- <> patchT (210,209) (33,212)
+                <> [ tubo 14 209 210 0.025 (1.4 + 3*2.92)
                   , tubo 25 210 201 0.065 2.25, tubo 13 205 209 0.08 2.25
                   , tubo 28 201 101 0.025 (0.7 + 2*2.92) , tubo' 1 101 0.025 2.92, tubo 11 102 205 0.025 0.7
                   , tubo 23 202 201 0.065 2.25, tubo 12 205 206 0.08 2.25
-                  , tubo 27 202 103 0.025 0.7, tubo' 2 103 0.025 2.92 ,tubo' 3 104 0.025 2.92 ,tubo' 4 105 0.025 2.92,tubo 18 106 206 0.025 0.7
+                  , tubo 27 103 202 0.025 0.7, tubo 2 104 103 0.025 2.92 ,tubo 3 105 104 0.025 2.92 ,tubo 4 106 105 0.025 2.92,tubo 18 206 106 0.025 0.7
                   , tubo 21 202 203 0.065 2.25, tubo 16 207 206 0.08 2.25
                   , tubo 26 203 107 0.025 0.7, tubo' 7 107 0.025 2.92 ,tubo' 6 108 0.025 2.92 ,tubo' 5 109 0.025 2.92,tubo 19 110 207 0.025 0.7
                   , tubo 22 204 203 0.065 2.25  , tubo 17 207 208 0.08 2.25
-                  , tubo 24 204 111 0.025 0.7, tubo' 8 111 0.025 2.92 ,tubo' 9 112 0.025 2.92 ,tubo' 10 113 0.025 2.92,tubo 20 114 208 0.025 0.7
-                  , tubo 32 204 300 0.065 0.4,tubo 33 301 208 0.08 0.4 ,tubo 75 239 302 0.08 0.4]
+                  , tubo 24 111 204 0.025 0.7, tubo 8 112 111 0.025 2.92 ,tubo 9 113 112 0.025 2.92 ,tubo 10 114 113 0.025 2.92,tubo 20 208 114 0.025 0.7
+                  , tubo 32 204 300 0.065 0.4,tubo 33 208 301 0.08 0.4 ,tubo 75 239 302 0.08 0.4]
 
 
 test4 :: (Show a ,Ord a,Floating a ) => Iteration a
@@ -204,18 +205,18 @@ renderGrid env l r (Right (s,(n,Sprinkler _ _ _ _) )) = do
 renderGrid env l  r (Right (s,(n,Tee (TeeConfig tc@[rl,b,rr] _ _ _ _)) ))
   | rl == l =  do
     visitNode n
-    be <- trav ((-1/4)) b
-    rre <- trav ((1/2)) rr
+    rre <- trav 0  rr
+    be <- trav (-1/4) b
     return $ rotateBy r $   sp <>  be <>  rre
   | rr == l = do
     visitNode n
-    be <-  trav ((1/4) ) b
-    rle  <- trav ((1/2) ) rl
+    rle  <- trav 0 rl
+    be <-  trav (1/4) b
     return $  rotateBy r $  sp <>  be <>  rle
   | b == l = do
     visitNode n
-    rre <- trav ((1/4) ) rr
-    rle  <- trav ((-1/4) ) rl
+    rre <- trav (-1/4) rr
+    rle  <- trav (1/4 ) rl
     return $ rotateBy r $  sp <> rre <>  rle
     {-
     modify (<> (mempty,S.singleton n))
@@ -235,19 +236,19 @@ renderGrid env n r (Left (l,h,t,e))
     (visited,visitedNode,nodeMap) <- get
     let dist =  translate ( p2r ( rotateBy (r + snd (var n nodeMap)) ( L.foldr (offsetR) (p2 (0,0)) e))) (fst $ var n nodeMap)
     g <- nextNode (angleR e) dist t
-    return $  rotateBy r $ foldr renderLinkR  g e
+    return $  rotateBy r $ foldr (renderLinkR ) g (e)
   | n == t = do
     (visited,visitedNode,nodeMap) <- get
-    let dist =  translate ( p2r ( rotateBy (r + snd (var n nodeMap))  ( L.foldl' (flip offsetL) (p2 (0,0)) e))) ( fst $ var n nodeMap)
+    let dist =  translate ( p2r ( rotateBy (r + snd (var n nodeMap))  ( L.foldr (offsetR) (p2 (0,0)) (revElems e)))) ( fst $ var n nodeMap)
     g <- nextNode (angleL e) dist h
-    return $ rotateBy r $ L.foldl' (flip renderLinkL ) g e
+    return $ rotateBy r $ foldr (renderLinkR ) g (revElems e)
   where
       nextNode  a dist h = do
           (visited,visitedNode,nodeMap) <- get
           visitLink l
           if  not $ S.member h visitedNode
             then do
-              markNode h (dist,r + a + (snd $ var n nodeMap) )
+              markNode h (dist,traceShow (r,a,snd $var n nodeMap) $ r + a + (snd $ var n nodeMap) )
               renderGrid env l 0 (var h env)
             else
                 if  abs (distance dist  (fst $ var h nodeMap)) < 1e-2
@@ -257,13 +258,13 @@ renderGrid env n r (Left (l,h,t,e))
       renderLinkR t@(Tubo _ c _) o =  offsetR t  o <> (fromOffsets [realToFrac c * unitX ] # lwL 0.04<> translate (r2 (c/2,0.12)) ( text (show l)) # fontSizeL 0.2 # fc black )
       renderLinkR j@(Joelho _ _ _ _ ) l = joelho <> offsetR j  l
       renderLinkR i j = j
-      renderLinkL t@(Tubo _ c _) o =  offsetL t o <> (fromOffsets [-realToFrac c * unitX ]  # lwL 0.04 # lc purple<> translate (r2 (-c/2,-0.12)) ( text (show l)) # fontSizeL 0.2 # fc black )
+      {-renderLinkL t@(Tubo _ c _) o =  offsetL t o <> (fromOffsets [-realToFrac c * unitX ]  # lwL 0.04 # lc purple<> translate (r2 (-c/2,-0.12)) ( text (show l)) # fontSizeL 0.2 # fc black )
       renderLinkL j@(Joelho _ _ _ _ ) l = joelho <> offsetL j l
       renderLinkL i j = offsetL i j
-      offsetL (Tubo _ c _) o =  translate (r2 (-c,0)) o
-      offsetL (Joelho _ _ DRight  _ ) l = rotateBy (-1/4) l
-      offsetL (Joelho _ _ DLeft _ ) l = rotateBy (1/4) l
-      offsetL i j = j
+      offsetL (Tubo _ c _) o =  translate (r2 (c,0)) o
+      offsetL (Joelho _ _ DRight  _ ) l = rotateBy (1/4) l
+      offsetL (Joelho _ _ DLeft _ ) l = rotateBy (-1/4) l
+      offsetL i j = j-}
       offsetR (Tubo _ c _) o =  translate (r2 (c,0)) o
       offsetR (Joelho _ _ DRight  _ ) l = rotateBy (1/4) l
       offsetR (Joelho _ _ DLeft _ ) l = rotateBy (-1/4) l
@@ -276,6 +277,11 @@ renderGrid env n r (Left (l,h,t,e))
       joelho = circle 0.1 # fc blue # lwL 0.04
 
 renderGrid i j r l = error $ show l
+revElem (Joelho i j DRight k)  =  (Joelho i j DLeft k)
+revElem (Joelho i j DLeft k)  =  (Joelho i j DRight k)
+revElem i = i
+revElems = reverse .(fmap revElem)
+
 
 errorCross =  rotateBy (1/8) ( hrule 0.5 <> vrule 0.5 ) # lc red # lwL 0.08
 
@@ -283,7 +289,7 @@ p2r = r2 . unp2
 
 visitNode n = modify (<> (mempty,S.singleton n,mempty))
 visitLink n = modify (<> (S.singleton n,mempty,mempty))
-markNode n c = modify (<> (mempty,mempty,M.singleton n c))
+markNode n c = modify (<> (mempty,mempty,traceShowId $ M.singleton n c))
 
 
 cgrid1,cgrid2,cgrid3 :: (Diagram B R2,(S.Set Int,S.Set Int ,M.Map Int (P2,Double)))
@@ -338,7 +344,7 @@ data CyclePoint a b
   deriving(Eq,Show,Ord)
 
 drawGrid :: Iteration Double -> (Diagram B R2,(S.Set Int,S.Set Int ,M.Map Int (P2,Double)))
-drawGrid a = runState (renderGrid gmap 212  0 (var 31 gmap ) ) (mempty,mempty,M.singleton 212 (p2 (0,0) ,0))
+drawGrid a = runState (renderGrid gmap 212  (1/4) (var 31 gmap ) ) (mempty,mempty,M.singleton 212 (p2 (0,0) ,1/4))
   where
     gmap = (Left <$> M.fromList (fmap (\l@(li,_,_,_)-> (li,l) ) $ links $ grid a)) <> (Right <$> M.fromList (findNodesLinks (grid a) $ fmap (\n@(ni,_) -> (ni,n)) $nodesFlow $ grid a ))
 
