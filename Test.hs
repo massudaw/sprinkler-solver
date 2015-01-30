@@ -52,7 +52,6 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip (fmap f
                 <> patchS (215,216) (39,216) (45,44)
                 <> patchS (213,214) (36,214) (42,41)
                 <> patchS (210,209) (33,212) (39,38)
-                -- <>  [te (214) [39,34 ,36] 0.08 0.025, te (213) [38,34,35] 0.065 0.025]
                 <> [ te 210 [35,14,25] 0.065 0.025, te 209 [13,14,36] 0.08 0.025
                   , te 201 [25,28,23] 0.065 0.025, sp 101 ,sp 102,te 205 [12,11,13] 0.08 0.025
                   , te 202 [23,27,21] 0.065 0.025, sp 103, sp 104, sp 105, sp 106,te 206 [16,18,12] 0.08 0.025
@@ -146,7 +145,7 @@ testGrid = Grid links spressure nodesFlow paths feet
     paths = [(1,[2,4,7,3]),(2,[7,6,8,5]),(3,[10,6,4,9]),(4,[11,9,2,1])]
     bomba = Bomba Nothing (Poly [(0,240),(2,-0.9376)]) [] []
 
-main =   mainWith (fst cgrid1 ||| fst cgrid2 ||| fst cgrid3 :: Diagram B R2)
+-- main =   mainWith (fst cgrid1 ||| fst cgrid2 ||| fst cgrid3 :: Diagram B R2)
 rt = elementsFHIter $ solveIter testIter jacobianEqNodeHeadGrid
 
 rt1 = do
@@ -156,6 +155,8 @@ rt1 = do
 rt3 =  do
   let  elems = elementsFHIter  iter
        iter = solveIter test3 jacobianEqNodeHeadGrid
+  printMatrix $ lintInitialConditions iter
+  printMatrix $ lintGridElements (grid iter)
   printMatrix ( fst $ expandGrid iter)
   mainWith (fst $ drawGrid  iter :: Diagram B R2)
 
@@ -167,7 +168,7 @@ jac3 = (jacobian (jacobianEqNodeHeadGrid (grid $ test3 ) ) ) (snd <$> (flows tes
 fun = (jacobianEqNodeHeadGrid testGrid ) ((fmap snd $ flows testIter )++  (fmap snd $ nodeHeads testIter))
 
 
-
+{-
 cgrid1,cgrid2,cgrid3 :: (Diagram B R2,(S.Set Int,S.Set Int ,M.Map Int (P2,Double)))
 cgrid2 = runState (renderGrid emap (11 :: Int)  0 t1) (mempty,mempty,M.singleton 121 (p2 (0,0) , 0))
   where t1 = Right (S.empty ,(121,Tee (TeeConfig [12,10,11] 1 1 1 1 )) :: (Int,Element Double))
@@ -207,7 +208,7 @@ cgrid3 = runState (renderGrid emap (11 :: Int)  0 t1) (mempty,mempty,M.singleton
                 ,(13 ,Left (13,122,124,[Tubo Nothing 1 0 , Joelho undefined undefined DRight undefined  ,Tubo Nothing 1 0 ] ))
                 , (14,Left (14,122,125,[Tubo Nothing 1 0]))
                 ,(125,Right (125,Open 1 ))]
-
+-}
 
 totalHead a p va =   p/(g*rho) + v^2/(2*g)
   where g = 9.81
@@ -219,10 +220,10 @@ data CyclePoint a b
   | BranchLink b
   deriving(Eq,Show,Ord)
 
-drawGrid :: Iteration Double -> (Diagram B R2,(S.Set Int,S.Set Int ,M.Map Int (P2,Double)))
-drawGrid a = runState (renderGrid gmap 212  (1/4) (var 31 gmap ) ) (mempty,mempty,M.singleton 212 (p2 (0,0) ,1/4))
+drawGrid :: Iteration Double -> (Diagram B R2,([Double],S.Set Int,S.Set Int ,M.Map Int (P2,Double)))
+drawGrid a = runState (renderGrid gmap 212  (1/4) (var 31 gmap ) ) ([maximum $ fmap (abs.snd) $  (flows a),minimum $ fmap (abs.snd) $ (flows a)  ],mempty,mempty,M.singleton 212 (p2 (0,0) ,1/4))
   where
-    gmap = (Left <$> M.fromList (fmap (\l@(li,_,_,_)-> (li,l) ) $ links $ grid a)) <> (Right <$> M.fromList (findNodesLinks (grid a) $ fmap (\n@(ni,_) -> (ni,n)) $nodesFlow $ grid a ))
+    gmap = (Left <$>  (M.fromList (fmap (\l@(li,_,_,_)-> (li,(var li (M.fromList (flows a)),l)) ) $ links $ grid a))) <> (Right <$> M.fromList (findNodesLinks (grid a) $ fmap (\n@(ni,_) -> (ni,n)) $nodesFlow $ grid a ))
 
 
 expandGrid a = runState (recurseNode  [] (lookNode (fst $ head sortedHeads))) (S.empty,S.empty)

@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs,FlexibleContexts,RankNTypes,TupleSections,RecursiveDo, NoMonomorphismRestriction #-}
+{-# LANGUAGE GADTs,UnicodeSyntax,FlexibleContexts,RankNTypes,TupleSections,RecursiveDo, NoMonomorphismRestriction #-}
 module Diagram where
 
 import Grid
@@ -33,12 +33,12 @@ renderGrid
      M.Map
        Int
        (Either
-          (Int, Int, Int, [Element Double]) (S.Set Int, (Int, Element t)))
+          (Double,(Int, Int, Int, [Element Double])) (S.Set Int, (Int, Element t)))
      -> Int
      -> Double
      -> Either
-          (Int, Int, Int, [Element Double]) (S.Set Int, (Int, Element t))
-     -> StateT (S.Set Int, S.Set Int, M.Map Int (P2,Double)) m (Diagram b R2)
+          (Double,(Int, Int, Int, [Element Double])) (S.Set Int, (Int, Element t))
+     -> StateT ([Double],S.Set Int, S.Set Int, M.Map Int (P2,Double)) m (Diagram b R2)
 renderGrid env l r (Right (s,(n,Open i))) = do
   visitNode n
   return $ rotateBy r $ text (show n) # fontSizeL 0.1 # fc white <> circle 0.1 # fc green # lwL 0.04
@@ -46,7 +46,7 @@ renderGrid env l r (Right (s,(n,Open i))) = do
 renderGrid env l r (Right (s,(n,Sprinkler _ _ _ _) )) = do
     let [h] = S.toList $ S.delete l  s
     visitNode n
-    (visited,visitedNode,_) <- get
+    (i,visited,visitedNode,_) <- get
     g <- if S.member h visited then return mempty else renderGrid env n 0 (var  h env)
     return $ rotateBy r $ sp <> g
   where
@@ -57,37 +57,37 @@ renderGrid env l  r (Right (s,(n,Tee (TeeConfig tc@[rl,b,rr] _ _ _ _)) ))
     visitNode n
     rre <- trav 0  rr
     be <- trav (-1/4) b
-    return $ rotateBy r $   sp <>  be <>  rre
+    return $ rotateBy r $   rotateBy (1/4) sp <>  be <>  rre
   | rr == l = do
     visitNode n
     rle  <- trav 0 rl
     be <-  trav (1/4) b
-    return $  rotateBy r $  sp <>  be <>  rle
+    return $  rotateBy r $  rotateBy (-1/4) sp <>  be <>  rle
   | b == l = do
     visitNode n
     rre <- trav (-1/4) rr
     rle  <- trav (1/4 ) rl
     return $ rotateBy r $  sp <> rre <>  rle
   where
-    sp = text (show n ) # fontSizeL 0.2 # fc black <> circle 0.2 # fc red # lwL 0.04
-    trav :: (Renderable (Diagrams.Prelude.Path R2)  b ,Renderable Text b ,Monad m) => Double -> Int -> StateT (S.Set Int, S.Set Int, M.Map Int (P2,Double)) m (Diagram b R2)
+    sp = text (show n ) # fontSizeL 0.2 # fc black <> rotateBy (1/4) (triangle 0.4) # fc red # lwL 0.04
     trav ri i =  do
-        (visited,_,_) <- get
+        (_,visited,_,_) <- get
         if S.member i visited then return mempty else renderGrid env n ri (var i env)
 
-renderGrid env n r (Left (l,h,t,e))
+renderGrid env n r (Left (fs,(l,h,t,e)))
   | n == h =  do
-    path t e
+    path fs t e
   | n == t = do
-    path h (revElems e)
+    path  (-fs) h (revElems e)
   where
-    path h e = do
-        (visited,visitedNode,nodeMap) <- get
+    path f h e = do
+        ([maxf,minf],visited,visitedNode,nodeMap) <- get
         let dist =  translate (p2r ( rotateBy (r + snd (var n nodeMap)) ( L.foldr offset (p2 (0,0)) e))) (fst $ var n nodeMap)
+            nf = abs f/(maxf-minf)
         g <- nextNode (angle e) dist h
-        return $  rotateBy r $ foldr renderLink  g e
+        return $  rotateBy r $ foldr (renderLink (f,nf)) g e
     nextNode  a dist h = do
-        (visited,visitedNode,nodeMap) <- get
+        (i,visited,visitedNode,nodeMap) <- get
         visitLink l
         if  not $ S.member h visitedNode
           then do
@@ -98,12 +98,15 @@ renderGrid env n r (Left (l,h,t,e))
                then {-traceShow (show l <> " exact union point " <> show h <> " " <> show dist <> " == " <>  show (var h nodeMap))  $-}return mempty
                else traceShow (show l <> " non exact union point " <> show h <> " " <> show dist <> " /= " <>  show (var h nodeMap)) $ return errorCross
 
-    renderLink t@(Tubo _ c _) o =  offset t  o <> (line <> label)
+    renderLink (f,nf) t@(Tubo _ c _) o =  offset t  o <> (line <> label <> dlabel <> llabel <> flabel)
       where label = translate (r2 (c/2,0.12)) ( text (show l)) # fontSizeL 0.2 # fc black
-            line = fromOffsets [realToFrac c * unitX ] # lwL 0.04
-    renderLink j@(Joelho _ _ _ _ ) l = joelho <> offset j  l
+            dlabel = translate (r2 (c/2,-0.15)) ( text (  show (1000* (fromJust $ diametroE t)) ++ " cm" )) # fontSizeL 0.2 # fc black
+            llabel = translate (r2 (c/2,-0.40)) ( text (  show (1000*  c ) ++ " cm" )) # fontSizeL 0.2 # fc black
+            flabel = translate (r2 (c/2,0)) (if f > 0 then ahead else reflectX ahead )<> translate (r2 (c/2,-0.65)) ( text (  (formatFloatN 2 f) ++ "L/min" )) # fontSizeL 0.2 # fc black
+            line = fromOffsets [realToFrac c * unitX ] # lwL 0.04# opacity (0.3 + 0.7*nf) # lc darkblue
+    renderLink f j@(Joelho _ _ _ _ ) l = joelho <> offset j  l
      where joelho = circle 0.1 # fc blue # lwL 0.04
-    renderLink i j = j
+    renderLink f i j = j
     offset (Tubo _ c _) o =  translate (r2 (c,0)) o
     offset (Joelho _ _ DRight  _ ) l = rotateBy (1/4) l
     offset (Joelho _ _ DLeft _ ) l = rotateBy (-1/4) l
@@ -125,9 +128,11 @@ revElems = reverse .(fmap revElem)
 
 
 errorCross =  rotateBy (1/8) ( hrule 0.5 <> vrule 0.5 ) # lc red # lwL 0.08
+ahead =   reflectX $ (rotateBy (1/8) (fromOffsets[0.20*unitX]) <>  reflectY (rotateBy (1/8) $fromOffsets[0.20*unitX] ))# lwL 0.04
+
 
 p2r = r2 . unp2
 
-visitNode n = modify (<> (mempty,S.singleton n,mempty))
-visitLink n = modify (<> (S.singleton n,mempty,mempty))
-markNode n c = modify (<> (mempty,mempty,traceShowId $ M.singleton n c))
+visitNode n = modify (<> (mempty,mempty,S.singleton n,mempty))
+visitLink n = modify (<> (mempty,S.singleton n,mempty,mempty))
+markNode n c = modify (<> (mempty,mempty,mempty,traceShowId $ M.singleton n c))

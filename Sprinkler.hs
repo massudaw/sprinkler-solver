@@ -9,9 +9,6 @@ import Element
 import Data.Maybe
 import Data.Monoid
 import Tee
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.IO as T
 import qualified Data.Foldable as F
 import Data.Foldable ( Foldable)
 import Data.Packed.Matrix(Matrix)
