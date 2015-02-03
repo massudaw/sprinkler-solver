@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction,TypeFamilies,TupleSections ,RankNTypes #-}
+{-# LANGUAGE DeriveFunctor,NoMonomorphismRestriction,TypeFamilies,TupleSections ,RankNTypes #-}
 module Grid where
 
 import Debug.Trace
@@ -26,13 +26,11 @@ data Orientation
 
 data Grid a
   = Grid
-  {
-   links :: [(Int,Int,Int,[Element a])]
+  { links :: [(Int,Int,Int,[Element a])]
   , shead :: [(Int,a)]
   , nodesFlow :: [(Int,Element a)]
   , paths :: [(Int,[Int])]
-  , unitSystem :: UnitSystem a
-  }deriving(Show)
+  }deriving(Show,Functor)
 
 
 data Iteration a
@@ -40,16 +38,7 @@ data Iteration a
   { flows :: [(Int,a)]
   , nodeHeads :: [(Int,a)]
   , grid :: Grid a
-  }deriving(Show)
-
-
-data CircuitDrawer a
-  = DrawerState
-  { nodesState :: [(Int,Element a)]
-  , linksState :: [(Int,Int,Int,Element a)]
-  , nodeId :: Int
-  , linkId :: Int
-  }
+  }deriving(Show,Functor)
 
 
 isTee (Tee _ ) = True
@@ -72,16 +61,11 @@ nodeFlowsHeads grid vm h e@(ni,Open v ) = (e,[(v,var ni h )])
 pipeFHIter (Iteration vm h grid) = fmap (pipeFlowsHeads grid (M.fromList vm ) (M.fromList h) ) $ links grid
 
 pipeFlowsHeads grid vm h e@(ni,th,tt,tubo) = (e,(var ni vm,) . pipeElement grid (var ni vm) <$>  tubo)
-
-instance Show  (UnitSystem a )where
-  show = unitName
-
-data UnitSystem a
-  = UnitSystem { unitName :: String , tubo :: Element a -> a }
-
+{-
 feet ,metric ::(Show a,Ord a,Floating a) => UnitSystem a
 metric  = UnitSystem "Metric" ktubo
 feet = UnitSystem "Feet" ftubo
+-}
 
 ftubo t  = perda
         where
@@ -97,7 +81,7 @@ ktubo t  = perda*10/(1000*60)**1.85
               perda = 10.65*(distanciaE t)/((c**1.85)*(d**4.87))
 
 -- Mass Continuity Test
-continuity (Iteration q nh  (Grid  l _ f p _ )) = fmap (\(i,f) -> sumn (flipped i l) + suma (correct i l)  - nflow i)  f
+continuity (Iteration q nh  (Grid  l _ f p  )) = fmap (\(i,f) -> sumn (flipped i l) + suma (correct i l)  - nflow i)  f
   where flipped i=  filter (\(_,h,t,_) -> h == i )
         correct i= filter (\(_,h,t,_) -> t == i )
         nflow i = genFlow i $ var i $ M.fromList f
@@ -120,7 +104,15 @@ jacobianEqNodeHeadGrid l vh = loops <> nodes
           v = M.fromList $ zip (fmap (\(i,_,_,_) -> i) $ links l)  $ take nlinks vh
           h = M.fromList $ zip ( fmap fst $ nodesFlow l) $ drop nlinks vh
 
-solveIter :: (forall a . (Show a ,Ord a,Floating a) => Iteration a) -> (forall b. (Show b, Ord b, Floating b) => Grid b -> [b] -> [b] ) -> (Iteration Double)
+{-
+solveIterD :: (forall a . (Show a , Ord a , Floating a ) => Iteration  a ) -> (forall b. (Show b, Ord b, Floating b) => Grid b -> [b] -> [b] ) -> Iteration Double
+solveIterD iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid iter) $ take fl res) (zip (fmap fst $ nodesFlow $ grid iter)  $ drop fl res) (grid iter)
+  where
+    fl = length (flows iter)
+    res = fst . rootJ GNewton 1e-5 100 (modeler (grid iter) ) (jacobian (modeler (grid iter)  ) )  $ (snd <$> flows iter <> nodeHeads iter )
+-}
+
+solveIter :: (forall a . (Show a , Ord a , Floating a ) => Iteration  a ) -> (forall b. (Show b, Ord b, Floating b) => Grid b -> [b] -> [b] ) -> (Iteration Double)
 solveIter iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid iter) $ take fl res) (zip (fmap fst $ nodesFlow $ grid iter)  $ drop fl res) (grid iter)
   where
     fl = length (flows iter)
@@ -159,7 +151,7 @@ iterEquation l g  = foldr1 (+) (term (M.fromList l) <$> g)
     term m (l,(CounterClock,(_,_,e))) =  negate $ showTubo (var l m) e
 -}
 
-energyConservation (Grid l _ _ p _ ) =  fmap (fmap pathEq) p
+energyConservation (Grid l _ _ p  ) =  fmap (fmap pathEq) p
   where
     labelLinks l = reverse $ foldl (\ xl@(t:xs) h->  (match h t):xl) [(Clock,head l) ] (tail l)
     match (i,j,e) (d,(m,n,_))  | i == n = (Clock,(i,j,e))
@@ -167,7 +159,6 @@ energyConservation (Grid l _ _ p _ ) =  fmap (fmap pathEq) p
     pathEq l = zip l $ labelLinks $ fmap (\li -> var  li linkMap ) l
     linkMap  = M.fromList $ fmap (\(l,h,t,e)-> (l,(h,t,e)))  l
 
-tuboGrid  = tubo . unitSystem
 
 
 pipeElement grid v (Bomba  (Just (pn,vn)) (Poly l ) _ _ ) = negate $ (*pn) $ (/100)  $foldr1 (+) (polyTerm <$> l)
@@ -178,8 +169,8 @@ pipeElement grid v (Bomba  _ (Poly l ) _ _ ) = negate $ foldr1 (+) (polyTerm <$>
             polyTerm (p,c) =   c*v**p
 pipeElement grid v e | v < 0 = negate $ pipeElement grid (abs v) e
 pipeElement grid v e@(Resistive k p)  = k*v**p
-pipeElement grid v e@(Tubo _ _ _)  = (tuboGrid grid e)*v**1.85
-pipeElement grid v e@(Joelho _ _ _ _)  = (tuboGrid grid e)*v**1.85
+pipeElement grid v e@(Tubo _ _ _)  = (ktubo e)*v**1.85
+pipeElement grid v e@(Joelho _ _ _ _)  = (ktubo e)*v**1.85
 
 
 
@@ -192,7 +183,7 @@ jacobianConservation grid  l  = (\g -> foldr1 (+) (term l <$> g)) <$> gs
     term m (l,(CounterClock,(h,t,e))) = maybe id  (flip (-)) (M.lookup h  (M.fromList $ shead grid)) $ maybe id  (+) (M.lookup t  (M.fromList $ shead grid)) $ sum $ negate . pipeElement grid (var l m) <$> e
 
 signedFlow :: Floating a => Grid a -> M.Map Int a ->M.Map Int (M.Map Int a)
-signedFlow (Grid l _  f p _) v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromList $ ( ( sumn $ flipped i l) ++   ((suma $ correct i l))) ) f
+signedFlow (Grid l _  f p ) v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromList $ ( ( sumn $ flipped i l) ++   ((suma $ correct i l))) ) f
   where flipped i=  filter (\(_,h,t,_) -> h == i )
         correct i= filter (\(_,h,t,_) -> t == i )
         suma =  fmap (\(li,_,_,_) -> (li,var li v ))
@@ -200,7 +191,7 @@ signedFlow (Grid l _  f p _) v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromLis
 
 
 jacobianContinuity :: (Ord a,Floating a )=> Grid a -> M.Map Int a ->M.Map Int a -> [a]
-jacobianContinuity (Grid l _  f p _) v pm = fmap (\(i,_) -> sum ( sumn $ flipped i l) +  (sum (suma $ correct i l))  - nflow i) f
+jacobianContinuity (Grid l _  f p ) v pm = fmap (\(i,_) -> sum ( sumn $ flipped i l) +  (sum (suma $ correct i l))  - nflow i) f
   where flipped i=  filter (\(_,h,t,_) -> h == i )
         correct i= filter (\(_,h,t,_) -> t == i )
         nflow i = genFlow i $ var i $ M.fromList f

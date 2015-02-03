@@ -15,8 +15,8 @@ build-type:          Simple
 -- extra-source-files:  
 cabal-version:       >=1.10
 
-executable incendio
-  main-is:             Test.hs
+library 
+  -- main-is:             Test.hs
   -- other-modules:       
   -- other-extensions:    
   ghc-options :   -O2 -threaded
@@ -30,5 +30,14 @@ executable incendio
                       , diagrams-core
                       , diagrams-svg
                       , diagrams-lib
+                      , data-kiln
   -- hs-source-dirs:      
+  exposed-modules : 
+       Sprinkler
+      ,Grid
+      ,Diagram
+      ,Element
+      ,Lint
+      ,Tee
+      ,Test
   default-language:    Haskell2010

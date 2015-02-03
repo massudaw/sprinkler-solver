@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor,DeriveFoldable #-}
 module Element where
 import Data.Foldable
 import qualified Data.Map as M
@@ -18,6 +18,10 @@ data TeTipo
 
 data Curva a = Curva (a -> a)
            | Poly [(a,a)]
+
+instance Functor Curva  where
+  -- fmap f (Curva l )  = Curva $ fmap f  l
+  fmap f (Poly l ) = Poly $ fmap (\(i,j) -> (f i,f j)) l
 
 instance Eq (Curva  a) where
   _ == _ = True
@@ -91,7 +95,7 @@ data Element a
   }
   | RamalElement
   { pathElement :: [Element a]
-  }deriving(Eq,Show)
+  }deriving(Eq,Show,Functor)
 
 data Node a
   = Node
@@ -130,7 +134,7 @@ data TeeConfig a
   , teeDiameterRun :: a
   , teeMaterial :: a
   }
-  deriving(Eq,Ord,Show)
+  deriving(Eq,Ord,Show,Functor)
 
 diametroE :: Element a -> Maybe a
 diametroE (Tubo d _ _ ) = d
