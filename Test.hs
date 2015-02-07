@@ -143,13 +143,13 @@ rt = do
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
   printMatrix ( fst $ expandGrid iter)
-  mainWith (fst $ drawGrid  8 1 iter :: Diagram B R2)
+  mainWith (assembleMap $ drawGrid  8 1 iter :: Diagram B R2)
 
 rt1 = do
   let iter = solveIter testIter2 jacobianEqNodeHeadGrid
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
-  mainWith (fst $ drawGrid  212 31 iter :: Diagram B R2)
+  mainWith (assembleMap $ drawGrid  212 31 iter :: Diagram B R2)
 
 main =  do
   let  elems = elementsFHIter  iter
@@ -157,7 +157,7 @@ main =  do
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
   printMatrix ( fst $ expandGrid iter)
-  mainWith (fst $ drawGrid  212 31 iter :: Diagram B R2)
+  mainWith (assembleMap $ drawGrid  212 31 iter :: Diagram B R2)
 
 jac = (jacobian (jacobianEqNodeHeadGrid testGrid ) ) ((fmap snd $ flows testIter )++  (fmap snd $ nodeHeads testIter))
 
@@ -166,48 +166,6 @@ jac2 = (jacobian (jacobianEqNodeHeadGrid (grid $ testIter2) ) ) ((fmap snd $ flo
 jac3 = (jacobian (jacobianEqNodeHeadGrid (grid $ test3 ) ) ) (snd <$> (flows test3)++  (nodeHeads test3))
 fun = (jacobianEqNodeHeadGrid testGrid ) ((fmap snd $ flows testIter )++  (fmap snd $ nodeHeads testIter))
 
-
-{-
-cgrid1,cgrid2,cgrid3 :: (Diagram B R2,(S.Set Int,S.Set Int ,M.Map Int (P2,Double)))
-cgrid2 = runState (renderGrid emap (11 :: Int)  0 t1) (mempty,mempty,M.singleton 121 (p2 (0,0) , 0))
-  where t1 = Right (S.empty ,(121,Tee (TeeConfig [12,10,11] 1 1 1 1 )) :: (Int,Element Double))
-        emap = (fmap (fmap (S.empty,))) $ M.fromList
-                [(10 , Left (10,121,122,[Tubo  Nothing 1 0 :: Element Double])),(12, Left (12,121,123,[Tubo  Nothing 2 0]))
-                ,(123,Right (123,Open 1 ))
-                ,(124,Right (124,Open 1 :: Element Double))
-                ,(122,Right (122,Tee (TeeConfig [13,10,14] 1 1 1 1)))
-                ,(124,Right (124,Tee (TeeConfig [13,15,14] 1 1 1 1)))
-                ,(13 ,Left (13,124,122,[Tubo Nothing 1 0 , Joelho undefined undefined DRight undefined  ,Tubo Nothing 1 0 , Joelho undefined undefined DRight undefined  ,Tubo Nothing 1 0] ))
-                ,(14 ,Left (14,124,122,[Tubo Nothing 1 0 , Joelho undefined undefined DLeft undefined  ,Tubo Nothing 1 0, Joelho undefined undefined DLeft undefined  ,Tubo Nothing 1 0 ] ))
-                , (15,Left (15,124,125,[Tubo Nothing 0.5 0]))
-                ,(125,Right (125,Open 1 ))]
-
-
-cgrid1 = st
-  where st = runState (renderGrid emap (11 :: Int)  0 t1)  (mempty,mempty,M.singleton 121 (p2 (0,0),0))
-        t1 = Right (S.empty ,(121,Tee (TeeConfig [12,10,11] 1 1 1 1 )) :: (Int,Element Double))
-        emap = (fmap (fmap (S.empty,))) $ M.fromList
-                [(10 , Left (10,121,122,[Tubo  Nothing 1 0 :: Element Double])),(12, Left (12,121,123,[Tubo  Nothing 2 0]))
-                ,(123,Right (123,Open 1 ))
-                ,(124,Right (124,Open 1 :: Element Double))
-                ,(122,Right (122,Tee (TeeConfig [13,10,14] 1 1 1 1)))
-                ,(124,Right (124,Tee (TeeConfig [14,15,13] 1 1 1 1)))
-                ,(13 ,Left (13,124,122,[Tubo Nothing 1 0 , Joelho undefined undefined DRight undefined  ,Tubo Nothing 1 0 , Joelho undefined undefined DRight undefined  ,Tubo Nothing 1 0] ))
-                ,(14 ,Left (14,124,122,[Tubo Nothing 1 0 , Joelho undefined undefined DLeft undefined  ,Tubo Nothing 1 0, Joelho undefined undefined DLeft undefined  ,Tubo Nothing 1 0 ] ))
-                , (15,Left (15,124,125,[Tubo Nothing 0.5 0]))
-                ,(125,Right (125,Open 1 ))]
-
-cgrid3 = runState (renderGrid emap (11 :: Int)  0 t1) (mempty,mempty,M.singleton 121 (p2 (0,0) ,0))
-  where t1 = Right ((S.empty ,(121,Tee (TeeConfig [12,10,11] 1 1 1 1 )) :: (Int,Element Double)))
-        emap = (fmap (fmap (S.empty,))) $M.fromList
-                [(10 , Left (10,121,122,[Tubo  Nothing 1 0 :: Element Double])),(12, Left (12,121,123,[Tubo  Nothing 2 0]))
-                ,(123,Right (123,Open 1 ))
-                ,(124,Right (124,Open 1 :: Element Double))
-                ,(122,Right (122,Tee (TeeConfig [13,10,14] 1 1 1 1)))
-                ,(13 ,Left (13,122,124,[Tubo Nothing 1 0 , Joelho undefined undefined DRight undefined  ,Tubo Nothing 1 0 ] ))
-                , (14,Left (14,122,125,[Tubo Nothing 1 0]))
-                ,(125,Right (125,Open 1 ))]
--}
 
 totalHead a p va =   p/(g*rho) + v^2/(2*g)
   where g = 9.81
@@ -219,14 +177,34 @@ data CyclePoint a b
   | BranchLink b
   deriving(Eq,Show,Ord)
 
-drawGrid :: Int -> Int -> Iteration Double -> (Diagram B R2,([Double],S.Set Int,S.Set Int ,M.Map Int (R2,Double)))
+data DesignRegion
+  = DesignRegion
+  { activeNodes :: [Int]
+  -- , area :: Double
+  }
+
+nodesFlowSet g = findNodesLinks g $ fmap (\n@(ni,_) -> (ni,n)) $nodesFlow $ g
+
+enableSprinklers d (Iteration n f g)  = Iteration n f (Grid  (links g) (shead g) (fmap nodes2  (nodesFlow g)) (paths g))
+  where k =S.fromList $  activeNodes d
+        nodes2 (i,s@(Sprinkler _ _ _ _)) =  (i,if S.member i k then s else Open 0)
+        nodes2 i = i
+
+assembleMap (i,(_,j,l) ) = nds <> lds
+  where
+    nds = foldr1 mappend $  fmap ((\(DiagramElement r a o )-> translate r $ rotateBy a o). snd )  $  (M.toList j)
+    lds = foldr1 mappend $  concat $ fmap (fmap (\(DiagramElement r a o )-> translate r $ rotateBy a o). snd )  $  (M.toList l)
+
+
+drawGrid :: Int -> Int -> Iteration Double -> ((),([Double],M.Map Int (DiagramElement (Diagram B R2)) ,M.Map Int [DiagramElement (Diagram B R2)]))
 drawGrid ni li a = runState (do
-                              e <- renderElem (var ni nmap)
-                              i <- renderGrid lmap nmap ni (1/4) (Left $ var li lmap )
-                              return $ e <> i          ) ([maximum $ fmap (abs.snd) $  (flows a),0{-minimum $ fmap (abs.snd) $ (flows a) -} ],mempty,mempty,M.singleton ni (0 ,1/4))
+                      let e = renderElem [maximum $ fmap (abs.snd) $  (flows a),0] (var ni nmap)
+                      markNode ni (DiagramElement 0 (1/4) e)
+                      renderGrid lmap nmap ni (0,1/4) (Left $ var li lmap ))
+                        ([maximum $ fmap (abs.snd) $  (flows a),0],mempty,mempty)
   where
     lmap = M.fromList (fmap (\l@(li,_,_,_)-> (li,(var li (M.fromList (flows a)),l)) ) $ links $ grid a)
-    nmap = M.fromList (findNodesLinks (grid a) $ fmap (\n@(ni,_) -> (ni,(var ni (M.fromList (nodeHeads a)),n))) $nodesFlow $ grid a )
+    nmap = M.fromList (findNodesLinks (grid a) $ fmap (\n@(ni,_) -> (ni,(var ni (M.fromList (nodeHeads a)),n))) $ (nodesFlow $ grid a) ++ ( fmap (\l -> Open 0) <$> shead (grid a) ))
 
 
 expandGrid a = runState (recurseNode  [] (lookNode (fst $ head sortedHeads))) (S.empty,S.empty)
