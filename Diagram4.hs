@@ -29,6 +29,7 @@ import Diagrams.TwoD.Text (Text)
 
 import Control.Lens hiding(transform)
 
+import Data.Void
 
 renderElemMecha  _ (_,(_,(_,Open i))) = Mecha.color (0,1,0,1) $ Mecha.sphere 0.1
 renderElemMecha  _ (_,(_,(_,Reservatorio _ _ i))) = Mecha.color (1,1,1,1) $ Mecha.sphere 0.5
@@ -80,6 +81,53 @@ instance Target  Mecha.Solid where
   renderLink = renderLinkMecha
   errorItem = Mecha.torus 0.2 0.1
   transformElement (r,(ax,ay,az))= Mecha.moveX (r ^. _x) . Mecha.moveY (r ^. _y) . Mecha.moveZ (r ^. _z) . Mecha.rotateX (ax *2*pi) . Mecha.rotateY (ay *2*pi) . Mecha.rotateZ (az *2*pi)
+
+{-locateGrid
+  :: (Target  a , Monad m)  =>
+     M.Map
+       Int
+          (Double,(Int, Int, Int, [Element Double]))
+     ->M.Map
+        Int
+          (S.Set Int, (Double,(Int, Element Double)))
+     -> Int
+     -> (R3,(Double,Double,Double))
+     -> Either
+          (Double,(Int, Int, Int, [Element Double])) (S.Set Int, (Double,(Int, Element Double)))
+     -> StateT ([Double], M.Map Int (DiagramElement a ), M.Map Int [DiagramElement a]) m ()-}
+locateGrid lmap nmap l r (Right oe@(s,(e@(n,_)))) = do
+  let
+      t = thisElement l (s,e)
+  modify (<> (M.singleton n (DiagramElement (fst r + fst t) (snd r + snd t) 0)))
+  let trav (ri,ai) i =  do
+        let pos = (fst r + ri ,snd r  + ai)
+        maybe (return ()) (locateGrid lmap nmap n pos ) (Left <$> varM i lmap )
+  mapM (\(DiagramElement r a i) -> trav (r,a) i) (nextElement l (s,e))
+  return ()
+locateGrid lmap nmap n r ll@(Left (l,h,t,e))
+  | n == h =  do
+    path t e
+  | n == t = do
+    path  h (revElems e)
+  | otherwise = error $ "wrong back element " <> show n  <> " " <> show ll
+  where
+    path  h e = do
+        let
+            sn = scanl transEleml r e
+            lk = fmap (\(p,a) -> DiagramElement   p a 0) sn
+        nextNode  (last sn) h
+        return ()
+    nextNode  pos@(dist ,a) h = do
+        (visitedNode) <- get
+        if  not $ M.member h visitedNode
+          then do
+            maybe (return () ) (locateGrid lmap nmap l pos) (Right <$> varM h nmap)
+          else
+              if  distance (r2p dist)  (r2p ( dpos $ var h visitedNode)) < 1e-2
+               then {-traceShow (show l <> " exact union point " <> show h <> " " <> show dist <> " == " <>  show (var h nodeMap))  $-}return ()
+               else traceShow (show l <> " non exact union point " <> show h <> " " <> show dist <> " /= " <>  show (var h visitedNode)) $ (return ())
+
+
 
 renderGrid
   :: (Target  a , Monad m)  =>
@@ -174,8 +222,6 @@ revElems = reverse .fmap revElem
     revElem (Joelho i j (DUp r) k)  =  (Joelho i j (DDown (-r)) k)
     revElem (Joelho i j (DDown r) k)  =  (Joelho i j (DUp (-r)) k)
     revElem i = i
-
-
 
 
 

@@ -213,7 +213,7 @@ jacobianNodeHeadEquation grid  vm nh =  term <$> l
     sflow = signedFlow grid vm
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,h,t,e) =   sum ( pipeElement grid (var l vm) <$> e) - ( varn h nh  + varn h nhs )  +  addTee (h,l) + addTee (t,l) + ( varn t nhs + varn t nh )
+    term (l,h,t,e) =   sum ( pipeElement grid (var l vm) <$> e) - ( varn h nh  + varn h nhs*9.81 )  +  addTee (h,l) + addTee (t,l) + ( (varn t nhs*9.81) + varn t nh )
       where
          nhs = (M.fromList $shead grid)
 

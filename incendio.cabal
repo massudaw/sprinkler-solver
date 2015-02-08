@@ -33,6 +33,7 @@ library
                       , data-kiln
                       , mecha
                       , lens
+                      , void
   -- hs-source-dirs:      
   exposed-modules : 
        Test

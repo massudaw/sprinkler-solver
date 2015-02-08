@@ -18,6 +18,7 @@ import Control.Monad.Trans.State
 import Control.Monad
 import Diagram4
 
+import Control.Lens
 import Data.Traversable (traverse)
 
 import Diagrams.Prelude
@@ -35,7 +36,7 @@ jd dir d = Joelho (Just d) ("Conexao","Joelho","90")  dir 100
 
 
 test3 :: (Show a ,Ord a,Floating a )=> Iteration a
-test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  nodes )   (repeat 100) ) grid
+test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  nodes )   (repeat 100) ) (realToFrac  <$>  upgradeGrid 212 31 grid)
   where
         grid = (Grid  links snodes nodes [] )
         sp i = (i,Sprinkler (Just (0.013,8))  (Just 0.025) 12 6.1)
@@ -204,6 +205,16 @@ assembleMap (i,(_,j,l) ) = traceShow (j) $ nds <> lds
   where
     nds = foldr1 (<>) $  fmap ((\(DiagramElement r a o )-> transformElement (r,a) o). snd )  $  (M.toList j)
     lds = foldr1 (<>) $  concat $ fmap (fmap (\(DiagramElement r a o )-> transformElement (r,a)  o). snd )  $  (M.toList l)
+
+-- upgradeGrid :: Int -> Int -> Grid Double -> [(Int,Double)]
+upgradeGrid ni li a = a {shead = fmap (\(i,v) -> (i,v - (minimum $ fmap snd heads))) heads }
+  where
+    heads = M.toList . fmap ((^._z) . dpos) $ snd $ runState (do
+                      modify (<> (M.singleton ni (DiagramElement 0 (0,0,1/4) 0)))
+                      locateGrid lmap nmap ni (0,(0,0,1/4)) (Left $ var li lmap ))
+                        mempty
+    lmap = M.fromList (fmap (\l@(li,_,_,_)-> (li,l))  $ links a)
+    nmap = M.fromList (findNodesLinks a $ fmap (\n@(ni,_) -> (ni,n)) $ (nodesFlow a) )
 
 
 drawGrid :: Target a => Int -> Int -> Iteration Double -> ((),([Double],M.Map Int (DiagramElement a) ,M.Map Int [DiagramElement a]))
