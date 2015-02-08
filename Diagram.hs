@@ -17,8 +17,9 @@ import Data.Ord
 import Control.Monad.Trans.State
 import Control.Monad
 import Data.Foldable (foldMap)
-
 import Data.Traversable (traverse)
+import Language.Mecha.Types
+import Language.Mecha.Solid
 
 
 import Diagrams.Prelude hiding (trace,offset)
@@ -26,6 +27,17 @@ import Diagrams.Backend.SVG.CmdLine
 import Diagrams.TwoD.Text (Text)
 
 
+
+renderElemMecha  _ (_,(_,(_,Open i))) = color (0,1,0,1) $ sphere 0.1
+renderElemMecha  _ (_,(_,(_,Tee (TeeConfig _ r i j _ ) ))) = color (1,0,0,1) $ rotateY (-pi/2) $ moveZ (-0.5*j) $ cone i (2*j) (2*j)
+renderElemMecha  [maxf,minf] (_,(p,(_,Sprinkler (Just (d,k)) _ _ _))) = color (0,0,1,0.3 + 0.7*nf) $ sphere 0.15
+  where
+        nf = (k*sqrt p)/(maxf -minf)
+renderElemMecha  _ i = error $ show i
+
+renderLinkMecha (f,nf)  _ (Tubo (Just d)  c _ ) = color (0.2,0.2,1, 0.3 +0.7*nf) $ rotateY (pi/2) $ cylinder d c
+renderLinkMecha _ _ (Joelho (Just d)  c _  _  ) = sphere d
+renderLinkMecha _ _  i = sphere 0.05
 
 renderElem
   ::
@@ -46,7 +58,7 @@ renderLinkSVG :: (Renderable Text b,
                       (Double,Double)
                       -> Int
                       -> Element Double
-                      -> Diagram b R2 -- Diagram b R2
+                      -> Diagram b R2
 renderLinkSVG (f,nf) l t@(Tubo _ c _) =   (line <> foldr1 mappend (zipWith (\i j-> translate (r2 (c/2,(0.4 - 0.2*i ))) j ) [0..] [label , dlabel , llabel , flabel]))
   where
     label  = text (show l) # fontSizeL 0.2 # fc black
@@ -79,21 +91,27 @@ nextElement l (p,(n,Tee (TeeConfig [rl,b,rr] _ _ _ _)) )
   | b == l =  [DiagramElement 0 (-1/4) rr, DiagramElement 0 (1/4) rl]
 
 
-data Threepenny
 
 class Target a where
   renderNode :: [Double] -> (S.Set Int,(Double,(Int,Element Double))) -> a
   renderLink ::  (Double,Double) ->  Int -> Element Double -> a
   errorItem :: a
+  transformElement  :: (R2,Double) -> a -> a
 
 instance Target (Diagram SVG R2) where
   renderNode = renderElem
   renderLink = renderLinkSVG
   errorItem = errorCross
+  transformElement (r,a) = translate r . rotateBy a
 
+instance Target Solid where
+  renderNode = renderElemMecha
+  renderLink = renderLinkMecha
+  errorItem = torus 0.2 0.1
+  transformElement (r,a)= moveX (fst $ unr2 r) . moveY (snd $unr2 r) . rotateZ (a*2*pi)
 
 renderGrid
-  :: (Monoid a,Target a , Monad m)  =>
+  :: (Target a , Monad m)  =>
      M.Map
        Int
           (Double,(Int, Int, Int, [Element Double]))
@@ -128,7 +146,7 @@ renderGrid lmap nmap n r ll@(Left (fs,(l,h,t,e)))
         let
             nf = abs f/(maxf-minf)
             sn = scanl transEleml r e
-            lk = zipWith (\(p,a) j -> DiagramElement   p a j) sn ( fmap (renderLink (f,nf) l) e)
+            lk = zipWith (\(p,a) j -> DiagramElement   p a j) sn (renderLink (f,nf) l <$>  e)
         markLink l lk
         nextNode  (last sn) h
         return ()
@@ -136,14 +154,14 @@ renderGrid lmap nmap n r ll@(Left (fs,(l,h,t,e)))
         (i,visitedNode,visited) <- get
         if  not $ M.member h visitedNode
           then do
-            maybe (return ()) (renderGrid lmap nmap l pos) (Right <$> varM h nmap)
+            maybe (markNode h (DiagramElement dist a errorItem)) (renderGrid lmap nmap l pos) (Right <$> varM h nmap)
           else
               if  abs (distance (r2p dist)  (r2p ( dpos $ var h visitedNode))) < 1e-2
                then {-traceShow (show l <> " exact union point " <> show h <> " " <> show dist <> " == " <>  show (var h nodeMap))  $-}return ()
                else traceShow (show l <> " non exact union point " <> show h <> " " <> show dist <> " /= " <>  show (var h visitedNode)) $ (markNode h (DiagramElement dist a errorItem))
 
 
-etrans e = (dpos e,ddir e)
+-- etrans e = (dpos e,ddir e)
 
 data DiagramElement a
   = DiagramElement
@@ -174,7 +192,7 @@ transEleml i e =  trans i (elemTrans e)
 transformElem t o =  translate (lengthE t) (rotateBy (angleE t ) o)
 
 revElems :: [Element a ] -> [Element a]
-revElems = reverse .(fmap revElem)
+revElems = reverse .fmap revElem
   where
     revElem (Joelho i j DRight k)  =  (Joelho i j DLeft k)
     revElem (Joelho i j DLeft k)  =  (Joelho i j DRight k)

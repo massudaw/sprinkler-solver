@@ -24,6 +24,10 @@ import Diagrams.Prelude
 import Diagrams.Backend.SVG.CmdLine
 
 
+import Language.Mecha.Export
+import qualified Language.Mecha.Types as Mecha
+import qualified Language.Mecha.Solid as Mecha
+
 path i h t  l = (i,h,t,  l)
 
 tubod l d = Tubo (Just d) l 100
@@ -158,6 +162,8 @@ main =  do
   printMatrix $ lintGridElements (grid iter)
   printMatrix ( fst $ expandGrid iter)
   mainWith (assembleMap $ drawGrid  212 31 iter :: Diagram B R2)
+  writeFile "circle.scad" $openSCAD (assembleMap $ drawGrid  212 31 iter)
+
 
 jac = (jacobian (jacobianEqNodeHeadGrid testGrid ) ) ((fmap snd $ flows testIter )++  (fmap snd $ nodeHeads testIter))
 
@@ -183,6 +189,9 @@ data DesignRegion
   -- , area :: Double
   }
 
+instance Semigroup Mecha.Solid where
+  i <> j = Mecha.union i j
+
 nodesFlowSet g = findNodesLinks g $ fmap (\n@(ni,_) -> (ni,n)) $nodesFlow $ g
 
 enableSprinklers d (Iteration n f g)  = Iteration n f (Grid  (links g) (shead g) (fmap nodes2  (nodesFlow g)) (paths g))
@@ -192,13 +201,13 @@ enableSprinklers d (Iteration n f g)  = Iteration n f (Grid  (links g) (shead g)
 
 assembleMap (i,(_,j,l) ) = nds <> lds
   where
-    nds = foldr1 mappend $  fmap ((\(DiagramElement r a o )-> translate r $ rotateBy a o). snd )  $  (M.toList j)
-    lds = foldr1 mappend $  concat $ fmap (fmap (\(DiagramElement r a o )-> translate r $ rotateBy a o). snd )  $  (M.toList l)
+    nds = foldr1 (<>) $  fmap ((\(DiagramElement r a o )-> transformElement (r,a) o). snd )  $  (M.toList j)
+    lds = foldr1 (<>) $  concat $ fmap (fmap (\(DiagramElement r a o )-> transformElement (r,a)  o). snd )  $  (M.toList l)
 
 
-drawGrid :: Int -> Int -> Iteration Double -> ((),([Double],M.Map Int (DiagramElement (Diagram B R2)) ,M.Map Int [DiagramElement (Diagram B R2)]))
+drawGrid :: Target a => Int -> Int -> Iteration Double -> ((),([Double],M.Map Int (DiagramElement a) ,M.Map Int [DiagramElement a]))
 drawGrid ni li a = runState (do
-                      let e = renderElem [maximum $ fmap (abs.snd) $  (flows a),0] (var ni nmap)
+                      let e = renderNode [maximum $ fmap (abs.snd) $  (flows a),0] (var ni nmap)
                       markNode ni (DiagramElement 0 (1/4) e)
                       renderGrid lmap nmap ni (0,1/4) (Left $ var li lmap ))
                         ([maximum $ fmap (abs.snd) $  (flows a),0],mempty,mempty)
