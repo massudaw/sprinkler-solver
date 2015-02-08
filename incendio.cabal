@@ -32,6 +32,7 @@ library
                       , diagrams-lib
                       , data-kiln
                       , mecha
+                      , lens
   -- hs-source-dirs:      
   exposed-modules : 
        Sprinkler

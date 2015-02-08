@@ -5,10 +5,12 @@ import qualified Data.Map as M
 import Control.Monad
 
 
-data Direction
+data Direction a
   = DLeft
   | DRight
-  deriving(Eq,Show)
+  | DUp  a
+  | DDown a
+  deriving(Eq,Show,Functor)
 
 
 data TeTipo
@@ -67,7 +69,7 @@ data Element a
   | Joelho
   { diametroJ :: Maybe a
   , tipoJ :: (String,String,String)
-  , direction :: Direction
+  , direction :: Direction a
   , material :: a
   }
   | Sprinkler

@@ -16,7 +16,7 @@ import qualified Data.Set as S
 import Data.Ord
 import Control.Monad.Trans.State
 import Control.Monad
-import Diagram
+import Diagram4
 
 import Data.Traversable (traverse)
 
@@ -67,7 +67,7 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip (fmap f
         patchT (i,j) (idt,idn) = [tubo (idt + 1) (idn + 2) (idn + 1) 0.025 (1.4 + 3*2.92) , tubo (idt +2 )  i (idn +1)   0.065 2.25, tubo   (idt +3 )  j (idn +2)        0.08 (2.25)]
         patchS  (idt,idn) (ti,tj)= [te (idn +2) [idt+3,idt+1,ti ] 0.08 0.025, te (idn +1) [tj,idt+1,idt +2] 0.065 0.025]
 
-        links = [ (31, 212,240 , [bomba,tubod ({-20*2.89+-}2.889) 0.10 ])]
+        links = [ (31, 212,240 , [bomba, tubod 2.889 0.1, jd (DDown 0) 0.1, tubod 4.889 0.1 ,jd (DUp $ 1/2) 0.1 ,tubod ({-20*2.89+-}2.889) 0.10 ])]
                 <> [path 77 240 238 [tubod (1.0) 0.08 ,tubod 5.57 0.065 ,tubod 12.3674 0.065,jd DLeft 0.065, tubod (1.507) 0.065]]
                 <> [tubo 73 237 239 0.08 1.5072,tubo 74 239 240 0.08 1.7208  ]
                 <> [tubo 70 236 238 0.065 2.25 ,tubo 71 237 235 0.08 2.25 ,tubo 72 238 237 0.025 (20.6617)]
@@ -147,13 +147,13 @@ rt = do
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
   printMatrix ( fst $ expandGrid iter)
-  mainWith (assembleMap $ drawGrid  8 1 iter :: Diagram B R2)
+--   mainWith (assembleMap $ drawGrid  8 1 iter :: Diagram B R2)
 
 rt1 = do
   let iter = solveIter testIter2 jacobianEqNodeHeadGrid
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
-  mainWith (assembleMap $ drawGrid  212 31 iter :: Diagram B R2)
+  -- mainWith (assembleMap $ drawGrid  212 31 iter :: Diagram B R2)
 
 main =  do
   let  elems = elementsFHIter  iter
@@ -161,7 +161,7 @@ main =  do
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
   printMatrix ( fst $ expandGrid iter)
-  mainWith (assembleMap $ drawGrid  212 31 iter :: Diagram B R2)
+  -- mainWith (assembleMap $ drawGrid  212 31 iter :: Diagram B R2)
   writeFile "circle.scad" $openSCAD (assembleMap $ drawGrid  212 31 iter)
 
 
@@ -199,7 +199,7 @@ enableSprinklers d (Iteration n f g)  = Iteration n f (Grid  (links g) (shead g)
         nodes2 (i,s@(Sprinkler _ _ _ _)) =  (i,if S.member i k then s else Open 0)
         nodes2 i = i
 
-assembleMap (i,(_,j,l) ) = nds <> lds
+assembleMap (i,(_,j,l) ) = traceShow (j) $ nds <> lds
   where
     nds = foldr1 (<>) $  fmap ((\(DiagramElement r a o )-> transformElement (r,a) o). snd )  $  (M.toList j)
     lds = foldr1 (<>) $  concat $ fmap (fmap (\(DiagramElement r a o )-> transformElement (r,a)  o). snd )  $  (M.toList l)
@@ -208,8 +208,8 @@ assembleMap (i,(_,j,l) ) = nds <> lds
 drawGrid :: Target a => Int -> Int -> Iteration Double -> ((),([Double],M.Map Int (DiagramElement a) ,M.Map Int [DiagramElement a]))
 drawGrid ni li a = runState (do
                       let e = renderNode [maximum $ fmap (abs.snd) $  (flows a),0] (var ni nmap)
-                      markNode ni (DiagramElement 0 (1/4) e)
-                      renderGrid lmap nmap ni (0,1/4) (Left $ var li lmap ))
+                      markNode ni (DiagramElement 0 (0,0,1/4) e)
+                      renderGrid lmap nmap ni (0,(0,0,1/4)) (Left $ var li lmap ))
                         ([maximum $ fmap (abs.snd) $  (flows a),0],mempty,mempty)
   where
     lmap = M.fromList (fmap (\l@(li,_,_,_)-> (li,(var li (M.fromList (flows a)),l)) ) $ links $ grid a)
