@@ -33,8 +33,9 @@ path i h t  l = (i,h,t,  l)
 tubod l d = Tubo (Just d) l 100
 jd dir d = Joelho (Just d) ("Conexao","Joelho","90")  dir 100
 
+
 test3 :: (Show a ,Ord a,Floating a )=> Iteration a
-test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip (fmap fst nodes) (repeat 100) ) grid
+test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  nodes )   (repeat 100) ) grid
   where
         grid = (Grid  links snodes nodes [] )
         sp i = (i,Sprinkler (Just (0.013,8))  (Just 0.025) 12 6.1)
@@ -62,7 +63,7 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip (fmap f
                   , te 202 [23,27,21] 0.065 0.025, sp 103, sp 104, sp 105, sp 106,te 206 [16,18,12] 0.08 0.025
                   , te 203 [21,26,22] 0.065 0.025, sp 107, sp 108, sp 109, sp 110,te 207 [17,19,16] 0.08 0.025
                   , te 204 [22,24,32] 0.065 0.025, sp 111, sp 112, sp 113, sp 114,te 208 [33,20,17] 0.08 0.025
-                  , (300,Open 0),(301,Open 0 ),(302,Open 0)]
+                  , (300,Open 0),(301,Open 0 ),(302,Open 0),(212,Reservatorio 1 Nothing (Open 0))]
 
         patchT (i,j) (idt,idn) = [tubo (idt + 1) (idn + 2) (idn + 1) 0.025 (1.4 + 3*2.92) , tubo (idt +2 )  i (idn +1)   0.065 2.25, tubo   (idt +3 )  j (idn +2)        0.08 (2.25)]
         patchS  (idt,idn) (ti,tj)= [te (idn +2) [idt+3,idt+1,ti ] 0.08 0.025, te (idn +1) [tj,idt+1,idt +2] 0.065 0.025]
@@ -213,7 +214,7 @@ drawGrid ni li a = runState (do
                         ([maximum $ fmap (abs.snd) $  (flows a),0],mempty,mempty)
   where
     lmap = M.fromList (fmap (\l@(li,_,_,_)-> (li,(var li (M.fromList (flows a)),l)) ) $ links $ grid a)
-    nmap = M.fromList (findNodesLinks (grid a) $ fmap (\n@(ni,_) -> (ni,(var ni (M.fromList (nodeHeads a)),n))) $ (nodesFlow $ grid a) ++ ( fmap (\l -> Open 0) <$> shead (grid a) ))
+    nmap = M.fromList (findNodesLinks (grid a) $ fmap (\n@(ni,_) -> (ni,(var ni (M.fromList (nodeHeads a)),n))) $ (nodesFlow $ grid a) )
 
 
 expandGrid a = runState (recurseNode  [] (lookNode (fst $ head sortedHeads))) (S.empty,S.empty)

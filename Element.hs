@@ -170,5 +170,8 @@ joelhos = M.fromList
     ,((("Conexao","Te","Lateral"),100),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0)])]
 
 
+isReservoir (Reservatorio _ _ _) = True
+isReservoir _ = False
+
 justError e Nothing = error e
 justError _ (Just i) = i

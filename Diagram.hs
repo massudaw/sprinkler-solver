@@ -29,6 +29,7 @@ import Diagrams.TwoD.Text (Text)
 
 
 renderElemMecha  _ (_,(_,(_,Open i))) = color (0,1,0,1) $ sphere 0.1
+renderElemMecha  _ (_,(_,(_,Reservatorio i _ _  ))) = color (1,1,1,1) $ sphere 0.5
 renderElemMecha  _ (_,(_,(_,Tee (TeeConfig _ r i j _ ) ))) = color (1,0,0,1) $ rotateY (-pi/2) $ moveZ (-0.5*j) $ cone i (2*j) (2*j)
 renderElemMecha  [maxf,minf] (_,(p,(_,Sprinkler (Just (d,k)) _ _ _))) = color (0,0,1,0.3 + 0.7*nf) $ sphere 0.15
   where

@@ -86,6 +86,7 @@ continuity (Iteration q nh  (Grid  l _ f p  )) = fmap (\(i,f) -> sumn (flipped i
         correct i= filter (\(_,h,t,_) -> t == i )
         nflow i = genFlow i $ var i $ M.fromList f
         genFlow idx (Open i ) = i
+        genFlow idx (Reservatorio _ _ _  ) = 0
         genFlow idx (Sprinkler (Just (ds,k)) _ _ _) =k -- *sqrt(var idx pm)
         suma = sum . fmap (\(li,_,_,_)-> var  li (M.fromList q) )
         sumn = sum . fmap (\(li,_,_,_)-> negate $var  li (M.fromList q) )
@@ -191,16 +192,18 @@ signedFlow (Grid l _  f p ) v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromList
 
 
 jacobianContinuity :: (Ord a,Floating a )=> Grid a -> M.Map Int a ->M.Map Int a -> [a]
-jacobianContinuity (Grid l _  f p ) v pm = fmap (\(i,_) -> sum ( sumn $ flipped i l) +  (sum (suma $ correct i l))  - nflow i) f
+jacobianContinuity (Grid l _  f p ) v pm = fmap (\(i,_) -> sum ( sumn $ flipped i l) +  (sum (suma $ correct i l))  - nflow i) $ filter (not . isReservoir . snd) f
   where flipped i=  filter (\(_,h,t,_) -> h == i )
         correct i= filter (\(_,h,t,_) -> t == i )
         nflow i = genFlow i $ var i $ M.fromList f
         genFlow idx (Open i ) = i
         genFlow idx (Tee _ ) = 0
+        genFlow idx (Reservatorio _ _ _ ) = 0
         genFlow idx (Sprinkler (Just (ds,k)) _ _ _) = k*sqrt( abs $ var idx pm)
         suma =  fmap (\(li,_,_,_) -> var li v )
         sumn =  fmap (\(li,_,_,_) ->  negate $ var li v)
 
+varn h = maybe 0 id .  M.lookup h
 
 -- Generic Solver | Node + Head Method
 jacobianNodeHeadEquation :: (Show a,Ord a,Floating a) => Grid a -> M.Map Int a ->M.Map Int a -> [a]
@@ -210,13 +213,15 @@ jacobianNodeHeadEquation grid  vm nh =  term <$> l
     sflow = signedFlow grid vm
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,h,t,e) =   sum (pipeElement grid (var l vm) <$> e) - (var h nhs )  +  addTee (h,l) + addTee (t,l)   +(var t nhs)
-      where nhs = nh <> (M.fromList $shead grid)
+    term (l,h,t,e) =   sum ( pipeElement grid (var l vm) <$> e) - ( varn h nh  + varn h nhs )  +  addTee (h,l) + addTee (t,l) + ( varn t nhs + varn t nh )
+      where
+         nhs = (M.fromList $shead grid)
 
 
 
 -- Rendering System Equations
 printMatrix = putStr . unlines . fmap show
+
 {-
 renderNodeHeadEquation grid l =  term l
   where

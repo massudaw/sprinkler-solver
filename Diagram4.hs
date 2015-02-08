@@ -31,6 +31,7 @@ import Control.Lens hiding(transform)
 
 
 renderElemMecha  _ (_,(_,(_,Open i))) = Mecha.color (0,1,0,1) $ Mecha.sphere 0.1
+renderElemMecha  _ (_,(_,(_,Reservatorio _ _ i))) = Mecha.color (1,1,1,1) $ Mecha.sphere 0.5
 renderElemMecha  _ (_,(_,(_,Tee (TeeConfig _ r i j _ ) ))) = Mecha.color (1,0,0,1) $ Mecha.rotateY (-pi/2) $ Mecha.moveZ (-0.5*j) $ Mecha.cone i (2*j) (2*j)
 renderElemMecha  [maxf,minf] (_,(p,(_,Sprinkler (Just (d,k)) _ _ _))) = Mecha.color (0,0,1,0.3 + 0.7*nf) $ Mecha.sphere 0.15
   where
@@ -42,6 +43,7 @@ renderLinkMecha _ _ (Joelho (Just d)  c _  _  ) = Mecha.sphere d
 renderLinkMecha _ _  i = Mecha.sphere 0.05
 
 thisElement l (p,(n,Open i))  =  (0,0)
+thisElement l (p,(n,Reservatorio _ _ i))  =  (0,0)
 thisElement l (p,(n,Sprinkler _ _ _ _ ))  =  (0,0)
 thisElement l (p,(n,Tee (TeeConfig [rl,b,rr] _ _ _ _)))
   | rl == l =  (0,(0,0,1/4))
@@ -55,6 +57,7 @@ instance Num R3 where
   r1 + r2 = r3 (r1 ^. _x + r2 ^. _x,r1 ^. _y + r2 ^. _y,r1 ^. _z + r2 ^. _z)
 
 nextElement _ (p,(n,Open i))  =  []
+nextElement _ (p,(n,Reservatorio _ _ i))  =  []
 nextElement l (s,(n,Sprinkler i _ _ _ ))  =  [DiagramElement 0 0  h]
   where h = case S.toList $ S.delete l  s of
           [h] -> h
