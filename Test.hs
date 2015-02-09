@@ -38,13 +38,12 @@ jd dir d = Joelho (Just d) ("Conexao","Joelho","90")  dir 100
 test3 :: (Show a ,Ord a,Floating a )=> Iteration a
 test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  nodes )   (repeat 100) ) (realToFrac  <$>  upgradeGrid 212 31 grid)
   where
-        grid = (Grid  links snodes nodes [] )
+        grid = (Grid  [] links [] nodes )
         sp i = (i,Sprinkler (Just (0.013,8))  (Just 0.025) 12 6.1)
         tubo' i h  d l = (i,h,h+1,[Tubo (Just d) l 100])
         tubo i h t d l = (i,h,t,[Tubo (Just d) l 100])
-        bomba = Bomba (Just (300,1166)) (bombaSF ) [] []
+        bomba = Bomba (Just (300,1166)) bombaSF [] []
         te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (100)))
-        snodes = [(212,9.81*20*2.89)]
         nodes = [te 239 [73,74,75] 0.08 0.08 , te 240 [77,31,74] 0.08 0.08]
                 <> [ te 237 [71,72,73] 0.08 0.025 , te 238 [77,72,70]  0.065 0.025
                   , te 235 [68,69,71] 0.08 0.025 , te 236 [70,69,67]  0.065 0.025
@@ -69,7 +68,7 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap 
         patchT (i,j) (idt,idn) = [tubo (idt + 1) (idn + 2) (idn + 1) 0.025 (1.4 + 3*2.92) , tubo (idt +2 )  i (idn +1)   0.065 2.25, tubo   (idt +3 )  j (idn +2)        0.08 (2.25)]
         patchS  (idt,idn) (ti,tj)= [te (idn +2) [idt+3,idt+1,ti ] 0.08 0.025, te (idn +1) [tj,idt+1,idt +2] 0.065 0.025]
 
-        links = [ (31, 212,240 , [bomba, tubod 2.889 0.1, jd (DDown 0) 0.1, tubod 4.889 0.1 ,jd (DUp $ 1/2) 0.1 ,tubod ({-20*2.89+-}2.889) 0.10 ])]
+        links = [ (31, 212,240 , [bomba, tubod 2.889 0.1, jd (DDown  0) 0.1, tubod 4.889 0.1 ,jd (DUp $ 1/2) 0.1 ,tubod ({-20*2.89+-}2.889) 0.10 ])]
                 <> [path 77 240 238 [tubod (1.0) 0.08 ,tubod 5.57 0.065 ,tubod 12.3674 0.065,jd DLeft 0.065, tubod (1.507) 0.065]]
                 <> [tubo 73 237 239 0.08 1.5072,tubo 74 239 240 0.08 1.7208  ]
                 <> [tubo 70 236 238 0.065 2.25 ,tubo 71 237 235 0.08 2.25 ,tubo 72 238 237 0.025 (20.6617)]
@@ -96,24 +95,7 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap 
                   , tubo 24 111 204 0.025 0.7, tubo 8 112 111 0.025 2.92 ,tubo 9 113 112 0.025 2.92 ,tubo 10 114 113 0.025 2.92,tubo 20 208 114 0.025 0.7
                   , tubo 32 204 300 0.065 0.4,tubo 33 208 301 0.08 0.4 ,tubo 75 239 302 0.08 0.4]
 
-
-test4 :: (Show a ,Ord a,Floating a ) => Iteration a
-test4 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 1 )) ( zip (fmap fst nodes) (repeat 200) ) grid
-  where
-        grid = ( Grid  links snodes nodes [] )
-        sp i = (i,Sprinkler (Just (0.013,8))  (Just 0.025) 12 6.1)
-        tubo' i h  d l = (i,h,h+1,[Tubo (Just d) l 100])
-        tubo i h t d l = (i,h,t,[Tubo (Just d) l 100])
-        bomba = [Bomba (Just (240,150)) (Poly [(0,250),(2,-0.01376)]) [] []]
-        te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (9.81*1000)))
-        snodes = [(212,200)]
-        nodes = [ te 211 [24,31,20] 0.065 0.065
-                ,sp 111, sp 112, sp 113, sp 114]
-        links = [ tubo 31 212 211 0.065 1.0
-                , tubo 24 211 111  0.065 4.7, tubo' 8 111 0.025 2.92 ,tubo' 9 112 0.025 2.92 ,tubo 10 114 113 0.025 2.92,tubo 20 211 114 0.065 4.7]
-
-
-
+{-
 testIter2 =  Iteration lflows nheads grid
   where nheads = [(1,40),(2,35),(3,30)]
         lflows =  [(1,4.5),(2,2),(3,2),(4,0.5)]
@@ -156,6 +138,7 @@ rt1 = do
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
   -- mainWith (assembleMap $ drawGrid  212 31 iter :: Diagram B R2)
+-}
 
 main =  do
   let  elems = elementsFHIter  iter
@@ -167,12 +150,7 @@ main =  do
   writeFile "circle.scad" $openSCAD (assembleMap $ drawGrid  212 31 iter)
 
 
-jac = (jacobian (jacobianEqNodeHeadGrid testGrid ) ) ((fmap snd $ flows testIter )++  (fmap snd $ nodeHeads testIter))
-
-jac2 = (jacobian (jacobianEqNodeHeadGrid (grid $ testIter2) ) ) ((fmap snd $ flows testIter2 )++  (fmap snd $ nodeHeads testIter2))
-
 jac3 = (jacobian (jacobianEqNodeHeadGrid (grid $ test3 ) ) ) (snd <$> (flows test3)++  (nodeHeads test3))
-fun = (jacobianEqNodeHeadGrid testGrid ) ((fmap snd $ flows testIter )++  (fmap snd $ nodeHeads testIter))
 
 
 totalHead a p va =   p/(g*rho) + v^2/(2*g)
@@ -196,7 +174,7 @@ instance Semigroup Mecha.Solid where
 
 nodesFlowSet g = findNodesLinks g $ fmap (\n@(ni,_) -> (ni,n)) $nodesFlow $ g
 
-enableSprinklers d (Iteration n f g)  = Iteration n f (Grid  (links g) (shead g) (fmap nodes2  (nodesFlow g)) (paths g))
+enableSprinklers d (Iteration n f g)  = Iteration n f (Grid  (linksPosition g) (links g) (shead g) (fmap nodes2  (nodesFlow g)) )
   where k =S.fromList $  activeNodes d
         nodes2 (i,s@(Sprinkler _ _ _ _)) =  (i,if S.member i k then s else Open 0)
         nodes2 i = i
@@ -206,13 +184,13 @@ assembleMap (i,(_,j,l) ) = traceShow (j) $ nds <> lds
     nds = foldr1 (<>) $  fmap ((\(DiagramElement r a o )-> transformElement (r,a) o). snd )  $  (M.toList j)
     lds = foldr1 (<>) $  concat $ fmap (fmap (\(DiagramElement r a o )-> transformElement (r,a)  o). snd )  $  (M.toList l)
 
--- upgradeGrid :: Int -> Int -> Grid Double -> [(Int,Double)]
-upgradeGrid ni li a = a {shead = fmap (\(i,v) -> (i,v - (minimum $ fmap snd heads))) heads }
+upgradeGrid :: Int -> Int -> Grid Double -> Grid  Double
+upgradeGrid ni li a = a {shead = M.toList nodesPos, linksPosition = M.toList linksPos}
   where
-    heads = M.toList . fmap ((^._z) . dpos) $ snd $ runState (do
-                      modify (<> (M.singleton ni (DiagramElement 0 (0,0,1/4) 0)))
-                      locateGrid lmap nmap ni (0,(0,0,1/4)) (Left $ var li lmap ))
-                        mempty
+    (nodesPos,linksPos) =  snd $ runState (do
+                      modify (<> (M.singleton ni (0,(0,0,0)), mempty))
+                      locateGrid lmap nmap ni (0,(0,0,0)) (Left $ var li lmap ))
+                        (mempty,mempty)
     lmap = M.fromList (fmap (\l@(li,_,_,_)-> (li,l))  $ links a)
     nmap = M.fromList (findNodesLinks a $ fmap (\n@(ni,_) -> (ni,n)) $ (nodesFlow a) )
 
@@ -220,8 +198,8 @@ upgradeGrid ni li a = a {shead = fmap (\(i,v) -> (i,v - (minimum $ fmap snd head
 drawGrid :: Target a => Int -> Int -> Iteration Double -> ((),([Double],M.Map Int (DiagramElement a) ,M.Map Int [DiagramElement a]))
 drawGrid ni li a = runState (do
                       let e = renderNode [maximum $ fmap (abs.snd) $  (flows a),0] (var ni nmap)
-                      markNode ni (DiagramElement 0 (0,0,1/4) e)
-                      renderGrid lmap nmap ni (0,(0,0,1/4)) (Left $ var li lmap ))
+                      markNode ni (DiagramElement 0 (0,0,0) e)
+                      renderGrid lmap nmap ni (0,(0,0,0)) (Left $ var li lmap ))
                         ([maximum $ fmap (abs.snd) $  (flows a),0],mempty,mempty)
   where
     lmap = M.fromList (fmap (\l@(li,_,_,_)-> (li,(var li (M.fromList (flows a)),l)) ) $ links $ grid a)
@@ -243,7 +221,7 @@ expandGrid a = runState (recurseNode  [] (lookNode (fst $ head sortedHeads))) (S
        tnodes <- traverse (\p  -> fmap (\j -> Left (BranchLink (fromJust $ L.find (\(l,h,t,_) -> h == fst p  || t == fst p ) nextLinks )) : j) . recurseNode (n:path) $ p ) $ L.sortBy (flip (comparing (\(i,p) ->  totalHead 0.08 (var i nodePressures ) ((/2) $ sum $ fmap (abs .snd ) $ S.toList $fst p)))) $ fmap lookNode fnodes
        return  $ Right (path,totalHead 0.08 (var n nodePressures) ((/2) $ sum $ fmap (abs .snd ) $ S.toList $fst l),t) :  (fmap (Left . CloseLink ) backLinks <>  concat  tnodes)
     lookLinkNode bn (l,h,t,_) = if bn == h then t else h
-    nodePressures = M.fromList $ nodeHeads a <> shead (grid a)
+    nodePressures = M.fromList $ nodeHeads a <> (fmap (\(j,i) -> (j,9.81* ( fst i ^. _z))) $ shead (grid a))
     lookNode i = (i,var i nodeMap)
     linkflow = M.fromList (flows a)
     sortedHeads = L.sortBy (flip (comparing (\(i,p) ->  totalHead 0.08 p ((/2) $ sum $ fmap (abs .snd ) $ S.toList $ fst $ var i nodeMap))))  (nodeHeads a)

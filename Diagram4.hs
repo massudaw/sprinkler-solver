@@ -98,7 +98,7 @@ instance Target  Mecha.Solid where
 locateGrid lmap nmap l r (Right oe@(s,(e@(n,_)))) = do
   let
       t = thisElement l (s,e)
-  modify (<> (M.singleton n (DiagramElement (fst r + fst t) (snd r + snd t) 0)))
+  modify (<> (M.singleton n ((fst r + fst t,snd r + snd t)),mempty))
   let trav (ri,ai) i =  do
         let pos = (fst r + ri ,snd r  + ai)
         maybe (return ()) (locateGrid lmap nmap n pos ) (Left <$> varM i lmap )
@@ -114,16 +114,16 @@ locateGrid lmap nmap n r ll@(Left (l,h,t,e))
     path  h e = do
         let
             sn = scanl transEleml r e
-            lk = fmap (\(p,a) -> DiagramElement   p a 0) sn
         nextNode  (last sn) h
+        modify (<> (mempty ,M.singleton n (init sn)))
         return ()
     nextNode  pos@(dist ,a) h = do
-        (visitedNode) <- get
+        (visitedNode,_) <- get
         if  not $ M.member h visitedNode
           then do
             maybe (return () ) (locateGrid lmap nmap l pos) (Right <$> varM h nmap)
           else
-              if  distance (r2p dist)  (r2p ( dpos $ var h visitedNode)) < 1e-2
+              if  distance (r2p dist)  (r2p ( fst $ var h visitedNode)) < 1e-2
                then {-traceShow (show l <> " exact union point " <> show h <> " " <> show dist <> " == " <>  show (var h nodeMap))  $-}return ()
                else traceShow (show l <> " non exact union point " <> show h <> " " <> show dist <> " /= " <>  show (var h visitedNode)) $ (return ())
 
@@ -197,8 +197,8 @@ r2p = p3 . unr3
 
 angleE :: Fractional a => Element a -> (a,a,a)
 angleE (Joelho _ _ DRight _ ) = (0,0,1/4)
-angleE (Joelho _ _ (DUp r) _ ) = (1/4,0,r)
-angleE (Joelho _ _ (DDown r) _ ) = (-1/4,0,r)
+angleE (Joelho _ _ (DUp r) _ ) = (0,-1/4,r)
+angleE (Joelho _ _ (DDown r) _ ) = (0,1/4,r)
 angleE (Joelho _ _ DLeft _ ) = (0,0,-1/4)
 angleE  i = (0,0,0)
 
