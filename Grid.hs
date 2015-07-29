@@ -6,6 +6,7 @@ import Data.Functor.Identity
 import Control.Monad.Trans.Writer
 import Control.Monad
 import Sprinkler
+import Data.Monoid
 import Tee hiding (ktubo)
 import Element
 import Data.Reflection
@@ -16,23 +17,15 @@ import qualified Data.Map as M
 
 import Control.Applicative
 import Numeric.AD
-import Diagrams.Prelude.ThreeD
+-- import Diagrams.Prelude.ThreeD
 import Control.Lens
+import Linear.V3
 
 
 data Orientation
  = Clock
  | CounterClock
  deriving(Show)
-
-data Grid a
-  = Grid
-  { linksPosition :: [(Int,[(R3,(a,a,a))])]
-  , links :: [(Int,Int,Int,[Element a])]
-  , shead :: [(Int,(R3,(a,a,a)))]
-  , nodesFlow :: [(Int,Element a)]
---  , origin :: (Int,R3,(a,a,a))
-  }deriving(Show,Functor)
 
 
 data Iteration a
@@ -62,12 +55,14 @@ nodeFlowsHeads grid vm h e@(ni,Open v ) = (e,[(v,var ni h )])
 
 pipeFHIter (Iteration vm h grid) = fmap (pipeFlowsHeads grid (M.fromList vm ) (M.fromList h) ) $ links grid
 
-pipeFlowsHeads grid vm h e@(ni,th,tt,tubo) = (e,(var ni vm,) . pipeElement grid (var ni vm) <$>  tubo)
+pipeFlowsHeads grid vm h e@(ni,th,tt,tubo) = (e,(var ni vm,) . pipeElement (var ni vm) <$>  tubo)
 
 
 ktubo t  = perda*10/(1000*60)**1.85
         where
-              (Just d ) = diametroE t
+              d = case diametroE t of
+                       Just d -> d
+                       i -> error $ show t
               c = materialE t
               -- note : abs na vazão pois gera NaNs para valores negativos durante iterações
               perda = 10.65*(distanciaE t)/((c**1.85)*(d**4.87))
@@ -79,7 +74,7 @@ continuity (Iteration q nh g ) = fmap (\(i,f) -> sumn (flipped i (links g)) + su
         nflow i = genFlow i $ var i $ M.fromList (nodesFlow g)
         genFlow idx (Open i ) = i
         genFlow idx (Reservatorio _ _ _  ) = 0
-        genFlow idx (Sprinkler (Just (ds,k)) _ _ _) =k -- *sqrt(var idx pm)
+        genFlow idx (Sprinkler (Just (ds,k)) _ _ _) = k -- *sqrt(var idx pm)
         suma = sum . fmap (\(li,_,_,_)-> var  li (M.fromList q) )
         sumn = sum . fmap (\(li,_,_,_)-> negate $var  li (M.fromList q) )
 
@@ -97,26 +92,26 @@ solveIter iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid 
     fl = length (flows iter)
     res = fst . rootJ GNewton 1e-5 100 (modeler (grid iter) ) (jacobian (modeler (grid iter)  ) )  $ (snd <$> flows iter <> nodeHeads iter )
 
-var :: Int -> M.Map Int a -> a
+var :: Show a => Int -> M.Map Int a -> a
 var i m = case M.lookup i m of
                Just i -> i
-               Nothing -> error $ "no variable " ++ show i
+               Nothing -> error $ "no variable " ++ show i  ++ " " ++ show m
 
 
 
-pipeElement grid v (Bomba  (Just (pn,vn)) (Poly l ) _ _ ) = negate $ (*pn) $ (/100)  $foldr1 (+) (polyTerm <$> l)
+pipeElement v e | v < 0 = negate $ pipeElement (abs v) e
+pipeElement v (Bomba  (Just (pn,vn)) (Poly l ) _ _ ) = negate $ (*pn) $ (/100)  $foldr1 (+) (polyTerm <$> l)
       where polyTerm (0,c) =   c
             polyTerm (p,c) =   c*(100*v/vn)**p
-pipeElement grid v (Bomba  _ (Poly l ) _ _ ) = negate $ foldr1 (+) (polyTerm <$> l)
+pipeElement v (Bomba  _ (Poly l ) _ _ ) = negate $ foldr1 (+) (polyTerm <$> l)
       where polyTerm (0,c) =   c
             polyTerm (p,c) =   c*v**p
-pipeElement grid v e | v < 0 = negate $ pipeElement grid (abs v) e
-pipeElement grid v e@(Resistive k p)  = k*v**p
-pipeElement grid v e@(Tubo _ _ _)  = (ktubo e)*v**1.85
-pipeElement grid v e@(Joelho _ _ _ _)  = (ktubo e)*v**1.85
+pipeElement v e@(Resistive k p)  = k*v**p
+pipeElement v e@(Tubo _ _ _)  = (ktubo e)*v**1.85
+pipeElement v e@(Joelho _ _ _ _)  = (ktubo e)*v**1.85
 
 
-signedFlow :: Floating a => Grid a -> M.Map Int a ->M.Map Int (M.Map Int a)
+signedFlow :: (Show a,Floating a )=> Grid a -> M.Map Int a ->M.Map Int (M.Map Int a)
 signedFlow g v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromList $ ( ( sumn $ flipped i $ links g) ++   ((suma $ correct i $ links g))) ) (nodesFlow g)
   where flipped i=  filter (\(_,h,t,_) -> h == i )
         correct i= filter (\(_,h,t,_) -> t == i )
@@ -124,20 +119,23 @@ signedFlow g v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromList $ ( ( sumn $ f
         sumn =  fmap (\(li,_,_,_) ->  (li,negate $ var li v))
 
 
-jacobianContinuity :: (Ord a,Floating a )=> Grid a -> M.Map Int a ->M.Map Int a -> [a]
-jacobianContinuity g v pm = fmap (\(i,_) -> sum ( sumn $ flipped i $ links g) +  (sum (suma $ correct i $ links g))  - nflow i) $ filter (not . isReservoir . snd) $ nodesFlow g
-  where flipped i=  filter (\(_,h,t,_) -> h == i )
-        correct i= filter (\(_,h,t,_) -> t == i )
-        nflow i = genFlow i $ var i $ M.fromList $ nodesFlow g
-        genFlow idx (Open i ) = i
-        genFlow idx (Tee _ ) = 0
-        genFlow idx (Reservatorio _ _ _ ) = 0
-        genFlow idx (Sprinkler (Just (ds,k)) _ _ _) = k*sqrt( abs $ var idx pm)
+jacobianContinuity :: (Show a,Ord a,Floating a )=> Grid a -> M.Map Int a ->M.Map Int a -> [a]
+jacobianContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( correct i $ links g))  - nflow i e) $ filter (not . isReservoir . snd) $ nodesFlow g
+  where
+        -- pipeFlow
+        flipped i=  sumn . filter (\(_,h,t,_) -> h == i )
+        correct i= suma . filter (\(_,h,t,_) -> t == i )
         suma =  fmap (\(li,_,_,_) -> var li v )
-        sumn =  fmap (\(li,_,_,_) ->  negate $ var li v)
+        sumn =  fmap negate . suma
+        -- nodeFlow
+        nflow i e = genFlow (var i pm) e
+        genFlow _ (Open i ) = i
+        genFlow _ (Tee _ ) = 0
+        genFlow idf (Sprinkler (Just (_,k)) _ _ _) = k*sqrt(abs idf)
+        genFlow _ (Reservatorio _ _ _ ) = error "reservatorio doesn't preserve flow"
 
 varn h = maybe 0 id .  M.lookup h
-varr3 h = maybe (r3 0)  id .  M.lookup h
+varr3 h = maybe (V3 0 0  0)  id .  M.lookup h
 
 -- Generic Solver | Node + Head Method
 jacobianNodeHeadEquation :: (Show a,Ord a,Floating a) => Grid a -> M.Map Int a ->M.Map Int a -> [a]
@@ -147,11 +145,9 @@ jacobianNodeHeadEquation grid  vm nh =  term <$> l
     sflow = signedFlow grid vm
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,h,t,e) =   sum ( pipeElement grid (var l vm) <$> e) - ( varn h nh  + (realToFrac $ varr3 h nhs ^. _z) *9.81 )  +  addTee (h,l) + addTee (t,l) + ( ((realToFrac $ varr3 t nhs ^. _z) *9.81 ) + varn t nh )
+    term (l,h,t,e) =   sum ( pipeElement (var l vm) <$> e) - ( varn h nh  + (realToFrac $ varr3 h nhs ^. _z) *9.81 )  +  addTee (h,l) + addTee (t,l) + ( ((realToFrac $ varr3 t nhs ^. _z) *9.81 ) + varn t nh )
       where
          nhs = fmap fst (M.fromList $shead grid)
-
-
 
 -- Rendering System Equations
 printMatrix = putStr . unlines . fmap show

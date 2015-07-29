@@ -72,13 +72,13 @@ lintTee grid =   mapM_ checkLinks tees
         checkLinks c@(n,Tee (TeeConfig tc@[rl,b,rr] r db dr m)) = do
             let lks@[lrl,lb,lrr] = fmap (\i -> head . (\(h,t,e) -> if n == h then e else reverse e ) $ var  i linkMap)  tc
             when (diametroE lrr /= Just dr ) $
-              tell $ ["diametro right run " ++ show rr ++ " is different from tee "++ show n ++ " " ++ show db ++ " /= " ++ show (diametroE lrr)]
+              tell $ ["diametro right run " ++ show rr ++ " is different from tee "++ show n ++ " " ++ show dr ++ " /= " ++ show (diametroE lrr)]
             when (diametroE lrl /= Just dr )  $
-              tell $ ["diametro left run " ++ show rl ++ " is different from tee " ++ show n ++ " " ++ show db ++ " /= " ++ show (diametroE lrl)]
+              tell $ ["diametro left run " ++ show rl ++ " is different from tee " ++ show n ++ " " ++ show dr ++ " /= " ++ show (diametroE lrl)]
             when (diametroE lb /= Just db) $
               tell $ ["diametro branch " ++ show b ++ " is different from tee "++ show n ++ " " ++ show db ++ " /= " ++ show (diametroE lb)]
             when ( diametroE lrr /= diametroE lrl )$
-              tell $ ["diametro runs " ++ show rl ++ "," ++ show rr ++ " are different from tee "++ show n ++ " " ++ show (diametroE lrl ) ++ " /= " ++ show (diametroE lrr)]
+              tell $ ["diametro runs " ++ show rl ++ "," ++ show rr ++ " are different "++ show n ++ " " ++ show (diametroE lrl ) ++ " /= " ++ show (diametroE lrr)]
         linkMap = M.fromList $ fmap (\(li,h,t,e) ->   (li,(h,t,e))) (links grid)
 
 
