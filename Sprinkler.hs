@@ -258,7 +258,7 @@ deConstructPath' i v = join $ fmap (\ppi-> fmap (tail ppi ++ ) . backPressurePat
 backPressurePath :: Element Double -> Node (Element Double) -> [[Node (Element Double)]]
 backPressurePath (Origem i ) n@(Node v p e ) =  filter (not .null) $ deConstructPath i n
 backPressurePath t@(Te _ _  i j ) n@(Node v p e ) =  filter (not .null) $ solveBifurcation t  n
-backPressurePath  b@(Bocal d)  n@(Node v p e) = return $ join $ unConsPath (Joelho d ("Bocais","Saida","")  DRight 100)  [Node v p b]
+backPressurePath  b@(Bocal d)  n@(Node v p e) = return $ join $ unConsPath (Perda d ("Bocais","Saida","")  100)  [Node v p b]
 -- backPressurePath  Bocal  n@(Node v p e) = return $  [Node v p Bocal]
 backPressurePath l m = error $ "no pattern for backPressure" ++ show l ++ " ____ " ++show m
 
@@ -295,10 +295,10 @@ bifurcationSolve  solve i j = filter (not .null) $do
 
 pressurePath :: Element Double  -> [[Node (Element Double )]]
 pressurePath (Origem i) = filter (not.null) $ constructPath i
-pressurePath (Te d _ i j) = bifurcationSolve (\l ->  backSolveE RamalNode (+) l )  ((Joelho Nothing ("Conexao","Te","Lateral" ) DRight 100 ):i) ((Joelho Nothing ("Conexao","Te","Direta" ) DRight 100 ):j)
+pressurePath (Te d _ i j) = bifurcationSolve (\l ->  backSolveE RamalNode (+) l )  ((Perda Nothing ("Conexao","Te","Lateral" ) 100 ):i) ((Perda Nothing ("Conexao","Te","Direta" ) 100 ):j)
 
 -- pressurePath (OptTe _ i j) = bifurcationSolve (\l -> join . fmap (consPath (te DRight)) .backSolveN OptionalNode max l) i j
-pressurePath (OptTe _ i j) =  join [constructPath ((Joelho Nothing ("Conexao","Te","Lateral" ) DRight 100 ):i) , constructPath ((Joelho Nothing ("Conexao","Te","Direta" ) DRight 100 ):j)]
+pressurePath (OptTe _ i j) =  join [constructPath ((Perda Nothing ("Conexao","Te","Lateral" ) 100 ):i) , constructPath ((Perda Nothing ("Conexao","Te","Direta" ) 100 ):j)]
 pressurePath s@(Sprinkler _ _ _ _) = fmap pure $ initialSprinkler s
 pressurePath (Reservatorio t v b) = do
     let vmax =  maximumBy (comparing (vazao .head))  pb
@@ -325,8 +325,8 @@ pressurePath g@(Bomba _ (Curva c) e suc )  = do
 
 pressurePath i = error $ "pressure path no match " ++ show i
 
-te d = Joelho Nothing ("Conexao","Te","Lateral") d 100
-ted d  = Joelho (Just d) ("Conexao","Te","Lateral") DRight 100
+-- te d = Joelho Nothing ("Conexao","Te","Lateral") d 100
+-- ted d  = Joelho (Just d) ("Conexao","Te","Lateral") DRight 100
 
 preheader =  fmap (unlines .fmap (\(k,v)-> k ++ ": " ++ v) ) tables
     where t12a = [("Área de Aplicação","140m²")
@@ -447,7 +447,7 @@ unrollNode i j = error $ show i ++ show j
 editDiametro v (Tubo Nothing b c )  = Tubo (Just v) b c
 editDiametro v (Joelho Nothing b c d)  = Joelho (Just v) b c d
 editDiametro v i = i
-
+{-
 twopass = do
    let
           r0 = [tubo 5.25 ,joelho DLeft , tubo 1.78 ,sp]
@@ -527,7 +527,7 @@ twopass = do
    -- renderNode1  "r" $  result1N req
    -- mapM (\(i,l) -> writeFile ("andar_12" ++ show i ++ ".csv" ) (header ++ l) >> print i) $ zip [0..] $ (fmap (fmap (\i -> if i == '.' then ',' else i ). nodeLists  ) )$  last $ result1N req
 -}
-
+-}
 result1N inp = scanl (\j i-> concat $ fmap (\l-> fmap (:l) $ addNode i (head l)) j) ( pure $  pure $ last inp) . reverse . init $ inp
 
 -- main  = twopass

@@ -8,10 +8,7 @@ import Control.Monad
 import Linear.V3
 
 data Direction a
-  = DLeft
-  | DRight
-  | DUp  a
-  | DDown a
+  = Direction a a
   deriving(Eq,Show,Functor)
 
 
@@ -72,7 +69,12 @@ data Element a
   | Joelho
   { diametroJ :: Maybe a
   , tipoJ :: (String,String,String)
-  , direction :: Direction a
+  , direction :: (a,a)
+  , material :: a
+  }
+  | Perda
+  { diametroJ :: Maybe a
+  , tipoJ :: (String,String,String)
   , material :: a
   }
   | Sprinkler
@@ -177,7 +179,7 @@ joelhos = M.fromList
     ,((("Valvula","","Gaveta"),100),M.fromList [(25,0.2),(32,0.2),(40,0.3),(50,0.4),(65,0.4),(75,0.5),(80,0.5),(100,0.7),(125,0.9),(150,1.1)])
     ,((("Bocais","Saida",""),100),M.fromList [(25,0.7),(32,0.9),(40,1.0),(50,1.5),(65,1.9),(75,2.2),(80,2.2),(100,3.2),(125,4.0),(150,5.0)])
     ,((("Valvula","Retencao",""),100),M.fromList [(25,2.1),(32,2.7),(40,3.2),(50,4.2),(65,5.2),(75,6.3),(80,6.3),(100,8.4),(125,10.4),(150,12.5)])
-    ,((("Conexao","Joelho","45"),100),M.fromList [(25,0.4),(32,0.5),(40,0.6),(50,0.8),(65,0.9),(75,1.2),(80,1.2),(100,1.5),(125,1.9),(150,2.3)])
+    ,((("Conexao","Joelho","45"),100),M.fromList [(25,0.4),(32,0.5),(40,0.6),(50,0.8),(65,0.9),(75,1.2),(80,1.2),(100,1.5),(125,1.9),(150,2.3),(200,3),(250,3.8)])
     ,((("Conexao","Te","Lateral"),130),M.fromList [(32,4.6),(40,7.3),(50,7.6),(65,7.8),(75,8.0)])
     ,((("Conexao","Te","Direta"),100),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4)])
     ,((("Conexao","Te","Lateral"),100),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0)])]
