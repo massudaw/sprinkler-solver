@@ -62,8 +62,8 @@ classifyTee  flowMap  t =  classifyFlow flow
         dr = teeDiameterRun t
         r =  teeRadius t
         rho = teeMaterial t
-        direct = Joelho (Just dr)("Conexao","Te","Direta")  DRight rho
-        lateral = Joelho (Just db) ("Conexao","Te","Lateral")  DRight rho
+        direct = Perda (Just dr) ("Conexao","Te","Direta")  rho
+        lateral = Perda (Just db) ("Conexao","Te","Lateral")  rho
         classifyFlow bl@[rls,bs,rrs]
           |  rls > 0 && bs <= 0 && rrs <= 0 = zip [rri,bi]  [ktubo direct  rr , ktubo lateral b ]
           |  rrs > 0 && bs <= 0 && rls <= 0 = zip [rli,bi]  [ktubo direct rl , ktubo lateral b ]

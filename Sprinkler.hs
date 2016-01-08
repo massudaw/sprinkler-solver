@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveFoldable,TupleSections#-}
 module Sprinkler where
 import Control.Monad
+import Data.Tuple
+import Control.Monad.Trans.State
 import Numeric.GSL.Minimization
 import Numeric.GSL.Root
 import Numeric
@@ -230,12 +232,6 @@ showNode i n@(Node _ _ _) = (concat $ replicate i "\t") ++ show n
 showNode i (RamalNode p v n ) = (concat $ replicate i "\t") ++ "RamalNode " ++ show p ++ "  " ++ show v ++ {-"  " ++ show res ++-} "\n" ++ (L.intercalate "\n" $ fmap (showNode (i +1))  n)
 showNode i (OptionalNode p v n ) = (concat $ replicate i "\t") ++ "OptionalNode" ++ show p ++ "  " ++ show v ++ {-"  " ++ show res ++-} "\n" ++ (L.intercalate "\n" $ fmap (showNode (i +1))  n)
 
-{-
-pathData = [RamalElement ramal,Joelho Nothing ("Conexao","Te","Lateral") 130 ,  Tubo Nothing 3.3 130 , RamalElement ramal , Tubo Nothing 3.3 130,Joelho Nothing ("Conexao","Joelho","90") 130, Tubo Nothing 12.40 130,Sprinkler 8.0 coberturaChuveiro densidadeAgua ,Tubo Nothing 3.6 130,Sprinkler 8.0 coberturaChuveiro densidadeAgua ,Tubo Nothing 3.60 130,Sprinkler 8.0 coberturaChuveiro densidadeAgua ,Tubo Nothing 3.60 130]
-
-ramal = [Joelho Nothing ("Conexao","Joelho","90") 130,Tubo Nothing 12.4 130,Sprinkler 8.0 coberturaChuveiro densidadeAgua ,Tubo Nothing 3.6 130,Sprinkler 8.0 coberturaChuveiro densidadeAgua ,Tubo Nothing 3.60 130,Sprinkler 8.0 coberturaChuveiro densidadeAgua, Tubo Nothing 3.60 130,Sprinkler 8.0 coberturaChuveiro densidadeAgua]
--}
-
 initialSprinkler e@(Sprinkler _ mdm area den)  =  do
   b@(d,k) <- bicos
   let
@@ -262,13 +258,12 @@ deConstructPath' i v = join $ fmap (\ppi-> fmap (tail ppi ++ ) . backPressurePat
 backPressurePath :: Element Double -> Node (Element Double) -> [[Node (Element Double)]]
 backPressurePath (Origem i ) n@(Node v p e ) =  filter (not .null) $ deConstructPath i n
 backPressurePath t@(Te _ _  i j ) n@(Node v p e ) =  filter (not .null) $ solveBifurcation t  n
-backPressurePath  b@(Bocal d)  n@(Node v p e) = return $ join $ unConsPath (Joelho d ("Bocais","Saida","")  DRight 100)  [Node v p b]
+backPressurePath  b@(Bocal d)  n@(Node v p e) = return $ join $ unConsPath (Perda d ("Bocais","Saida","")  100)  [Node v p b]
 -- backPressurePath  Bocal  n@(Node v p e) = return $  [Node v p Bocal]
 backPressurePath l m = error $ "no pattern for backPressure" ++ show l ++ " ____ " ++show m
 
 -- Expand  main path
 constructPath i= foldr (\n m -> concat $ fmap (\l -> fmap (:l) $ addElement n (head l)) m) ( pressurePath (last i )) (init i)
-
 
 consPath n l =  fmap (:l) $ addElement n (head l)
 unConsPath n l =  fmap (:l) $ removeElement n (head l)
@@ -300,10 +295,10 @@ bifurcationSolve  solve i j = filter (not .null) $do
 
 pressurePath :: Element Double  -> [[Node (Element Double )]]
 pressurePath (Origem i) = filter (not.null) $ constructPath i
-pressurePath (Te d _ i j) = bifurcationSolve (\l ->  backSolveE RamalNode (+) l )  ((Joelho Nothing ("Conexao","Te","Lateral" ) DRight 100 ):i) ((Joelho Nothing ("Conexao","Te","Direta" ) DRight 100 ):j)
+pressurePath (Te d _ i j) = bifurcationSolve (\l ->  backSolveE RamalNode (+) l )  ((Perda Nothing ("Conexao","Te","Lateral" ) 100 ):i) ((Perda Nothing ("Conexao","Te","Direta" ) 100 ):j)
 
 -- pressurePath (OptTe _ i j) = bifurcationSolve (\l -> join . fmap (consPath (te DRight)) .backSolveN OptionalNode max l) i j
-pressurePath (OptTe _ i j) =  join [constructPath ((Joelho Nothing ("Conexao","Te","Lateral" ) DRight 100 ):i) , constructPath ((Joelho Nothing ("Conexao","Te","Direta" ) DRight 100 ):j)]
+pressurePath (OptTe _ i j) =  join [constructPath ((Perda Nothing ("Conexao","Te","Lateral" ) 100 ):i) , constructPath ((Perda Nothing ("Conexao","Te","Direta" ) 100 ):j)]
 pressurePath s@(Sprinkler _ _ _ _) = fmap pure $ initialSprinkler s
 pressurePath (Reservatorio t v b) = do
     let vmax =  maximumBy (comparing (vazao .head))  pb
@@ -327,10 +322,11 @@ pressurePath g@(Bomba _ (Curva c) e suc )  = do
   bp <- backPressurePath (Origem suc ) (Node (0 :: Double) (-vres) Tip)
   n@(Node p v res) <- solveRamalN  (RamalNode (pmin vres) vres path) (Node (pmin vres + pressaoNode (head $  bp )) vres Tip)
   return $  RamalNode (pressaoNode (head bp))  v bp : Node (pressaoNode (head bp))  v (Bomba (Just (minp,minv)) (Curva bombaSuccaoFrontal) e suc ) :  res
+
 pressurePath i = error $ "pressure path no match " ++ show i
 
-te d = Joelho Nothing ("Conexao","Te","Lateral") d 100
-ted d  = Joelho (Just d) ("Conexao","Te","Lateral") DRight 100
+-- te d = Joelho Nothing ("Conexao","Te","Lateral") d 100
+-- ted d  = Joelho (Just d) ("Conexao","Te","Lateral") DRight 100
 
 preheader =  fmap (unlines .fmap (\(k,v)-> k ++ ": " ++ v) ) tables
     where t12a = [("Área de Aplicação","140m²")
@@ -384,22 +380,74 @@ headerunit= ";kPa;l/min;kPa;l/min;;m;m;m/s;l/(min.m²)\n"
 writeExcelCsv pheader n r1 = writeFile (n ++ ".csv" ) . (++ assinatura) . (projectHeader ++). L.intercalate "\n\n" . fmap (\(h,(i,l)) -> (h ++ header ++ l ) ) $ zip pheader $ zip [0..] $ (fmap (fmap (\i -> if i == '.' then ',' else i ). diffLists) )$  r1
 writeCsv r1 = mapM (\(i,l) -> writeFile ("westpoint" ++ show i ++ ".csv" ) (header ++ l) >> print i) $ zip [0..] $ (fmap (fmap (\i -> if i == '.' then ',' else i ). diffLists) )$  pressurePath r1
 
-westpoint = do
-  let r1 = Origem [tubo 1.31,joelho,tubo 3.22,teDireto,tubo 1.22,joelho,tubo 2.8,teDireto ,tubo 2.23,teDireto, tubo 1.67 , te [ tubo 0.73,sp] [tubo 0.54,teDireto, tubo 2.96 , cruz [tubo 1.77,sp] [tubo 4.0 , te [tubo 1.77 ,sp] r2] r3]]
-      r2 = [tubo 2.18 ,sp,tubo 4.0,sp,tubo 4.0 ,sp,tubo 4.0 ,sp , tubo 1.50, joelho45, tubo 1.41,sp ]
-      r3 = [tubo 2.18 ,sp,tubo 4.0,sp,tubo 4.0 ,sp,tubo 4.0 ,sp ,tubo 2.50 ,sp]
-      sp = Sprinkler (Just (11,5.8)) Nothing 11 4.1
-      tubo d = Tubo Nothing d 100
-      tubod di d = Tubo (Just di) d 100
-      joelho  = Joelho Nothing ("Conexao","Joelho","90") DRight  100
-      joelho45  = Joelho Nothing ("Conexao","Joelho","45") DRight  100
-      teLat  = Joelho Nothing ("Conexao","Te","Lateral") DRight  100
-      teDireto = Joelho Nothing ("Conexao","Te","Direta") DRight  100
-      te i j = Te  Nothing TeLateral i j
-      opte i j = OptTe  TeLateral i j
-      cruz i j k = te i [te j k ]
-  writeExcelCsv [] "westpoint" (pressurePath r1)
+unNode :: Element a -> State ((Element a,Int),(Element a,Int)) Int
+unNode e = do
+  modify (\((_,i),j)-> ((e,i+1),j))
+  snd . fst <$> get
+unLink :: Element a -> State ((Element a,Int),(Element a,Int)) Int
+unLink  e = do
+  modify (\(i,(_,j))-> (i,(e,j+1)))
+  snd . snd <$> get
 
+stack (Left l) ((Sprinkler c _ i j):xs) = do
+  el <- fst.snd <$> get
+  let e = Sprinkler c (diametroE el) i j
+  un <- unNode  e
+  (i,r) <- stack (Right un) xs
+  return $ (i,([(un,e)],[l un []]) <> r)
+stack (Right i) (el:xs) = do
+  un <- unLink el
+  stack (Left (\t xs -> (un,i,t,el:xs))) xs
+stack (Left f ) (Joelho _ j k l :xs) = do
+  eo <- fst.snd <$> get
+  stack  (Left (\i xs -> f i (Joelho (diametroE eo) j k l :xs))) xs
+stack (Left f ) (el:xs) = do
+  stack  (Left (\i xs -> f i (el:xs))) xs
+stack (Left i) [] = do
+  return (i,([],[]))
+stack (Right i)  j  = error $ show j <> " " <> show i
+
+
+diametroEJ i = case diametroE i of
+                    (Just i) -> i
+                    Nothing -> error $ "sem diametro elemento " ++ show i
+unrollNode (ln,oe) e@(Origem i) =  do
+  (el ,l) <- stack (Right ln) (init i)
+  ul <-(snd <$> get)
+  (n,r) <- unrollNode   (swap ul) (last i)
+  return $ (snd ul,([],[el n []]) <> l<> r)
+unrollNode (ln,oe) e@(Te _ n i j ) = do
+  un <- unNode e
+  uljl  <-(snd .snd <$> get)
+  (elj ,lj ) <- stack (Right un) (init j)
+  ulj  <-(snd <$> get)
+  (nj,rj) <- unrollNode  (swap ulj) (last j)
+  ulil  <-(snd .snd <$> get)
+  (eli ,li ) <- stack (Right un) (init i)
+  uli  <-(snd <$> get)
+  (ni,ri) <- unrollNode  (swap uli) (last i)
+  let conf = case n of
+       TeBranch -> TeeConfig [uljl +1 , ln ,ulil +1 ] 0.01 (diametroEJ oe) (max (diametroEJ oe) $max (diametroEJ (head i)) (diametroEJ (head j)))
+       TeRunL -> TeeConfig [ln,uljl +1 ,ulil +1 ] 0.01 (diametroEJ (head j)) (max (diametroEJ (head j)) $max ( diametroEJ (head i)) (diametroEJ oe))
+       TeRunR -> TeeConfig [uljl +1 ,ulil +1,ln ] 0.01 ( diametroEJ (head i)) (max (diametroEJ (head i)) $ max (diametroEJ oe) (diametroEJ (head j)))
+
+  return $ (un,([(un,Tee ( conf 1000))],[elj nj [], eli ni []]) <> lj <> li  <> ri <> rj)
+unrollNode (ln,oe) e@(Sprinkler _ _ _ _ ) = do
+  un <- unNode e
+  return $ (un,([(un,e)],[]))
+unrollNode (ln,oe) e@(Open _) = do
+  un <- unNode e
+  return $ (un,([(un,e)],[]))
+unrollNode (ln,oe) e@(Reservatorio _ _ _) = do
+  un <- unNode e
+  return $ (un,([(un,e)],[]))
+unrollNode i j = error $ show i ++ show j
+
+
+editDiametro v (Tubo Nothing b c )  = Tubo (Just v) b c
+editDiametro v (Joelho Nothing b c d)  = Joelho (Just v) b c d
+editDiametro v i = i
+{-
 twopass = do
    let
           r0 = [tubo 5.25 ,joelho DLeft , tubo 1.78 ,sp]
@@ -441,9 +489,9 @@ twopass = do
           teLatD d = Joelho (Just 0.075) ("Conexao","Te","Lateral") DRight 100
           teDireta  = Joelho Nothing ("Conexao","Te","Direta") DRight 100
           teDireta75  = Joelho (Just 0.075) ("Conexao","Te","Direta") DRight 100
-          te i j = Te Nothing TeLateral i j
-          ted d i j = Te (Just d) TeLateral i j
-          opte i j = OptTe  TeLateral i j
+          te i j = Te Nothing TeBranch i j
+          ted d i j = Te (Just d) TeBranch i j
+          opte i j = OptTe  TeBranch i j
           cruz i j k = te i [te j k ]
           tubo75 = tubod 0.075
           tubo50 = tubod 0.050
@@ -453,7 +501,7 @@ twopass = do
           renderNode1 name = mapM (\(i,l) -> when (not $ null l ) $  writeFile (name<> backed i <> ".iter" ) . (("\n ----------------- \n Iteration - " ++ show i ++ "\n ----------------- \n" ) ++ ).  L.intercalate ("\n\n") . fmap (\(l,v) -> "- Option " ++ show (l :: Int) ++ "\n" ++ v) . zip [0..]. fmap (fmap (\i -> if i == '.' then ',' else i ) . L.intercalate "\n") . fmap (fmap (showNode 0)) $ l)  . zip [0 :: Int ..]
    let  r1 = pressurePath (Origem r8 )
         s1 = pressurePath  (Origem ss2)
-        req = [teDireta,gaveta,  OptTe TeLateral r8  l0]
+        req = [teDireta,gaveta,  OptTe TeBranch r8  l0]
         t21 = pressurePath (Origem l0)
         firstpass = last $ last r1
         succao2 = [tubod 0.1 1.6,joelho DRight, tubod 0.1 1.0,joelho DRight , tubod 0.1 1.6 , Gravidade (1.0),te [gaveta,tubod 0.1 0.4,Gravidade (0.4),Bocal (Just 0.1)] [gaveta,tubod  0.1 0.8 ,joelho DRight ,tubod 0.1 0.4,Gravidade (0.4),Bocal (Just 0.1)]]
@@ -462,7 +510,7 @@ twopass = do
         bombaTipo12 =  Reservatorio 30 Nothing $ Bomba Nothing  (Curva bombaSuccaoFrontal ) (recalque ++  [ subsolo] ) succao2
         tipo12=  req
         tipo1=  Origem ([tubod 0.1 (2.89*11),Gravidade (2.89*11) ] ++ l0 )
-        subsolo=  OptTe  TeLateral req  (replicate 10 teDireta ++ [ tubod 0.1 (2.89*11),Gravidade (2.89*11) ,opte l0 (replicate 2 teDireta ++ [ tubod 0.1 (3*2.89),Gravidade (3*2.89)  ] ++ ss2)])
+        subsolo=  OptTe  TeBranch req  (replicate 10 teDireta ++ [ tubod 0.1 (2.89*11),Gravidade (2.89*11) ,opte l0 (replicate 2 teDireta ++ [ tubod 0.1 (3*2.89),Gravidade (3*2.89)  ] ++ ss2)])
    --renderNode1 "ppath" [(pressurePath $ Origem ss2)]
    --renderNode1 "tipo-12" [pressurePath tipo12]
    --renderNode1 "tipo-1" [pressurePath tipo1]
@@ -479,7 +527,7 @@ twopass = do
    -- renderNode1  "r" $  result1N req
    -- mapM (\(i,l) -> writeFile ("andar_12" ++ show i ++ ".csv" ) (header ++ l) >> print i) $ zip [0..] $ (fmap (fmap (\i -> if i == '.' then ',' else i ). nodeLists  ) )$  last $ result1N req
 -}
-
+-}
 result1N inp = scanl (\j i-> concat $ fmap (\l-> fmap (:l) $ addNode i (head l)) j) ( pure $  pure $ last inp) . reverse . init $ inp
 
 -- main  = twopass
