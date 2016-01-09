@@ -4,7 +4,6 @@ import Data.Foldable
 import qualified Data.Map as M
 import Control.Monad
 
--- import Diagrams.Prelude.ThreeD (R3)
 import Linear.V3
 
 data Direction a

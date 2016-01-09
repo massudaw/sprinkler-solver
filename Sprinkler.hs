@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFoldable,TupleSections#-}
-module Sprinkler where
+module Sprinkler (bombaSF,unrollNode,editDiametro ,formatFloatN )where
+
 import Control.Monad
 import Data.Tuple
 import Control.Monad.Trans.State

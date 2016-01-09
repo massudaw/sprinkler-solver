@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses,FlexibleInstances,TypeSynonymInstances,GADTs,TypeFamilies, FlexibleContexts,RankNTypes,TupleSections,RecursiveDo, NoMonomorphismRestriction #-}
-module Diagram4 where
+module Mecha where
 
 import Grid
 import Debug.Trace
@@ -67,19 +67,6 @@ instance Target  Mecha.Solid  where
   renderLink = renderLinkMecha
   errorItem = Mecha.torus 0.2 0.1
   transformElement (r,(ax,ay,az))= Mecha.moveX (r ^. _x) . Mecha.moveY (r ^. _y) . Mecha.moveZ (r ^. _z) . Mecha.rotateX (ax *2*pi) . Mecha.rotateZ (az *2*pi) . Mecha.rotateY (ay *2*pi)
-
-styleNodes :: Iteration Double -> [Mecha.Solid]
-styleNodes  it = fmap (\i -> transformElement (var (fst i) (M.fromList (shead $ grid it))) $ renderNode metrics (S.empty ,((abs $ fst (var (fst i) (M.fromList (shead $ grid it))) ^. _z ) *0 + varn (fst i) (M.fromList (nodeHeads it)),i))) (nodesFlow (grid it)) -- (shead (grid it)) (nodeHeads it)
-  where metrics = [maximum (snd <$> flows it), minimum (snd <$> flows it)]
-
-styleLinks :: Iteration Double -> [Mecha.Solid]
-styleLinks it = concat $ fmap (\(l,_,_,i)  -> zipWith (\m n -> transformElement m $ renderLink (varn l (M.fromList (flows it)),nf (varn l (M.fromList (flows it)))) l n ) (var l (M.fromList $ linksPosition (grid it)) ) i ) (links (grid it))  -- (flows it)
-  where [max,min]= [maximum (snd <$> flows it), minimum (snd <$> flows it)]
-        nf f =  abs f /(max - min)
-
-drawIter iter = L.foldl1' (<>) $ nds <> lds
-  where nds = styleNodes iter
-        lds = styleLinks iter
 
 instance Semigroup Mecha.Solid where
   i <> j = Mecha.union i j

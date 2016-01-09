@@ -18,7 +18,8 @@ import Data.Ord
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
-import Diagram4
+import Mecha
+import Diagram
 
 import Control.Lens
 import Data.Traversable (traverse)
@@ -283,6 +284,7 @@ sanmarinoTerraco =
 90 - 1/4
 45 - 1/8
 -}
+
 rightC d = (0,d)
 right90  = rightC $ 1/4
 right45  = rightC $ 1/8
@@ -319,11 +321,16 @@ joelhoDV  c = Joelho Nothing ("Conexao","Joelho","90") (dowC  c ) 100
 
 testBouganville =  do
   let
-       iter = solveIter (makeIter 0 1 bouganvillePav2 )jacobianEqNodeHeadGrid
-       iter2 = solveIter (makeIter 0 1 bouganvilleSub2 )jacobianEqNodeHeadGrid
+       iter = solveIter (makeIter 0 1 bouganvillePav2 ) jacobianEqNodeHeadGrid
+       iter2 = solveIter (makeIter 0 1 bouganvilleSub2 ) jacobianEqNodeHeadGrid
   reportIter "bouganvillePav2" 0 iter
   reportIter "bouganvilleSub2" 0 iter2
+  print "renderReport"
   writeFile "bouganville.scad" $openSCAD (drawIter iter  <> drawIter iter2)
+  print "renderSCAD"
+  -- diagramRender (drawIter iter)
+  diagramRender (drawIter iter2 <> drawIter iter)
+  print "renderDiagram"
 
 
 testFokus =  do
@@ -348,7 +355,7 @@ t5 =  do
   let
        preiter = (makeIter 0 1 westpoint)
        iter = solveIter preiter jacobianEqNodeHeadGrid
-  print preiter
+  -- print preiter
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
   reportIter "tipo17" 0 iter
@@ -367,7 +374,6 @@ sanIterSubsolo=  do
   let
        preiter = (makeIter 0 1 sanmarinoSubsolo)
        iter = solveIter preiter jacobianEqNodeHeadGrid
-  print preiter
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
   reportIter "sanmarino_subsolo" 0 iter
@@ -378,7 +384,7 @@ sanIterTerraco =  do
   let
        preiter = (makeIter 0 1 sanmarinoTerraco)
        iter = solveIter preiter jacobianEqNodeHeadGrid
-  print preiter
+  -- print preiter
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
   reportIter "sanmarino_terraco" 0 iter
@@ -388,16 +394,11 @@ sanmarino = do
   t1 <- sanIterTerraco
   t2 <- sanIterSubsolo
   writeFile "sanmarino.scad" $ openSCAD     (t1 <> t2)
-main = testFokus
+
+main = testBouganville
 
 
 
-{-main = do
-  t3 <- t3
-  writeFile "westoffice.scad" $ openSCAD    $ t3
-
--}
-jac3 = (jacobian (jacobianEqNodeHeadGrid (grid $ test3 ) ) ) (snd <$> (flows test3)++  (nodeHeads test3))
 
 
 totalHead a p va =   p/(g*rho) + v^2/(2*g)
@@ -486,6 +487,7 @@ reportIter name i (Iteration f h a)  = do
     expandLink' st (Just f) (i,t@(Tubo (Just d ) dl  _)) = Grid.ktubo t*(abs f)**1.85
     expandLink' st (Just f) (i,b@(Bomba (Just (d,_))  dl  _ _ )) =  pipeElement f b
     expandLink' st (Just f) (i,j@(Joelho (Just d)  (_,_,c)  _ _ ) ) =  Grid.ktubo j*(abs f)**1.85
+
 
 
 expandGrid a = runState (recurseNode  [] (lookNode (fst $ head sortedHeads))) (S.empty,S.empty)
