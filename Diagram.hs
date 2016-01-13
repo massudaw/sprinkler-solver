@@ -37,7 +37,7 @@ import Diagrams.TwoD.Text (Text)
           [Double] -> (S.Set Int, (Double,(Int, Element Double)))
      ->  (Diagram SVG R2)-}
 renderElem _ (s,(p,(n,Open i))) =  regPoly 6 0.1 -- text (show n) # fontSizeL 0.1 # fc white <> circle 0.1 # fc green # lwL 0.04
-renderElem _ (s,(p,(n,Tee (TeeConfig tc@[rl,b,rr] _ _ _ _)) )) =   regPoly 3 0.1 -- text (show n ) # fontSizeL 0.2 # fc black <> rotateBy (1/4) (triangle 0.4) # fc red # lwL 0.04
+renderElem _ (s,(p,(n,Tee (TeeConfig tc@[rl,b,rr] _ _ _ _) _ ) )) =   regPoly 3 0.1 -- text (show n ) # fontSizeL 0.2 # fc black <> rotateBy (1/4) (triangle 0.4) # fc red # lwL 0.04
 renderElem [maxf,minf] ite@((s,(p,(n,Sprinkler (Just (d,k))  _ _ _) ))) =  regPoly 5 0.1 {-sp
   where
         nf = (k*sqrt p)/(maxf -minf)

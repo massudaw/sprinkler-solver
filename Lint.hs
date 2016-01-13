@@ -40,7 +40,7 @@ lintInitialConditions iter = snd $ runIdentity $ runWriterT $ do
 
 lintInitialTee  iter  = do
   let fl = ((/(1000*60)) <$> M.fromList (flows iter))
-  mapM_ (\(n,Tee config)-> lintInitTee (var n $ signedFlow (grid iter) fl) config) ( filter (isTee .snd ) $  (nodesFlow (grid iter)))
+  mapM_ (\(n,Tee config conf )-> lintInitTee (var n $ signedFlow (grid iter) fl) config) ( filter (isTee .snd ) $  (nodesFlow (grid iter)))
 
 lintInitTee flowMap  t =  do
   let flow = fmap (\i -> maybe (error ("no variable " ++ show i ++ " in map " ++ show flowMap ))  id  $ M.lookup  i flowMap) (teeConfig t)
@@ -69,7 +69,7 @@ lintGridElements grid = snd $ runIdentity $ runWriterT $ do
 -- lintTee :: (Show a,Ord a) => Grid a -> [String]
 lintTee grid =   mapM_ checkLinks tees
   where tees = filter (isTee .snd) (nodesFlow grid)
-        checkLinks c@(n,Tee (TeeConfig tc@[rl,b,rr] r db dr m)) = do
+        checkLinks c@(n,Tee (TeeConfig tc@[rl,b,rr] r db dr m) ty ) = do
             let lks@[lrl,lb,lrr] = fmap (\i -> head . (\(h,t,e) -> if n == h then e else reverse e ) $ var  i linkMap)  tc
             when (diametroE lrr /= Just dr ) $
               tell $ ["diametro right run " ++ show rr ++ " is different from tee "++ show n ++ " " ++ show dr ++ " /= " ++ show (diametroE lrr)]

@@ -66,11 +66,7 @@ instance Coord (V3  Double) where
     where h = case S.toList $ S.delete l  s of
             [h] -> h
             i -> error $ " empty link set " <> show s
-  nextElement l (p,(n,Tee (StaticTee [rl,b,rr] _ _ _ _)) )
-    | rl == l = [(rr,(0, (0,0,0))), (b,(0, (0,0,-1/4))) ]
-    | rr == l = [(rl,(0, (0,0,0))), (b,(0, (0,0,1/4)))]
-    | b == l = [(rr,(0, (0,0,-1/4))) , (rl,(0, (0,0,1/4) ))]
-  nextElement l (p,(n,Tee (TeeConfig [rl,b,rr] _ _ _ _)) )
+  nextElement l (p,(n,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ) )
     | rl == l = [(rr,(0, (0,0,0))), (b,(0, (0,0,-1/4))) ]
     | rr == l = [(rl,(0, (0,0,0))), (b,(0, (0,0,1/4)))]
     | b == l = [(rr,(0, (0,0,-1/4))) , (rl,(0, (0,0,1/4) ))]
@@ -78,15 +74,11 @@ instance Coord (V3  Double) where
   thisElement l (p,(n,Open i))  =  (0,(0,0,0))
   thisElement l (p,(n,Reservatorio _ _ i))  =  (0,(0,0,0))
   thisElement l (p,(n,Sprinkler _ _ _ _ ))  =  (0,(0,0,0))
-  thisElement l (p,(n,Tee (StaticTee [rl,b,rr] _ _ _ _)))
+  thisElement l (p,(n,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ))
     | rl == l =  (0,(0,0,1/4))
     | rr == l =   (0,(0,0,-1/4))
     | b == l =   (0,(0,0,0))
-  thisElement l (p,(n,Tee (TeeConfig [rl,b,rr] _ _ _ _)))
-    | rl == l =  (0,(0,0,1/4))
-    | rr == l =   (0,(0,0,-1/4))
-    | b == l =   (0,(0,0,0))
-  trans (l,i@(ix,iy,iz)) (lo,a@(ax,ay,az)) = ( l + ( distribute (rotX (V1 (opi  ix))) !*! (distribute (rotZ (V1 $ opi iz))  !*! distribute (rotY (V1 $ opi iy))) ) !* lo  , unr3 $ r3 i <>   r3 a )
+  trans (l,i@(ix,iy,iz)) (lo,a@(ax,ay,az)) = ( l + rot i !* lo  , unr3 $ r3 i <>   r3 a )
   elemTrans t = (lengthE t , angleE t)
   dist i j = distance (r2p i) (r2p j)
 
@@ -149,24 +141,18 @@ locateGrid lmap nmap n r ll@(Left (l,h,t,e))
             locateGrid lmap nmap l pos (Right $ var h nmap)
           else
             if  dist dt ( fst $ var h visitedNode) < 1e-2
-             then traceShow (show l <> " exact union point " <> show h <> " " <> show dt <> " == " <>  show (var h visitedNode ))  $return ()
-             else traceShow (show l <> " non exact union point " <> show h <> " " <> show dt <> " /= " <>  show (var h visitedNode)) $ (return ())
+             -- then traceShow ("link (" <> show l <> ") exact union node (" <> show h <> ") " <> show dt <> " == " <>  show (fst $ var h visitedNode ))  $return ()
+             then return ()
+             else traceShow ("link (" <> show l <> ") non exact union node (" <> show h <> ") " <> show dt <> " /= " <>  show (fst $ var h visitedNode)) $ (return ())
 
 r2p = p3 . unr3
 
 angleE :: Fractional a => Element a -> (a,a,a)
-{-angleE (Joelho _ (_,_,c) DRight _ ) = (0,0,rd c )
-angleE (Joelho _ (_,_,c) DLeft _ ) = (0,0,negate $ rd c)
-angleE (Joelho _ (_,_,c) (DUp r) _ ) = (0,-1/4,r)
-angleE (Joelho _ (_,_,c) (DDown r) _ ) = (0,1/4,r)-}
 angleE (Joelho _ _ (c,r) _ ) = (0,c,r)
 angleE (Turn c) = (c,0,0)
 angleE  i = (0,0,0)
 
-rd "90" = 1/4
-rd "45" = 1/8
 
--- r3 (i,j,k) = V3 i j k
 lengthE :: Element Double -> V3 Double
 lengthE (Tubo _ c _ ) = r3 (c,0,0)
 lengthE i = 0
@@ -178,36 +164,34 @@ transEleml i e =  trans i (elemTrans e)
 revElems :: Num a => [Element a ] -> [Element a]
 revElems = reverse .fmap revElem
   where
-    {-revElem (Joelho i j DRight k)  =  (Joelho i j DLeft k)
-    revElem (Joelho i j DLeft k)  =  (Joelho i j DRight k)
-    revElem (Joelho i j (DUp r) k)  =  (Joelho i j (DDown (-r)) k)
-    revElem (Joelho i j (DDown r) k)  =  (Joelho i j (DUp (-r)) k)-}
     revElem (Joelho i j (a,b) k) = Joelho i j (-a,-b) k
     revElem (Turn i ) = Turn (-i)
     revElem i = i
 
 
 varM i j = case M.lookup i j of
-              Nothing -> traceShow ("no var " <> show i ) Nothing
+              Nothing ->  Nothing
               i -> i
 
 -- styleNodes :: Iteration Double -> [Mecha.Solid]
 styleNodes  it = catMaybes $ fmap (\i -> do
         pos <- varM (fst i) gridMap
         pres <- varM (fst i) (M.fromList (nodeHeads it))
-        return $ transformElement  pos $ renderNode metrics (S.empty ,((abs $ fst pos ^. _z ) *0 + pres,i))) (nodesFlow (grid it)) -- (shead (grid it)) (nodeHeads it)
+        return $ transformElement  pos $ renderNode metrics (S.empty ,((abs $ fst pos ^. _z ) *0 + pres,i))) (nodesFlow (grid it))
   where metrics = [maximum (snd <$> flows it), minimum (snd <$> flows it)]
         gridMap = (M.fromList (shead $ grid it))
         headMap = (M.fromList (nodeHeads$ it))
 
 --styleLinks :: Iteration Double -> [Mecha.Solid]
 styleLinks it = concat $ catMaybes $  fmap (\(l,_,_,i)  -> do
-            pos <- varM l (M.fromList $ linksPosition (grid it))
+            pos <- varM l  posMap
             return $ catMaybes $ zipWith (\m n ->  do
-              flow <- varM l (M.fromList (flows it))
-              return $ transformElement m $ renderLink (flow ,nf flow ) l n ) pos  i ) (links (grid it))  -- (flows it)
+              flow <- varM l flowMap
+              return $ transformElement m $ renderLink (flow ,nf flow ) l n ) pos  i ) (links (grid it))
   where [max,min]= [maximum (snd <$> flows it), minimum (snd <$> flows it)]
         nf f =  abs f /(max - min)
+        posMap = M.fromList $ linksPosition (grid it)
+        flowMap  = M.fromList (flows it)
 
 drawIter iter = L.foldl1' (<>) $ nds <> lds
   where nds = styleNodes iter

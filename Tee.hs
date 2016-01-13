@@ -15,9 +15,8 @@ eps = 1e-12
 -- g =  32.174
 g =  9.81
 
-testTee = [(conf,classifyTee  flows conf),(conf1 ,classifyTee flows conf1)]
+testTee = [(conf,classifyTee  Table flows conf),(conf,classifyTee Formula flows conf)]
   where conf = TeeConfig  config 0.09 0.065 0.065 1000
-        conf1 = StaticTee config  0.09 0.065 0.065 100
         config = [1,2,3]
         flows = fmap (/(1000*60))(M.fromList [(1,0),(2,-1166 ),(3,500)])
 
@@ -36,7 +35,7 @@ ktubo t  v = perda*10*v**1.85
               perda = 10.65*(distanciaE t)/((c**1.85)*(d**4.87))
 
 
-classifyTee  flowMap  t@(TeeConfig _ _ _ _ _) =  fmap (/1000) <$> classifyFlow flow
+classifyTee  Formula flowMap  t@(TeeConfig _ _ _ _ _) =  fmap (/1000) <$> classifyFlow flow
   where flow = fmap (\i -> fromJustE ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
         [rli,bi,rri] = teeConfig t
         db = teeDiameterBranch t
@@ -55,7 +54,7 @@ classifyTee  flowMap  t@(TeeConfig _ _ _ _ _) =  fmap (/1000) <$> classifyFlow f
                 rr = abs rrs
                 b = abs bs
 
-classifyTee  flowMap  t =  classifyFlow flow
+classifyTee  Table flowMap  t =  classifyFlow flow
   where flow = fmap (\i -> fromJustE ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
         [rli,bi,rri] = teeConfig t
         db = teeDiameterBranch t

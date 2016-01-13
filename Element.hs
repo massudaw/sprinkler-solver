@@ -68,7 +68,7 @@ data Element a
   , recalqueElements :: [Element a]
   , succaoElements :: [Element a]
   }
-  | Tee (TeeConfig a)
+  | Tee (TeeConfig a) ConfigType
   | Joelho
   { diametroJ :: Maybe a
   , tipoJ :: (String,String,String)
@@ -136,15 +136,10 @@ data Node a
   ,pathNode :: [Node a]
   }deriving(Eq,Foldable,Show)
 
+data ConfigType = Table | Formula deriving (Eq,Ord,Show)
+
 data TeeConfig a
   = TeeConfig
-  { teeConfig :: [Int] -- Left Run Branch Right Run
-  , teeRadius :: a
-  , teeDiameterBranch :: a
-  , teeDiameterRun :: a
-  , teeMaterial :: a
-  }
-  | StaticTee
   { teeConfig :: [Int] -- Left Run Branch Right Run
   , teeRadius :: a
   , teeDiameterBranch :: a
@@ -163,6 +158,7 @@ diametroT i = diametroE i
 diametroE :: Element a -> Maybe a
 diametroE (Tubo d _ _ ) = d
 diametroE (Joelho d _ _ _) = d
+diametroE (Perda d _  _) = d
 diametroE i = Nothing
 
 distanciaE :: (Show a,Ord a,Fractional a )=> Element a -> a
@@ -173,6 +169,7 @@ distanciaE i  =  0
 materialE :: Show a => Element  a -> a
 materialE (Tubo _ _ c) =  c
 materialE (Joelho _ _ _ c) = c
+materialE (Perda _  _ c) = c
 materialE i = error $ "No Material Defined" ++ show i
 
 elementE (Node _ _ e) = Just e

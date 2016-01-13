@@ -432,7 +432,7 @@ unrollNode (ln,oe) e@(Te _ n i j ) = do
        TeRunL -> TeeConfig [ln,uljl +1 ,ulil +1 ] 0.01 (diametroEJ (head j)) (max (diametroEJ (head j)) $max ( diametroEJ (head i)) (diametroEJ oe))
        TeRunR -> TeeConfig [uljl +1 ,ulil +1,ln ] 0.01 ( diametroEJ (head i)) (max (diametroEJ (head i)) $ max (diametroEJ oe) (diametroEJ (head j)))
 
-  return $ (un,([(un,Tee ( conf 1000))],[elj nj [], eli ni []]) <> lj <> li  <> ri <> rj)
+  return $ (un,([(un,Tee ( conf 1000)Table )],[elj nj [], eli ni []]) <> lj <> li  <> ri <> rj)
 unrollNode (ln,oe) e@(Sprinkler _ _ _ _ ) = do
   un <- unNode e
   return $ (un,([(un,e)],[]))

@@ -34,7 +34,7 @@ path i h t  l = (i,h,t,  l)
 tubod l d = Tubo (Just d) l 100
 jd dir d = Joelho (Just d) ("Conexao","Joelho","90")  dir 100
 
-makeIter i j g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (( replicate 10 (20) <> repeat 4) )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  (nodesFlow g))(repeat 100)) (realToFrac  <$>  upgradeGrid i j g)
+makeIter i j g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  (nodesFlow g))(repeat 100)) (realToFrac  <$>  upgradeGrid i j g)
 
 
 grid4 :: RealFloat a => Grid a
@@ -44,12 +44,12 @@ grid4 =  Grid [] links [] nodes
                 ,(2,3,1,($0.065) <$> [tubod 0.2,jd $ dowC 0,tubod 0.4])
                 ,(3,4,3,($0.065) <$> [tubod 2,jd $ right90 ,tubod 2])]
         tubo' i h  d l = (i,h,h+1,[Tubo (Just d) l 100])
-        te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (100)))
+        te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (100)) Table )
 
 fokus :: RealFloat a => Grid a
 fokus = (Grid [] links [] nodes)
   where
-    te i c dri dbi =  (i,Tee (StaticTee c (0.1*dbi) dbi dri (100)))
+    te i c dri dbi =  (i,Tee (TeeConfig c (0.1*dbi) dbi dri (100))Table )
     tubo i h t d l = (i,h,t,[Tubo (Just d) l 100])
     dm = 0.20
     dr= 0.10
@@ -68,9 +68,9 @@ fokus = (Grid [] links [] nodes)
             te 1 [1,2,3] dr dr
             ,te 2 [5,4,3] dr db
             ,te 3 [6,4,5] dr db
-            {-,te 4 [8,7,6] dr db
-            ,te 5 [1,7,9] dr db-}]
-            <> seqS (1,6) (9,5) 11
+            ,te 4 [8,7,6] dr db
+            ,te 5 [1,7,9] dr db]
+            <> seqS (9,8) (9,5) 11
             <> [ te 30 [49,51,44] dr db
             , sp 101, sp 102, sp 103
             , te 31 [45,48,50] dr db]
@@ -84,16 +84,16 @@ fokus = (Grid [] links [] nodes)
             , sp 111, sp 112, sp 113, sp 114
             , te 37 [64,69,70] dr db,(0,Reservatorio 2 Nothing (Open 0))]
 
-    links = [(2,0,1,editDiametro dm <$> [tubod 0.1 dm ,joelhoD,tubod 0.5 dm,tubod 1 dm,joelhoU0,tubod 2.726 dm ,joelhoL,tubod  1.0 dm,bomba,tubod  1 dm,joelhoUV (-1/4),tubod  1 dm,joelhoD ,tubod  0.76 dm,joelhoL,tubod  3.72 dm,joelhoD,tubod 1 dm, joelhoU0,tubod  0.2 dm,joelhoU0,joelhoL , tubod  1  dm,joelhoD ,tubod 3.6 dm ,joelhoL , tubod  22.3 dm,joelho,tubod  21.66  dm,joelhoL ,tubod 12.75 dm , tubod  62.46   dm,joelho,tubod  0.768 dm,jd (upC 0) dm , tubod 11 dm ,jd (dowC 0 ) dm ,tubod ({-20*2.89+-}2.889) dm,tubod 0.1 dr])
+    links = [(2,0,1,editDiametro dm <$> [tubod 0.1 dm ,joelhoD,tubod 0.5 dm,tubod 1 dm,joelhoU0,tubod 2.726 dm ,joelhoL,tubod  1.0 dm,bomba,tubod  1 dm,joelhoUV (-1/4),tubod  1 dm,joelhoD ,tubod  0.76 dm,joelhoL,tubod  3.72 dm,joelhoD,tubod 1 dm, joelhoU0,tubod  0.2 dm,joelhoU0,joelhoL , tubod  1  dm,joelhoD ,tubod 3.6 dm ,joelhoL , tubod  22.3 dm,joelho,tubod  21.66  dm,joelhoL ,tubod 12.75 dm , tubod  62.46   dm,joelho,tubod  0.768 dm,jd (upC 0) dm , tubod 11 dm ,jd (dowC 0 ) dm ,tubod 2.889 dm,tubod 0.1 dr])
             ,tubo 3 1 2 dr 1.8
             ,tubo 4 2 3 db 49.26
             ,(5,2,3,editDiametro dr <$> [tubod 1.54 dr,joelhoR,tubod 49.26 dr ,joelhoR,tubod 1.54 dr])
-            ,tubo 6 3 6 dr 3.59
-            ,tubo 1 7 1 dr 1.79
-            {-,tubo 7 4 5 db 49.26
+            ,tubo 6 3 4 dr 3.59
+            ,tubo 1 5 1 dr 1.79
+            ,tubo 7 4 5 db 49.26
             ,tubo 8 4 6 dr 3.7
-            ,tubo 9 5 7 dr 3.7-}]
-            <> seqT (6,1) (9,5) 11
+            ,tubo 9 5 7 dr 3.7]
+            <> seqT (8,9) (9,5) 11
             <> [tubo 51 30 101 db  1.8
               ,tubo 46 101 102 db  3.7
               ,tubo 47 102 103 db  3.75
@@ -120,25 +120,6 @@ fokus = (Grid [] links [] nodes)
             ,tubo 69 114 37 db  (49.26 - 3.7 - 1.8 - 3.75 - 3.75)
             ,(70,37,36, editDiametro dr <$>  [tubod 1.42 dr,joelhoL ,tubod 49.26 dr,joelhoL,tubod 1.42 dr])]
 
-fokus2 :: (Show a ,Ord a,RealFloat a )=> Iteration a
-fokus2 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  nodes )   (repeat 100) ) (realToFrac  <$>  upgradeGrid 212 31 grid)
-  where
-        grid =  (Grid  [] ((\(i,j,k,l) -> (i,j,k,fmap (editDiametro 0.8) l ))  <$> links) [] nodes )
-        sp i = (i,Sprinkler (Just (16,15.1))  Nothing 12 6.1)
-        tubo' i h  d l = (i,h,h+1,[Tubo (Just d) l 100])
-        te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (100)))
-        tubo i h t d l = (i,h,t,[Tubo (Just d) l 100])
-        bomba = Bomba (Just (300,1166)) bombaSF [] []
-        patchT (i,j) (idt,idn) = [tubo (idt + 1) (idn + 2) (idn + 1) 0.025 (1.4 + 4*2.92) , tubo (idt +2 )  i (idn +1)   0.065 2.25, tubo   (idt +3 )  j (idn +2)        0.08 (2.25)]
-        patchS (idt,idn) (ti,tj)= [te (idn +2) [idt+3,idt+1,ti ] 0.08 0.025, te (idn +1) [tj,idt+1,idt +2] 0.065 0.025]
-
-        nodes = [ te 240 [77,31,74] 0.08 0.1]
-                <> [(238,Open 4),(239,Open 4),(212,Reservatorio 0 Nothing (Open 0))]
-
-        links = [(31,212,240 , [tubod 0.1 0.1 ,joelhoD,tubod 0.5 0.1,tubod 1 0.1,joelhoU0,tubod 2.726 0.1 ,joelhoL,tubod  1.0 0.1,bomba,tubod  1 0.1,joelhoUV $ -1/4 ,  tubod  1 0.1,joelhoD ,tubod  0.76 0.1,joelhoL,tubod  3.72 0.1,joelhoD,tubod 1 0.1, joelhoU0,tubod  0.2 0.1,joelhoU0,tubod  1 0.1,joelhoD ,tubod  0.2 0.1,joelhoL,tubod  1.56 0.1,joelhoL ,tubod  4.2 0.1,joelho,tubod  0.768 0.1,jd (dowC 0) 0.1, tubod (4*3.24) 0.1,tubod (11*3.06) 0.1,tubod 3.06 0.1, tubod 3.06 0.1 ,tubod 2.88 0.1 ,jd (upC $ 1/2) 0.1 ,tubod ({-20*2.89+-}2.889) 0.10 ])]
-                <> [tubo 74 239 240 0.08 2,path 77 240 238 [tubod (1.0) 0.08 ,tubod 5.57 0.065 ,tubod 12.3674 0.065,jd left90 0.065, tubod (1.507) 0.065]]
-
-
 
 test3 :: (Show a ,Ord a,Fractional a )=> Iteration a
 test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  nodes )   (repeat 100) ) (realToFrac  <$>  upgradeGrid 212 31 grid)
@@ -146,7 +127,7 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap 
         grid = (Grid  [] links [] nodes )
         sp i = (i,Sprinkler (Just (0.013,8))  (Just 0.025) 12 6.1)
         tubo' i h  d l = (i,h,h+1,[Tubo (Just d) l 100])
-        te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (100)))
+        te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (100))Table)
         tubo i h t d l = (i,h,t,[Tubo (Just d) l 100])
         bomba = Bomba (Just (300,1166)) bombaSF [] []
         nodes = [te 239 [73,74,75] 0.08 0.08 , te 240 [77,31,74] 0.08 0.08]
@@ -195,8 +176,6 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap 
                   , tubo 22 204 203 0.065 2.25, tubo 17 207 208 0.08 2.25
                   , tubo 24 111 204 0.025 0.7 , tubo 90 111 115 0.025 2.92, tubo 8 112 115 0.025 2.92 ,tubo 9 113 112 0.025 2.92 ,tubo 10 114 113 0.025 2.92,tubo 20 208 114 0.025 0.7
                   , tubo 32 204 300 0.065 0.4,tubo 33 208 301 0.08 0.4 ,tubo 75 239 302 0.08 0.4]
-
-
 
 westpoint =
   let r1 = Origem [tubod 0.1 0.1 ,joelhoD,tubod 0.1 0.5,tubod 0.1 1,joelhoU0,tubod 0.1 2.726 ,joelhoL,tubod 0.1 1.0,Bomba (Just (300,1066)) bombaSF [] [],tubod 0.1 1,joelhoUV (-1/4),tubod 0.1 1,joelhoD ,tubod 0.1 0.76,joelhoL,tubod 0.1 3.72,joelhoD,tubod 0.1 1,joelhoU0,tubod 0.1 0.2,joelhoU0,tubod 0.1 1,joelhoD ,tubod 0.1 0.2,joelhoL,tubod 0.1 1.56,joelhoL ,tubod 0.1 4.2 ,joelho,tubod 0.1 0.768 ,joelhoD0,tubod 0.1  3.24 ,joelhoU, tubod 0.08 1.31,joelho,tubod 0.08 3.22,tee TeRunR  [tubod 0.08 0.1 ,Open 0][tubod 0.08 1.22,joelho,tubod 0.08 2.8,tee TeRunL [tubod 0.08 2.23,tee TeRunL  [ tubod 0.08 1.67 , tee TeRunR   [ tubod 0.025 0.73,sp,tubod 0.025 0.1, Open 0] r5  ] [tubod 0.08 0.1 ,Open 0] ] [tubod 0.08 0.1 ,Open 0]] ]
@@ -335,12 +314,12 @@ testBouganville =  do
 testFokus =  do
   let
        preiter = (makeIter 0 2 fokus )
- {-      iter = solveIter preiter jacobianEqNodeHeadGrid
+       iter = solveIter preiter jacobianEqNodeHeadGrid
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
-  reportIter "fokus" 0 iter-}
-  writeFile "fokus.scad" $openSCAD (drawIter preiter)
-  diagramRender "fokus.svg" (drawIter preiter)
+  reportIter "fokus" 0 iter
+  writeFile "fokus.scad" $openSCAD (drawIter iter)
+  diagramRender "fokus.svg" (drawIter iter)
 
 
 test4 =  do
@@ -472,8 +451,7 @@ reportIter name i (Iteration f h a)  = do
     nodeHeader = ["ID","Pressão Dinâmica (kpa)","Altura (m)","Vazão (L/min)","Perda (kpa)","Elemento","Vazão Chuveiro"]
     expandNode (Just p) (Sprinkler (Just (d,k)) (dl) f a ) = ["Sprinkler", show $ k*sqrt p]
     expandNode _ (Reservatorio  _ _ _)  = ["Reservatorio"]
-    expandNode _ (Tee (TeeConfig i r db dr c) )  = ["Tê"]
-    expandNode _ (Tee (StaticTee i r db dr c) )  = ["Tê"]
+    expandNode _ (Tee (TeeConfig i r db dr c) _ )  = ["Tê"]
     expandNode _ (Open 0 )  = ["Tampa"]
     expandNode _ i = []
     linkHeader = ["SubTrecho","Diametro (m)","Perda (kpa)","Elemento","Comprimento (m)"]

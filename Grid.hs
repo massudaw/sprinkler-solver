@@ -36,19 +36,19 @@ data Iteration a
   }-- deriving(Show,Functor)
 
 
-isTee (Tee _ ) = True
+isTee (Tee _ _ ) = True
 isTee i = False
 
 elementsFHIter i = (pipeFHIter i , nodeFHIter i)
 
 nodeFHIter (Iteration vm h grid) = fmap (nodeFlowsHeads grid (M.fromList vm ) (M.fromList h) ) $ nodesFlow grid
 
-nodeFlowsHeads grid vm h e@(ni,Tee config) = (e,fmap (\li-> (var li sflow ,  var ni h  + addTee li   ))  pipes)
+nodeFlowsHeads grid vm h e@(ni,Tee config conf ) = (e,fmap (\li-> (var li sflow ,  var ni h  + addTee li   ))  pipes)
   where
     tp = M.lookup  ni h
     pipes =  (teeConfig config)
     sflow =  var ni $ signedFlow grid vm
-    nodeLosses = M.fromList . (\(n,Tee t) -> (\(ti,v)-> (ti,(if var ti sflow > 0 then  id else negate ) v)) <$> classifyTee ( fmap (\i -> i/1000/60) $ sflow ) t) $ e
+    nodeLosses = M.fromList . (\(n,Tee t conf ) -> (\(ti,v)-> (ti,(if var ti sflow > 0 then  id else negate ) v)) <$> classifyTee conf ( fmap (\i -> i/1000/60) $ sflow ) t) $ e
     addTee k = maybe 0 id (M.lookup k nodeLosses)
 nodeFlowsHeads grid vm h e@(ni,Sprinkler (Just (d,k)) l c _ ) = (e,[(k* sqrt (abs $ var ni h) ,var ni h )])
 nodeFlowsHeads grid vm h e@(ni,Open v ) = (e,[(v,var ni h )])
@@ -131,7 +131,7 @@ jacobianContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( 
         -- nodeFlow
         nflow i e = genFlow (var i pm) e
         genFlow _ (Open i ) = i
-        genFlow _ (Tee _ ) = 0
+        genFlow _ (Tee _ _ ) = 0
         genFlow idf (Sprinkler (Just (_,k)) _ _ _) = k*sqrt(abs idf)
         genFlow _ (Reservatorio _ _ _ ) = error "reservatorio doesn't preserve flow"
 
@@ -144,7 +144,7 @@ jacobianNodeHeadEquation grid  vm nh =  term <$> l
   where
     l = links grid
     sflow = signedFlow grid vm
-    nodeLosses = M.fromList . concat .fmap (\(n,Tee t) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
+    nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
     term (l,h,t,e) =   sum ( pipeElement (var l vm) <$> e) - ( varn h nh  + (varr3 h nhs ^. _z) *9.81 )  +  addTee (h,l) + addTee (t,l) + ( ((varr3 t nhs ^. _z) *9.81 ) + varn t nh )
       where
