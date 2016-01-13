@@ -149,7 +149,7 @@ locateGrid lmap nmap n r ll@(Left (l,h,t,e))
             locateGrid lmap nmap l pos (Right $ var h nmap)
           else
             if  dist dt ( fst $ var h visitedNode) < 1e-2
-             then {-traceShow (show l <> " exact union point " <> show h <> " " <> show dist <> " == " <>  show (var h nodeMap))  $-}return ()
+             then traceShow (show l <> " exact union point " <> show h <> " " <> show dt <> " == " <>  show (var h visitedNode ))  $return ()
              else traceShow (show l <> " non exact union point " <> show h <> " " <> show dt <> " /= " <>  show (var h visitedNode)) $ (return ())
 
 r2p = p3 . unr3
@@ -188,15 +188,24 @@ revElems = reverse .fmap revElem
 
 
 varM i j = case M.lookup i j of
-              Nothing -> {-traceShow ("no var " <> show i )-} Nothing
+              Nothing -> traceShow ("no var " <> show i ) Nothing
               i -> i
 
 -- styleNodes :: Iteration Double -> [Mecha.Solid]
-styleNodes  it = fmap (\i -> transformElement (var (fst i) (M.fromList (shead $ grid it))) $ renderNode metrics (S.empty ,((abs $ fst (var (fst i) (M.fromList (shead $ grid it))) ^. _z ) *0 + varn (fst i) (M.fromList (nodeHeads it)),i))) (nodesFlow (grid it)) -- (shead (grid it)) (nodeHeads it)
+styleNodes  it = catMaybes $ fmap (\i -> do
+        pos <- varM (fst i) gridMap
+        pres <- varM (fst i) (M.fromList (nodeHeads it))
+        return $ transformElement  pos $ renderNode metrics (S.empty ,((abs $ fst pos ^. _z ) *0 + pres,i))) (nodesFlow (grid it)) -- (shead (grid it)) (nodeHeads it)
   where metrics = [maximum (snd <$> flows it), minimum (snd <$> flows it)]
+        gridMap = (M.fromList (shead $ grid it))
+        headMap = (M.fromList (nodeHeads$ it))
 
 --styleLinks :: Iteration Double -> [Mecha.Solid]
-styleLinks it = concat $ fmap (\(l,_,_,i)  -> zipWith (\m n -> transformElement m $ renderLink (varn l (M.fromList (flows it)),nf (varn l (M.fromList (flows it)))) l n ) (var l (M.fromList $ linksPosition (grid it)) ) i ) (links (grid it))  -- (flows it)
+styleLinks it = concat $ catMaybes $  fmap (\(l,_,_,i)  -> do
+            pos <- varM l (M.fromList $ linksPosition (grid it))
+            return $ catMaybes $ zipWith (\m n ->  do
+              flow <- varM l (M.fromList (flows it))
+              return $ transformElement m $ renderLink (flow ,nf flow ) l n ) pos  i ) (links (grid it))  -- (flows it)
   where [max,min]= [maximum (snd <$> flows it), minimum (snd <$> flows it)]
         nf f =  abs f /(max - min)
 

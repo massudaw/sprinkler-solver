@@ -92,10 +92,10 @@ solveIter iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid 
     fl = length (flows iter)
     res = fst . rootJ GNewton 1e-5 100 (modeler (grid iter) ) (jacobian (modeler (grid iter)  ) )  $ (snd <$> flows iter <> nodeHeads iter )
 
-var :: Int -> M.Map Int a -> a
+var :: Show a => Int -> M.Map Int a -> a
 var i m = case M.lookup i m of
                Just i -> i
-               Nothing -> error $ "no variable "--  ++ show i  ++ " " ++ show m
+               Nothing -> error $ "no variable " ++ show i  ++ " " ++ show m
 
 
 

@@ -335,11 +335,12 @@ testBouganville =  do
 testFokus =  do
   let
        preiter = (makeIter 0 2 fokus )
-       iter = solveIter preiter jacobianEqNodeHeadGrid
+ {-      iter = solveIter preiter jacobianEqNodeHeadGrid
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
-  reportIter "fokus" 0 iter
-  writeFile "fokus.scad" $openSCAD (drawIter iter)
+  reportIter "fokus" 0 iter-}
+  writeFile "fokus.scad" $openSCAD (drawIter preiter)
+  diagramRender "fokus.svg" (drawIter preiter)
 
 
 test4 =  do
@@ -355,10 +356,10 @@ t5 =  do
        preiter = (makeIter 0 1 westpoint)
        iter = solveIter preiter jacobianEqNodeHeadGrid
   -- print preiter
-  printMatrix $ lintInitialConditions iter
+  {-printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
-  reportIter "tipo17" 0 iter
-  return (drawIter iter )
+  reportIter "tipo17" 0 iter-}
+  writeFile "westpoint.scad" $openSCAD (drawIter preiter)
 
 
 t3 =  do
@@ -367,7 +368,8 @@ t3 =  do
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
   reportIter  "subsolo1" 212 iter
-  return  (drawIter iter )
+  writeFile "test3.scad" $openSCAD (drawIter iter )
+
 sanIterSubsolo=  do
   let
        preiter = (makeIter 0 1 sanmarinoSubsolo)
