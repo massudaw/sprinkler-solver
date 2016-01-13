@@ -4,7 +4,11 @@ import Data.Foldable
 import qualified Data.Map as M
 import Control.Monad
 
+import Diagrams.Prelude(Transformation)
+
 import Linear.V3
+import Rotation.SO3
+import Exponential.SO3
 
 data Direction a
   = Direction a a
@@ -70,6 +74,9 @@ data Element a
   , tipoJ :: (String,String,String)
   , direction :: (a,a)
   , material :: a
+  }
+  | Turn
+  { jointTurn :: a
   }
   | Perda
   { diametroJ :: Maybe a
@@ -161,6 +168,7 @@ diametroE i = Nothing
 distanciaE :: (Show a,Ord a,Fractional a )=> Element a -> a
 distanciaE (Tubo _ d _ ) = d
 distanciaE (Joelho (Just dtubom) tipo _ c) =  justError (show (tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
+distanciaE i  =  0
 
 materialE :: Show a => Element  a -> a
 materialE (Tubo _ _ c) =  c
@@ -185,12 +193,20 @@ joelhos = M.fromList
 
 data Grid a
   = Grid
-  { linksPosition :: [(Int,[(V3 Double,(a,a,a))])]
+  { linksPosition :: [(Int,[(V3 a ,(a,a,a)  )])]
   , links :: [(Int,Int,Int,[Element a])]
-  , shead :: [(Int,(V3 Double,(a,a,a)))]
+  , shead :: [(Int,(V3 a,(a,a,a) ))]
   , nodesFlow :: [(Int,Element a)]
 --  , origin :: (Int,R3 Double,(a,a,a))
-  }deriving(Show,Functor)
+  }deriving(Functor,Show)
+
+bombaSuccaoFrontal, bombaBipartida :: (Num a ,Fractional a )=> a -> a
+bombaSF :: Floating a => Curva a
+bombaSF = Poly [(0,151.229),(1,-0.422331),(2,-0.000979227),(3,- 1.194467786948394e-7)]
+bombaSuccaoFrontal x = 151.229 - 0.422331*x - 0.000979227*x^2 - 1.194467786948394e-7*x^3
+bombaBP p v  = Bomba (Just (p,v)) (Poly [(0,120),(1,0.142857),(2,-0.00134921),(3,-7.936507936507936e-6)])
+bombaBipartida x = 120 + 0.0142857*x - 0.00134921*x^2 - 7.936507936507936e-6*x^3
+
 
 
 isReservoir (Reservatorio _ _ _) = True

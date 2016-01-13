@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveFoldable,TupleSections#-}
-module Sprinkler (bombaSF,unrollNode,editDiametro ,formatFloatN )where
+module Sprinkler (unrollNode,editDiametro ,formatFloatN )where
 
 import Control.Monad
 import Data.Tuple
@@ -448,6 +448,7 @@ unrollNode i j = error $ show i ++ show j
 editDiametro v (Tubo Nothing b c )  = Tubo (Just v) b c
 editDiametro v (Joelho Nothing b c d)  = Joelho (Just v) b c d
 editDiametro v i = i
+
 {-
 twopass = do
    let
@@ -575,13 +576,6 @@ vNode (Node _ v _ ) = v
 vNode (RamalNode _ v _  ) = v
 vNode (OptionalNode _ v _  ) = v
 
-
-bombaSuccaoFrontal, bombaBipartida :: (Num a ,Fractional a )=> a -> a
-bombaSF :: Floating a => Curva a
-bombaSF = Poly [(0,151.229),(1,-0.422331),(2,-0.000979227),(3,- 1.194467786948394e-7)]
-bombaSuccaoFrontal x = 151.229 - 0.422331*x - 0.000979227*x^2 - 1.194467786948394e-7*x^3
-bombaBP p v  = Bomba (Just (p,v)) (Poly [(0,120),(1,0.142857),(2,-0.00134921),(3,-7.936507936507936e-6)])
-bombaBipartida x = 120 + 0.0142857*x - 0.00134921*x^2 - 7.936507936507936e-6*x^3
 
 periodoFuncionamento = 1/24
 area d = pi*(d/2)**2

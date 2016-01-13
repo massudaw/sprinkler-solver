@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses,FlexibleInstances,TypeSynonymInstances,GADTs,TypeFamilies, FlexibleContexts,RankNTypes,TupleSections,RecursiveDo, NoMonomorphismRestriction #-}
-module Mecha where
+module Mecha (openSCAD) where
 
 import Grid
 import Debug.Trace
@@ -22,6 +22,8 @@ import Data.Traversable (traverse)
 
 import qualified Language.Mecha.Types as Mecha
 import qualified Language.Mecha.Solid as Mecha
+import Language.Mecha.Export
+
 
 import Diagrams.Prelude
 import Diagrams.Backend.SVG.CmdLine
@@ -57,6 +59,7 @@ renderElemMecha  [maxf,minf] (_,(p,(ni,Sprinkler (Just (d,k)) _ fa a))) = (color
 renderElemMecha  _ i = error $ show i
 
 renderLinkMecha (f,nf)  _ (Tubo (Just d)  c _ ) = Mecha.color (0.2,0.2,1, 0.3 +0.7*nf) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (c*0.9999)
+
 renderLinkMecha _ _ (Joelho (Just d)  c _  _  ) = Mecha.sphere d
 renderLinkMecha _ _  (Bomba i  v [] []) = Mecha.moveX (0.03/2) $ Mecha.sphere 0.4
 renderLinkMecha _ _  o = Mecha.sphere 0.02

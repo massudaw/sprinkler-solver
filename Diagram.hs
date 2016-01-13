@@ -1,5 +1,5 @@
 {-# LANGUAGE ViewPatterns,FlexibleInstances,TypeSynonymInstances,GADTs,TypeFamilies, FlexibleContexts,RankNTypes,TupleSections,RecursiveDo, NoMonomorphismRestriction #-}
-module Diagram where
+module Diagram (diagramRender) where
 
 import Grid
 import qualified Linear.V3 as V3
@@ -23,9 +23,10 @@ import Data.List (maximumBy,minimumBy)
 import Data.Traversable (traverse)
 import Diagrams.LinearMap         (amap)
 import Linear.Matrix
+import Exponential.Class
 import Diagrams.ThreeD.Projection
 import Diagrams.Prelude hiding (trace,regPoly,offset)
-import Diagrams.Backend.SVG.CmdLine
+import Diagrams.Backend.SVG
 import Diagrams.TwoD.Text (Text)
 
 
@@ -69,7 +70,7 @@ instance
   renderNode = renderElem
   renderLink = renderLinkSVG
   errorItem = errorCross
-  transformElement (r,(ax,ay,az))= translateX (r ^. _x) . translateY (r ^. _y) . translateZ(r ^. _z) . transform (aboutX (realToFrac ax *2*pi @@ rad)) . transform ( aboutZ (realToFrac az *2*pi @@ rad)) . transform (aboutY (realToFrac ay *2*pi @@ rad))
+  transformElement (r,x)= translateX (r ^. _x) . translateY (r ^. _y) . translateZ(r ^. _z) . about x
 
 
 errorCross =   fromOffsets [ unitX , unitY  ]
@@ -159,10 +160,10 @@ regPoly n l = Diagram.polygon (def & polyType .~
                            & polyOrient .~ OrientH
                            )
 
-diagramRender :: Path V3 Double -> IO ()
-diagramRender house = do
+diagramRender :: FilePath -> Path V3 Double -> IO ()
+diagramRender file house = do
    let
      -- Isometric projection (specialised orthogonal)
      isometricHouse = stroke $ isometricApply zDir house
 
-   mainWith ( hsep 1 . map (sized (mkHeight 3) . centerXY) $ [ isometricHouse ] :: Diagram B)
+   renderSVG file (mkSizeSpec2D (Just 800) Nothing) ( hsep 1 . map (sized (mkHeight 3) . centerXY) $ [ isometricHouse ] :: Diagram B)

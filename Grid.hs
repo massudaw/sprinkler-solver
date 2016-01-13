@@ -33,7 +33,7 @@ data Iteration a
   { flows :: [(Int,a)]
   , nodeHeads :: [(Int,a)]
   , grid :: Grid a
-  }deriving(Show,Functor)
+  }-- deriving(Show,Functor)
 
 
 isTee (Tee _ ) = True
@@ -92,10 +92,10 @@ solveIter iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid 
     fl = length (flows iter)
     res = fst . rootJ GNewton 1e-5 100 (modeler (grid iter) ) (jacobian (modeler (grid iter)  ) )  $ (snd <$> flows iter <> nodeHeads iter )
 
-var :: Show a => Int -> M.Map Int a -> a
+var :: Int -> M.Map Int a -> a
 var i m = case M.lookup i m of
                Just i -> i
-               Nothing -> error $ "no variable " ++ show i  ++ " " ++ show m
+               Nothing -> error $ "no variable "--  ++ show i  ++ " " ++ show m
 
 
 
@@ -109,6 +109,7 @@ pipeElement v (Bomba  _ (Poly l ) _ _ ) = negate $ foldr1 (+) (polyTerm <$> l)
 pipeElement v e@(Resistive k p)  = k*v**p
 pipeElement v e@(Tubo _ _ _)  = (ktubo e)*v**1.85
 pipeElement v e@(Joelho _ _ _ _)  = (ktubo e)*v**1.85
+pipeElement v (Turn _)   = 0
 
 
 signedFlow :: (Show a,Floating a )=> Grid a -> M.Map Int a ->M.Map Int (M.Map Int a)
@@ -145,10 +146,11 @@ jacobianNodeHeadEquation grid  vm nh =  term <$> l
     sflow = signedFlow grid vm
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,h,t,e) =   sum ( pipeElement (var l vm) <$> e) - ( varn h nh  + (realToFrac $ varr3 h nhs ^. _z) *9.81 )  +  addTee (h,l) + addTee (t,l) + ( ((realToFrac $ varr3 t nhs ^. _z) *9.81 ) + varn t nh )
+    term (l,h,t,e) =   sum ( pipeElement (var l vm) <$> e) - ( varn h nh  + (varr3 h nhs ^. _z) *9.81 )  +  addTee (h,l) + addTee (t,l) + ( ((varr3 t nhs ^. _z) *9.81 ) + varn t nh )
       where
          nhs = fmap fst (M.fromList $shead grid)
 
 -- Rendering System Equations
-printMatrix = putStr . unlines . fmap show
+printMatrix :: Show a => [a] -> IO ()
+printMatrix  = putStr . unlines . fmap show
 
