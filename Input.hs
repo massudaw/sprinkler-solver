@@ -1,21 +1,15 @@
-{-# LANGUAGE TupleSections,RecursiveDo,DeriveFunctor,GeneralizedNewtypeDeriving #-}
-module Input (link,node,runInput) where
+{-# LANGUAGE RecursiveDo  #-}
+module Input ((>~>),link,node,unroll, runInput) where
+
+import Sprinkler
+import Element
+
+import Data.Monoid
 import Control.Monad
 import Control.Monad.Trans.State
 
 import Control.Monad.Fix
-import Element
-import Data.Set (Set)
-import Data.Map (Map)
-import qualified Data.Set as S
-import qualified Data.Map as M
-import Control.Applicative
-import Data.Traversable(traverse)
-import Data.Maybe
-import Linear.V3
-import Linear.Quaternion
 
-import qualified Data.List as L
 
 -- getUniqueL :: Constr  Int
 getUniqueL = do
@@ -30,12 +24,12 @@ getUniqueN = do
 node  e = do
   un <-  getUniqueN
   modify (\(Grid lp l np n,i) -> (Grid lp l np ((un,e): n)   ,i))
-  return un
+  return (un,e)
 
-link e h t = do
+link e  (h,_) (t,_) = do
   un <-  getUniqueL
   modify (\(Grid lp l np n,i) -> (Grid lp ((un,h,t,e): l) np n  ,i))
-  return un
+  return (un,e)
 
 main = do
   print $ runState test1 (Grid [] [] [] [] ,(0,0))
@@ -54,6 +48,21 @@ test1 = mdo
   i <- link tl n3 n1
   return ()
 
+unroll :: (Ord a,Fractional a,Show a) => [Element a] -> State (Grid a,(Int,Int)) ()
+unroll l = do
+  (g,(a,b)) <- get
+  -- runState (unrollNode (0,Open 0) l  )
+  let ((_,st),((_,ai),(_,ao))) = runState (unrollNode (0,Open 0) (Origem l) ) ((Open 0,a),(Open 0 ,b))
+  put (Grid [] ( (fmap (\(l,h,t,e)-> (l,h,t,e)) $ snd st) <> links g) [] (  fst st <> nodesFlow g),(ai,ao))
 
+
+(>~>)
+  :: MonadFix m =>
+     ((t, t1) -> m (t2, t5))
+     -> ((t2, t3) -> m (t4, t1)) -> (t, t3) -> m (t4, t5)
+a >~> b = (\(i,l)-> mdo
+          (e,f) <- a (i,n)
+          (m,n) <- b (e,l)
+          return (m,f) )
 
 

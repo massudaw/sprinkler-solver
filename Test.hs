@@ -4,6 +4,7 @@ module Main where
 import Grid
 import Debug.Trace
 import System.Process
+import Control.Monad.Fix
 import Control.Monad
 import Lint
 import Position
@@ -183,6 +184,7 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap 
                   , tubo 32 204 300 0.065 0.4,tubo 33 208 301 0.08 0.4 ,tubo 75 239 302 0.08 0.4]
 
 
+
 westpoint =
   let r1 = Origem [tubod 0.1 0.1 ,joelhoD,tubod 0.1 0.5,tubod 0.1 1,joelhoU0,tubod 0.1 2.726 ,joelhoL,tubod 0.1 1.0,Bomba (Just (300,1066)) bombaSF [] [],tubod 0.1 1,joelhoUV (-1/4),tubod 0.1 1,joelhoD ,tubod 0.1 0.76,joelhoL,tubod 0.1 3.72,joelhoD,tubod 0.1 1,joelhoU0,tubod 0.1 0.2,joelhoU0,tubod 0.1 1,joelhoD ,tubod 0.1 0.2,joelhoL,tubod 0.1 1.56,joelhoL ,tubod 0.1 4.2 ,joelho,tubod 0.1 0.768 ,joelhoD0,tubod 0.1  3.24 ,joelhoU, tubod 0.08 1.31,joelho,tubod 0.08 3.22,tee TeRunR  [tubod 0.08 0.1 ,Open 0][tubod 0.08 1.22,joelho,tubod 0.08 2.8,tee TeRunL [tubod 0.08 2.23,tee TeRunL  [ tubod 0.08 1.67 , tee TeRunR   [ tubod 0.025 0.73,sp,tubod 0.025 0.1, Open 0] r5  ] [tubod 0.08 0.1 ,Open 0] ] [tubod 0.08 0.1 ,Open 0]] ]
       r5 =[tubod 0.065 0.54,tee TeRunL  [tubod 0.05 2.96 , cruz r3 r4 [tubod 0.025 1.77,sp,tubod 0.025 0.1, Open 0]   ][tubod 0.025 0.1 , Open 0]]
@@ -202,7 +204,6 @@ sanmarinoSubsolo =
       r45 = [tubod 0.065 0.1 , hid , tubod 0.065 0.1 , hid,tubod 0.065 6.15 , tee TeRunR r3 r23]
       r23 = [tubod 0.065 4.00 , tee TeRunR r3 r2]
       r2 = [tubod 0.065 4,joelho, tubod 0.04 8.9413 , tee TeRunL [  tubod 0.025 0.4597  ,sp ,tubod 0.025 3.54, tee TeRunL  [tubod 0.025 0.4587 ,sp , tubod 0.025 0.01 ,Open 0 ][tubod 0.025 2.36  ,joelho45 , tubod 0.025 0.5402 ,sp,tubod 0.025 0.1,Open 0]] [tubod 0.025 1.96 ,joelho45 , tubod 0.025 0.5402 ,sp,tubod 0.025 0.1,Open 0] ]
-      -- r2 = [tubod 0.04 9.40,sp,tubod 0.032 4.00 ,sp,tubod 0.025 4.00 ,sp ,tubod 0.025 3.00 ,sp,tubod 0.025 0.1,Open 0]
       r3 = [tubod 0.04 9.40,sp,tubod 0.032 4.00 ,sp,tubod 0.025 4.00 ,sp ,tubod 0.025 3.00 ,sp,tubod 0.025 0.1,Open 0]
       sp = Sprinkler (Just (11,5.8)) Nothing 12.4 4.1
       hid = Sprinkler (Just (16,16.3)) Nothing 10 20
@@ -266,11 +267,6 @@ data Author
     , empresa :: String
     }
 
-a >~> b = (\(i,l)-> mdo
-          ~(e,f) <- a (i,n)
-          (m,n) <- b (e,l)
-          return (m,f) )
-
 gridInput  soff =  (ph rteto , pregrid  {links = (links pregrid  ), nodesFlow = nodesFlow pregrid })
       where
         ph = ProjectHeader  "Depósito Armazém Johnson & Johnson - Galpão 01"  "\"RODOVIA BR-153, QUADRA CH, JARDIM GUANABARA, GALPÃO 01, GOIÂNIA, GOIÁS\"" "ATLAS LOGÍSTICA LTDA" (Author "Priscila Sathler Garcia" "13.524/ - GO" "Engenheira" "Guava Engenharia")
@@ -282,7 +278,7 @@ gridInput  soff =  (ph rteto , pregrid  {links = (links pregrid  ), nodesFlow = 
         spl = 2.56
         bspl = 0.7
         sp = node (Sprinkler (Just (25,24.0))  (Just db) 14 (0.16*60*1.7) )
-        te c dri dbi = node (Tee (TeeConfig c (0.1*dbi) dbi dri (100)) Table )
+        te c dri dbi = node (Tee (TeeConfig (fst <$> c) (0.1*dbi) dbi dri (100)) Table )
         tubo d l = link [Tubo (Just d) l 100]
         pregrid = fst $ runInput $ mdo
           res <- node (Reservatorio 2 Nothing (Open 0))
@@ -299,14 +295,15 @@ gridInput  soff =  (ph rteto , pregrid  {links = (links pregrid  ), nodesFlow = 
           t5 <- te  [l2,l7,l9] dr db
           l2 <- tubo  dr 1.79 t5 t1
           l9 <- tubo  dr ldist  t5 nil
-          let f = foldr1 (>~>) (replicate 11 (uncurry patch) )
-          (lij,(nil,nij)) <- f ((l9,l8),(lsp,lsp2))
-          ((tr,rl),(lsp ,lsp2)) <- spkt lij (or,ol)
+          let f = foldl1 (>~>) (replicate 11 (uncurry patch) <> replicate 4 (uncurry spkt ) )
+          ((tr,tl),(nil,nij)) <- f  ((l9,l8),(or,ol))
           or <- node (Open 0)
           ol <- node (Open 0)
           return ()
-        spkt (lir,lil) (nir,nil)  = mdo
+
+        spkt (lir,lil) ~(nir,nil)  = mdo
           nr <- te [lir,ix,cr] dr db
+          nl <- te [cl,ixl,lil] dr db
           ix <- tubo   db (soff*spl + bspl) nr ni
           ni <- sp
           let f = foldr1 (>=>) ((replicate snum ) spka)
@@ -314,10 +311,8 @@ gridInput  soff =  (ph rteto , pregrid  {links = (links pregrid  ), nodesFlow = 
                 tubo db spl oldn  b
                 b <- sp
                 return b
-
           e <- f ni
           ixl <- tubo    db (bl - st * spl - bspl) nl   e
-          nl <- te [cl,ixl,lil] dr db
           cr<- tubo dr ldist nr nir
           cl <- tubo dr ldist nl nil
           return ((cr,cl),(nr,nl))
