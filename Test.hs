@@ -1,8 +1,10 @@
-{-# LANGUAGE TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
+{-# LANGUAGE RecursiveDo,TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
 module Main where
 
 import Grid
 import Debug.Trace
+import System.Process
+import Control.Monad
 import Lint
 import Position
 import Exponential.Class
@@ -26,12 +28,12 @@ import Diagram
 import Control.Lens
 import Data.Traversable (traverse)
 
+import Input
 import Diagrams.Prelude hiding (end)
 
 
 path i h t  l = (i,h,t,  l)
 
-tubod l d = Tubo (Just d) l 100
 jd dir d = Joelho (Just d) ("Conexao","Joelho","90")  dir 100
 
 makeIter i j g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  (nodesFlow g))(repeat 100)) (realToFrac  <$>  upgradeGrid i j g)
@@ -45,13 +47,14 @@ grid4 =  Grid [] links [] nodes
                 ,(3,4,3,($0.065) <$> [tubod 2,jd $ right90 ,tubod 2])]
         tubo' i h  d l = (i,h,h+1,[Tubo (Just d) l 100])
         te i c dr db =  (i,Tee (TeeConfig c (0.1*db) db dr (100)) Table )
+        tubod l d = Tubo (Just d) l 100
 
 fokus :: RealFloat a => Grid a
 fokus = (Grid [] links [] nodes)
   where
     te i c dri dbi =  (i,Tee (TeeConfig c (0.1*dbi) dbi dri (100))Table )
     tubo i h t d l = (i,h,t,[Tubo (Just d) l 100])
-    dm = 0.20
+    dm = 0.25
     dr= 0.10
     db = 0.065
     sp i = (i,Sprinkler (Just (16,15.1))  (Just db) 14 (0.16*60*1.7) )
@@ -84,6 +87,7 @@ fokus = (Grid [] links [] nodes)
             , sp 111, sp 112, sp 113, sp 114
             , te 37 [64,69,70] dr db,(0,Reservatorio 2 Nothing (Open 0))]
 
+    tubod l d = Tubo (Just d) l 100
     links = [(2,0,1,editDiametro dm <$> [tubod 0.1 dm ,joelhoD,tubod 0.5 dm,tubod 1 dm,joelhoU0,tubod 2.726 dm ,joelhoL,tubod  1.0 dm,bomba,tubod  1 dm,joelhoUV (-1/4),tubod  1 dm,joelhoD ,tubod  0.76 dm,joelhoL,tubod  3.72 dm,joelhoD,tubod 1 dm, joelhoU0,tubod  0.2 dm,joelhoU0,joelhoL , tubod  1  dm,joelhoD ,tubod 3.6 dm ,joelhoL , tubod  22.3 dm,joelho,tubod  21.66  dm,joelhoL ,tubod 12.75 dm , tubod  62.46   dm,joelho,tubod  0.768 dm,jd (upC 0) dm , tubod 11 dm ,jd (dowC 0 ) dm ,tubod 2.889 dm,tubod 0.1 dr])
             ,tubo 3 1 2 dr 1.8
             ,tubo 4 2 3 db 49.26
@@ -151,6 +155,7 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap 
 
         patchT (i,j) (idt,idn) = [tubo (idt + 1) (idn + 2) (idn + 1) 0.025 (1.4 + 4*2.92) , tubo (idt +2 )  i (idn +1)   0.065 2.25, tubo   (idt +3 )  j (idn +2)        0.08 (2.25)]
         patchS (idt,idn) (ti,tj)= [te (idn +2) [idt+3,idt+1,ti ] 0.08 0.025, te (idn +1) [tj,idt+1,idt +2] 0.065 0.025]
+        tubod l d = Tubo (Just d) l 100
 
         links = [(31,212,240 , [tubod 0.1 0.1 ,joelhoD,tubod 0.5 0.1,tubod 1 0.1,joelhoU0,tubod 2.726 0.1 ,joelhoL,tubod  1.0 0.1,Bomba (Just (300,1066)) bombaSF [] [],tubod  1 0.1,joelhoUV (-1/4),tubod  1 0.1,joelhoD ,tubod  0.76 0.1,joelhoL,tubod  3.72 0.1,joelhoD,tubod 1 0.1, joelhoU0,tubod  0.2 0.1,joelhoU0,tubod  1 0.1,joelhoD ,tubod  0.2 0.1,joelhoL,tubod  1.56 0.1,joelhoL ,tubod  4.2 0.1,joelho,tubod  0.768 0.1,jd (dowC 0 ) 0.1, tubod (4*3.24) 0.1,tubod (11*3.06) 0.1,tubod 3.06 0.1, tubod 3.06 0.1 ,tubod 2.88 0.1 ,jd (upC  $ 1/2) 0.1 ,tubod ({-20*2.89+-}2.889) 0.10 ])]
                 <> [path 77 240 238 [tubod (1.0) 0.08 ,tubod 5.57 0.065 ,tubod 12.3674 0.065,jd left90 0.065, tubod (1.507) 0.065]]
@@ -177,6 +182,7 @@ test3 = Iteration ( zip (fmap (\(i,_,_,_)-> i) links) (repeat 4 )) ( zip ( fmap 
                   , tubo 24 111 204 0.025 0.7 , tubo 90 111 115 0.025 2.92, tubo 8 112 115 0.025 2.92 ,tubo 9 113 112 0.025 2.92 ,tubo 10 114 113 0.025 2.92,tubo 20 208 114 0.025 0.7
                   , tubo 32 204 300 0.065 0.4,tubo 33 208 301 0.08 0.4 ,tubo 75 239 302 0.08 0.4]
 
+
 westpoint =
   let r1 = Origem [tubod 0.1 0.1 ,joelhoD,tubod 0.1 0.5,tubod 0.1 1,joelhoU0,tubod 0.1 2.726 ,joelhoL,tubod 0.1 1.0,Bomba (Just (300,1066)) bombaSF [] [],tubod 0.1 1,joelhoUV (-1/4),tubod 0.1 1,joelhoD ,tubod 0.1 0.76,joelhoL,tubod 0.1 3.72,joelhoD,tubod 0.1 1,joelhoU0,tubod 0.1 0.2,joelhoU0,tubod 0.1 1,joelhoD ,tubod 0.1 0.2,joelhoL,tubod 0.1 1.56,joelhoL ,tubod 0.1 4.2 ,joelho,tubod 0.1 0.768 ,joelhoD0,tubod 0.1  3.24 ,joelhoU, tubod 0.08 1.31,joelho,tubod 0.08 3.22,tee TeRunR  [tubod 0.08 0.1 ,Open 0][tubod 0.08 1.22,joelho,tubod 0.08 2.8,tee TeRunL [tubod 0.08 2.23,tee TeRunL  [ tubod 0.08 1.67 , tee TeRunR   [ tubod 0.025 0.73,sp,tubod 0.025 0.1, Open 0] r5  ] [tubod 0.08 0.1 ,Open 0] ] [tubod 0.08 0.1 ,Open 0]] ]
       r5 =[tubod 0.065 0.54,tee TeRunL  [tubod 0.05 2.96 , cruz r3 r4 [tubod 0.025 1.77,sp,tubod 0.025 0.1, Open 0]   ][tubod 0.025 0.1 , Open 0]]
@@ -186,6 +192,10 @@ westpoint =
       sp = Sprinkler (Just (11,5.8)) Nothing 11 4.1
       st = snd $ fst $ runState (unrollNode (0,Open 0) r1 ) ((Open 0,0),(Open 0 ,0))
   in Grid [] (fmap (\(l,h,t,e)-> (l,h,t, (editDiametro 0.08) <$> e)) $ snd st) [] (  fst st <> [(0,Reservatorio 0 Nothing (Open 0))])
+    where
+      tubod l d = Tubo (Just d) l 100
+
+
 
 sanmarinoSubsolo =
   let r1 = Origem $  [tubod 0.1 0.1 ,joelhoD,tubod 0.1 0.5,tubod 0.1 1,joelhoU0,tubod 0.1 2.726 ,joelhoL,tubod 0.1 1.0,Bomba (Just (300,1566)) bombaSF [] [],tubod 0.1 1,joelhoUV (-1/4),tubod 0.1 1,joelhoD ,tubod 0.1 0.76,joelhoL,tubod 0.1 3.72,joelhoD,tubod 0.1 1,joelhoU0,tubod 0.1 0.2,joelhoU0,tubod 0.1 1,joelhoD ,tubod 0.1 0.2,joelhoL,tubod 0.1 1.56,joelhoL ,tubod 0.1 4.2 ,joelho,tubod 0.1 0.768 ,joelhoD0,tubod 0.1  (20*3.24 + 3.04) ,joelhoU] <> r45
@@ -228,9 +238,253 @@ sanmarinoTerraco =
   in Grid [] (fmap (\(l,h,t,e)-> (l,h,t, (editDiametro 0.08) <$> e)) $ snd st) [] (  fst st <> [(0,Reservatorio 0 Nothing (Open 0))])
 
 
+casaMaquina pru bomba  = [tubod pru 0.1 ,joelhoD,tubod pru 0.5,tubod pru 1,joelhoU0,tubod pru 2.726 ,joelhoL,tubod pru 1.0,bomba ,tubod pru 1,joelhoUV (-1/4),tubod pru 1,joelhoD ,tubod pru 0.76,joelhoL,tubod pru 3.72,joelhoD,tubod pru 1,joelhoU0,tubod pru 0.1,joelhoU0,tubod pru 1,joelhoD ,tubod pru pru]
+  where
+      tubod di d = Tubo (Just di) d 100
+
+replcomp x m = foldl1 (.)   (replicate x m)
+
+
+
+data ProjectHeader
+  = ProjectHeader { projectName :: String
+    , endereco :: String
+    , projectOwner :: String
+    , authorInfo :: Author
+    , regionInfo :: Region
+    }
+
+data Region
+  = Region  { regionName :: String
+    , regionFile :: String
+    , regionView :: String
+    }
+data Author
+  = Author { authorName :: String
+    , creaNumber :: String
+    , formation :: String
+    , empresa :: String
+    }
+
+a >~> b = (\(i,l)-> mdo
+          ~(e,f) <- a (i,n)
+          (m,n) <- b (e,l)
+          return (m,f) )
+
+gridInput  soff =  (ph rteto , pregrid  {links = (links pregrid  ), nodesFlow = nodesFlow pregrid })
+      where
+        ph = ProjectHeader  "Depósito Armazém Johnson & Johnson - Galpão 01"  "\"RODOVIA BR-153, QUADRA CH, JARDIM GUANABARA, GALPÃO 01, GOIÂNIA, GOIÁS\"" "ATLAS LOGÍSTICA LTDA" (Author "Priscila Sathler Garcia" "13.524/ - GO" "Engenheira" "Guava Engenharia")
+        rteto = Region "Teto - Grid D" ("teto-grid-d" <> show (round soff)) "-164,103.83,88.66,0,0,5,20"
+        dm = 0.25
+        dr = 0.15
+        db = 0.05
+        bl = 21.85
+        spl = 2.56
+        bspl = 0.7
+        sp = node (Sprinkler (Just (25,24.0))  (Just db) 14 (0.16*60*1.7) )
+        te c dri dbi = node (Tee (TeeConfig c (0.1*dbi) dbi dri (100)) Table )
+        tubo d l = link [Tubo (Just d) l 100]
+        pregrid = fst $ runInput $ mdo
+          res <- node (Reservatorio 2 Nothing (Open 0))
+          mainl <- link  (editDiametro dm <$> (principal <> [tubod 111.43 dm ,tubod 0.7 dm  , joelho, tubod 9.35 dm  ])) res to
+          to <- te [mainl,lhid ,lvga] dr dr
+          lhid <- tubo  dr 1 to hid
+          hid <- node (Open 1900)
+          lvga <- link (editDiametro dr <$> [jd (upC 0) dm , tubod 11 dm ,jd (dowC 0 ) dm ,tubod 0.8 dm, joelhoL , tubod 44.95 dm]) to t1
+          t1 <-  te [l2,lvga,l5] dr dr
+          l5 <- link  (editDiametro dr <$> [tubod 1.8 dr ,tubod 1.54 dr,joelhoR,tubod bl dr ,joelhoR,tubod 1.54 dr,tubod 3.59 dr ]) t1 t4
+          t4 <- te  [l8,l7,l5] dr db
+          l7 <- tubo    db bl t4 t5
+          l8 <- tubo dr ldist t4 nij
+          t5 <- te  [l2,l7,l9] dr db
+          l2 <- tubo  dr 1.79 t5 t1
+          l9 <- tubo  dr ldist  t5 nil
+          let f = foldr1 (>~>) (replicate 11 (uncurry patch) )
+          (lij,(nil,nij)) <- f ((l9,l8),(lsp,lsp2))
+          ((tr,rl),(lsp ,lsp2)) <- spkt lij (or,ol)
+          or <- node (Open 0)
+          ol <- node (Open 0)
+          return ()
+        spkt (lir,lil) (nir,nil)  = mdo
+          nr <- te [lir,ix,cr] dr db
+          ix <- tubo   db (soff*spl + bspl) nr ni
+          ni <- sp
+          let f = foldr1 (>=>) ((replicate snum ) spka)
+              spka oldn  = mdo
+                tubo db spl oldn  b
+                b <- sp
+                return b
+
+          e <- f ni
+          ixl <- tubo    db (bl - st * spl - bspl) nl   e
+          nl <- te [cl,ixl,lil] dr db
+          cr<- tubo dr ldist nr nir
+          cl <- tubo dr ldist nl nil
+          return ((cr,cl),(nr,nl))
+
+        patch (ti,tj) ~(i,j) = mdo
+          idn2 <- te [idt3,idt1, tj] dr db
+          idn1 <- te [ti,idt1,idt2] dr db
+          idt1 <- tubo  db bl  idn2 idn1
+          idt2 <- tubo  dr ldist i idn1
+          idt3 <- tubo  dr ldist  j idn2
+          return ((idt2,idt3),(idn1,idn2))
+
+        tubod l d = Tubo (Just d) l 100
+        snum =  2
+        st =  soff  + snum
+        ldist =  3.10
+        principal = [tubod 0.1 dm ,joelhoD,tubod 0.5 dm,tubod 1 dm,joelhoU0,tubod 2.726 dm ,joelhoL,tubod  1.0 dm,bomba,tubod  1 dm,joelhoUV (-1/4),tubod  1 dm,joelhoD ,tubod  0.76 dm,joelhoL,tubod  3.72 dm,joelhoD,tubod 1 dm, joelhoU0,tubod  0.2 dm,joelhoU0,joelhoL , tubod  1  dm,joelhoD ,tubod 5 dm ,joelhoR , tubod  62.5  dm,joelhoL,tubod  80.0  dm,joelhoR ,tubod 3 dm , joelhoL ,tubod  26.76 dm, joelhoUV (-1/2), tubod 1.5 dm ,joelhoDV 0,joelho,tubod  8.43 dm]
+          where
+            bomba = Bomba (Just (930,7200)) bombaJohnson2 [] []
+            dm = 0.25
+            tubod l d = Tubo (Just d) l 100
+
+
+johnson :: (Enum a,Show a,RealFloat a )=> [(ProjectHeader,Grid a)]
+johnson =  conjb <> mezanino <>   (grid <$> [0..6])
+  where
+    ph = ProjectHeader  "Depósito Armazém Johnson & Johnson - Galpão 01"  "\"RODOVIA BR-153, QUADRA CH, JARDIM GUANABARA, GALPÃO 01, GOIÂNIA, GOIÁS\"" "ATLAS LOGÍSTICA LTDA" (Author "Priscila Sathler Garcia" "13.524/ - GO" "Engenheira" "Guava Engenharia")
+    principal = [tubod 0.1 dm ,joelhoD,tubod 0.5 dm,tubod 1 dm,joelhoU0,tubod 2.726 dm ,joelhoL,tubod  1.0 dm,bomba,tubod  1 dm,joelhoUV (-1/4),tubod  1 dm,joelhoD ,tubod  0.76 dm,joelhoL,tubod  3.72 dm,joelhoD,tubod 1 dm, joelhoU0,tubod  0.2 dm,joelhoU0,joelhoL , tubod  1  dm,joelhoD ,tubod 5 dm ,joelhoR , tubod  62.5  dm,joelhoL,tubod  80.0  dm,joelhoR ,tubod 3 dm , joelhoL ,tubod  26.76 dm, joelhoUV (-1/2), tubod 1.5 dm ,joelhoDV 0,joelho,tubod  8.43 dm]
+      where
+        bomba = Bomba (Just (930,7200)) bombaJohnson2 [] []
+        dm = 0.25
+        tubod l d = Tubo (Just d) l 100
+    grid  soff =  (ph rteto ,Grid [] links [] nodes)
+      where
+        rteto = Region "Teto - Grid D" ("teto-grid-d" <> show (round soff)) "-164,103.83,88.66,0,0,5,20"
+        tubo i h t d l = (i,h,t,[Tubo (Just d) l 100])
+        te i c dri dbi = (i,Tee (TeeConfig c (0.1*dbi) dbi dri (100)) Table )
+        dm = 0.25
+        dr = 0.15
+        db = 0.05
+        sp i = (i,Sprinkler (Just (25,24.0))  (Just db) 14 (0.16*60*1.7) )
+        seqT (ti,tj) (idt,idn) n = concat $ fmap (seq (ti,tj) (idt,idn)) [0..n]
+          where
+            seq (ti,tj) (idt,idn) i = patchT (ti+ i*2 ,tj +i*2) (idt + i*3,idn + i*2)
+        seqS (ti,tj) (idt,idn) n = concat $ fmap (seq (ti,tj) (idt,idn)) [0..n]
+          where
+            seq (ti,tj) (idt,idn) i = patchS (ti+ i*3 ,tj +i*3) (idt + i*3,idn + i*2)
+        patchT (i,j) (idt,idn) = [tubo (idt + 1) (idn + 2) (idn + 1) db bl , tubo (idt +2 )  i (idn +1)   dr ldist, tubo   (idt +3 )  j (idn +2)        dr ldist ]
+        patchS (ti,tj)(idt,idn) = [te (idn +2) [ti,idt+1, idt+3 ] dr db, te (idn +1) [idt+2,idt+1,tj] dr db]
+        bl = 21.85
+        spl = 2.56
+        bspl = 0.7
+        nodes = [te 38 [1,100,101] dr dr
+                ,(39,Open 1900)
+                ,te 1 [2,101,5] dr dr
+                ,te 4 [8,7,5] dr db
+                ,te 5 [2,7,9] dr db]
+                <> seqS (9,8) (9,5) 11
+                <> [ te 30 [51,46,44] dr db
+                , sp 101, sp 102, sp 103
+                , te 31 [45,49,50] dr db]
+                <> [ te 32 [56,52,51] dr db
+                , sp 104, sp 105, sp 106
+                , te 33 [50,55,57] dr db]
+                <> [ te 34 [63,58,56] dr db
+                , sp 107, sp 108, sp 109
+                , te 35 [57,61,64] dr db]
+                <> [ te 36 [70,65,63] dr db
+                , sp 111, sp 112, sp 113
+                , te 37 [64,68,70] dr db,(0,Reservatorio 2 Nothing (Open 0))]
+
+        tubod l d = Tubo (Just d) l 100
+        snum =  2
+        spkrow ix l i e =  [tubo  (ix) i (head l) db (soff*spl + bspl) , tubo (ix + (length l ) )  (last l)   e db (bl - st * spl - bspl)] <> zipWith (\i (a,b) -> tubo i a b db spl ) [ix+1 ..] (zip (tail l) l )
+        st =  soff  + snum
+        ldist =  3.10
+        links = [(1,0,38,editDiametro dm <$> (principal <> [tubod 111.43 dm ,tubod 0.7 dm  , joelho, tubod 9.35 dm  ]))
+                ,(tubo 100 38 39 dr 1)
+                ,(101 , 38 , 1 , editDiametro dr <$> [jd (upC 0) dm , tubod 11 dm ,jd (dowC 0 ) dm ,tubod 0.8 dm, joelhoL , tubod 44.95 dm])
+                ,(5,1,4,editDiametro dr <$> [tubod 1.8 dr ,tubod 1.54 dr,joelhoR,tubod bl dr ,joelhoR,tubod 1.54 dr,tubod 3.59 dr ])
+                ,tubo 2 5 1 dr 1.79
+                ,tubo 7 4 5 db bl
+                ,tubo 8 4 6 dr ldist
+                ,tubo 9 5 7 dr ldist]
+                <> seqT (8,9) (9,5) 11
+                <> spkrow 46 [101..103] 30 31
+                <> [tubo 51 30 32 dr ldist
+                  ,tubo 50  31 33 dr ldist]
+                <> spkrow 52 [104..106] 32 33
+                <> [tubo 56 32 34 dr ldist
+                ,tubo 57 33 35 dr ldist]
+                <> spkrow 58 [107..109] 34 35
+                <> [ tubo 63 34 36 dr ldist
+                ,tubo 64 35 37 dr ldist ]
+                <> spkrow 65  [111..113] 36 37
+
+                <> [(70,37,36, editDiametro dr <$>  [tubod 1.42 dr,joelhoL ,tubod bl dr,joelhoL,tubod 1.42 dr])]
+    vga3 rpav =
+      let
+        pru = 0.2
+        top = (editDiametro pru <$> principal ) <> [joelhoL,tubod pru 0.4  ]
+        vga3 = [tee TeRunR hidrante ([tubod pru 0.4 , joelhoUV 0 ,tubod pru 0.9, tubod pru 0.7 , joelhoDV 0 ,tubod pru 0.8 , joelhoUV 0 , tubod pru 7.74 ,tubod pru 0.3 ,joelhoDV 0] <> rpav )]
+        hidrante = [tubod pru 1,Open 1900]
+        tubod  d l  = Tubo (Just d) l 100
+      in top <> vga3
+    mezanino =
+      let
+          pru = 0.2
+          dr = 0.15
+          db = 0.04
+          tubod  d l  = Tubo (Just d) l 100
+
+          pav2 = Origem $  vga3 ([tubod pru 7.18,joelhoDV 0 , tubod pru 1.15 , joelhoUV (1/4)] <> rpav2)
+          openL o l = [tee TeRunR end (o <> l)]
+          rpav2 = [tubod pru 1,joelhoR, tubod pru 115]  <> (  replcomp 18 (openL [tubod dr 3.26]) $   [tee TeRunR rl [tubod dr 3.27,tee TeRunR rl [tubod dr 3.27, tee TeRunR rl [tubod dr 3.27 , tee TeRunR rl [tubod dr 3.27 ,tee TeRunR rl ([tubod dr 3.27,joelhoR]<> rl)]]] ]])
+            where
+              rl = [tubod db 1.0, sp,tubod db 3.5,sp] <> end
+          sp = Sprinkler (Just (25,20.0)) Nothing 12.1  ( 0.10490627622503315*60)
+          st = snd $ fst $ runState (unrollNode (0,Open 0) pav2) ((Open 0,0),(Open 0 ,0))
+          grid st = Grid [] (fmap (\(l,h,t,e)-> (l,h,t, e)) $ snd st) [] (fst st <> [(0,Reservatorio 0 Nothing (Open 0))])
+      in [(ph $ Region "Mezanino Superior" "mezanino-superior" "84,-56,-35,10,0,0,120",grid st)]
+    conjb =
+      let
+          pru = 0.2
+          dr = 0.08
+          db = 0.025
+          tubod  d l  = Tubo (Just d) l 100
+          sp = Sprinkler (Just (25,11.5)) Nothing 12.1  ( 0.10490627622503315*60)
+          pav2 = Origem $  vga3   rpav2
+          cross o l = [tee TeRunL [tubod dr 0.01,tee TeRunR end (o <> l) ]end ]
+          conj o l = [tee TeRunL  [tubod dr 0.01,tee TeRunR rr (o <> l)  ] rl ]
+          rpav2 = [tubod pru 7.18,joelhoDV 0 , tubod pru 1.14 , joelhoUV (1/4),tubod dr 1] <> (replcomp 11 (cross [tubod dr 2.38]) $ cross [tubod dr 1 , sp, tubod dr 1.27,sp,tubod dr 0.1]  $   conj [tubod dr 1 ,sp ,tubod dr 1.27,sp,tubod dr 0.1] $ conj [] end)
+            where
+          rl = [tubod db 1.05,joelhoL,tubod db 0.20 ,sp] <> end
+          rr = [tubod db 1.05,joelhoR,tubod db 0.20 ,sp] <> end
+          st = snd $ fst $ runState (unrollNode (0,Open 0) pav2) ((Open 0,0),(Open 0 ,0))
+          grid st = Grid [] (fmap (\(l,h,t,e)-> (l,h,t, e)) $ snd st) [] (fst st <> [(0,Reservatorio 0 Nothing (Open 0))])
+      in [(ph $ Region "In Rack - Conjunto B" "in-rack-conjunto-b" "-96,-90,-11,0,0,0,120",grid st)]
+
+
+
+
+testInputGrid = solveModel (gridInput 3)
+
+
+
+terraAtacado =
+  let
+      pru = 0.125
+      top = casaMaquina 0.125 (Bomba (Just (750,550/3*10)) bombaSF [] []) <> [joelhoL,tubod pru 1.56,joelhoL ,tubod pru 4.2 , joelhoUV 0 ,tubod pru 5.58,joelhoDV 0 ]
+      pav2 = Origem $  top <> rpav2
+      cross o l = [tee TeRunL end [tubod pru 0.01,tee TeRunR (o <> l) end ]]
+      openL o l = [tee TeRunR end (o <> l)]
+      rpav2 = [tubod pru 1,joelhoR, tubod pru 13.82,joelhoR , tubod pru 2.25  ]  <> ( cross  [tubod pru 4.04]  $ replcomp 5 (cross [tubod pru 3.27]) $ cross [tubod pru 1.54, joelhoL , tubod pru 1.28,joelhoR , tubod pru 1.59 ] $ replcomp 7 (openL [tubod pru 3.27]) $ openL [tubod pru 0.37, joelho45L,tubod 0.1 1.66 ,joelho45R ,tubod 0.1 1.81] $  replcomp 5 (openL [tubod 0.1 3.27]) $ openL [tubod 0.08 3.27] [tee TeRunR rl1 [tubod 0.08 3.27,tee TeRunR rl [tubod 0.08 3.27, tee TeRunR rl [tubod 0.065 3.27 ,tee TeRunR rl ([tubod 0.050 3.27,joelhoR]<> rl)]]] ])
+        where
+          rl = [tubod 0.05 4.9, tubod 0.04 7,sp ,tubod 0.032 3.5,sp,tubod 0.025 3.5 ,sp,tubod 0.025 3.5,sp] <> end
+          rl1 = [tubod 0.05 4.9, tubod 0.04 7,tubod 0.032 3.5,tubod 0.025 3.5 ,sp,tubod 0.025 3.5,sp] <> end
+      sp = Sprinkler (Just (13,8.0)) Nothing 12.1  ( 0.10490627622503315*60)
+      st = snd $ fst $ runState (unrollNode (0,Open 0) pav2) ((Open 0,0),(Open 0 ,0))
+      grid st = Grid [] (fmap (\(l,h,t,e)-> (l,h,t, e)) $ snd st) [] (fst st <> [(0,Reservatorio 0 Nothing (Open 0))])
+  in [("VG1",grid st)]
+
+
+
 (bouganvillePav2,bouganvilleSub2) =
   let
-      top = [tubod 0.2 0.1 ,joelhoD,tubod 0.2 0.5,tubod 0.2 1,joelhoU0,tubod 0.2 2.726 ,joelhoL,tubod 0.2 1.0,Bomba (Just (600,1166)) bombaSF [] [],tubod 0.2 1,joelhoUV (-1/4),tubod 0.2 1,joelhoD ,tubod 0.2 0.76,joelhoL,tubod 0.2 3.72,joelhoD,tubod 0.2 1,joelhoU0,tubod 0.2 0.1,joelhoU0,tubod 0.2 1,joelhoD ,tubod 0.2 0.2,joelhoL,tubod 0.2 1.56,joelhoL ,tubod 0.2 4.2 ,joelho,tubod 0.2 23.584,joelhoL,tubod 0.2 50.026 ,joelho45R, tubod 0.2 2.94, joelhoDV (3/8) ,tubod 0.2 0.5 ]
+      top = [tubod 0.2 0.1 ,joelhoD,tubod 0.2 0.5,tubod 0.2 1,joelhoU0,tubod 0.2 2.726 ,joelhoL,tubod 0.2 1.0,Bomba (Just (600,1833)) bombaSF [] [],tubod 0.2 1,joelhoUV (-1/4),tubod 0.2 1,joelhoD ,tubod 0.2 0.76,joelhoL,tubod 0.2 3.72,joelhoD,tubod 0.2 1,joelhoU0,tubod 0.2 0.1,joelhoU0,tubod 0.2 1,joelhoD ,tubod 0.2 0.2,joelhoL,tubod 0.2 1.56,joelhoL ,tubod 0.2 4.2 ,joelho,tubod 0.2 23.584,joelhoL,tubod 0.2 50.026 ,joelho45R, tubod 0.2 2.94, joelhoDV (3/8) ,tubod 0.2 0.5 ]
       pav2 = Origem $  top <> [joelhoUV $ -1/4 ] <> rpav2
       rpav2 = [tubod 0.2 4.54, Turn $ 1/2 ,joelhoR ,  tubod 0.2 4.18,joelhoL , tubod 0.2 13.79,tubod 0.15 25.396,Turn $ 1/2 , joelhoL,tubod 0.125 13.775 ,tubod 0.1 22.354,tubod 0.065 7.793 , tee TeBranch rb lb ]
         where
@@ -279,6 +533,8 @@ angleE (Joelho _ (_,_,c) (DDown r) _ ) = (0,1/4,r)-}
 end = [tubod 0.025 0.01,Open 0]
 tee b i j = Te  Nothing b i j
 cruz i j k = tee TeRunL [tubod 0.05 0.01,tee TeRunR  k j ] i
+tubod  d l  = Tubo (Just d) l 100
+
 joelhoR  = Joelho Nothing ("Conexao","Joelho","90") right90  100
 joelho  = joelhoR
 joelhoL  = Joelho Nothing ("Conexao","Joelho","90") left90  100
@@ -296,12 +552,37 @@ joelhoDV  c = Joelho Nothing ("Conexao","Joelho","90") (dowC  c ) 100
 
 
 
+solveModel (header ,model) = do
+  let
+       iter = solveIter (makeIter 0 1 model ) jacobianEqNodeHeadGrid
+       fname  = regionFile $ regionInfo header
+  reportIter header 0 iter
+  print $ "renderReport" <> (fname <> ".csv")
+  callCommand $ "soffice --convert-to xls --infilter=csv:\"Text - txt - csv (StarCalc)\":59/44,34,0,1,,1033,true,true  " <> fname <> ".csv"
+  print $ "renderReport" <> (fname <> ".xls")
+  writeFile (  fname <> ".scad") $openSCAD (drawIter iter )
+  print $ "renderSCAD" <> (fname <> ".scad")
+  let command = "openscad -o " <> fname <> ".png " <> fname <> ".scad  --camera=" <> regionView (regionInfo header)
+  putStrLn command
+  callCommand  command
+  -- diagramRender (name <>".svg") (drawIter model)
+  -- print "renderDiagram"
+
+
+testJohnson =  do
+  mapM_ solveModel johnson
+
+{-testTerraAtacado =  do
+  mapM_ solveModel terraAtacado
+-}
+
+
 testBouganville =  do
   let
        iter = solveIter (makeIter 0 1 bouganvillePav2 ) jacobianEqNodeHeadGrid
        iter2 = solveIter (makeIter 0 1 bouganvilleSub2 ) jacobianEqNodeHeadGrid
-  reportIter "bouganvillePav2" 0 iter
-  reportIter "bouganvilleSub2" 0 iter2
+  -- reportIter "bouganvillePav2" 0 iter
+  -- reportIter "bouganvilleSub2" 0 iter2
   print "renderReport"
   writeFile "bouganville.scad" $openSCAD (drawIter iter  <> drawIter iter2)
   print "renderSCAD"
@@ -317,7 +598,7 @@ testFokus =  do
        iter = solveIter preiter jacobianEqNodeHeadGrid
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
-  reportIter "fokus" 0 iter
+  -- reportIter "fokus" 0 iter
   writeFile "fokus.scad" $openSCAD (drawIter iter)
   diagramRender "fokus.svg" (drawIter iter)
 
@@ -346,7 +627,7 @@ t3 =  do
        iter = solveIter test3 jacobianEqNodeHeadGrid
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
-  reportIter  "subsolo1" 212 iter
+  -- reportIter  "subsolo1" 212 iter
   writeFile "test3.scad" $openSCAD (drawIter iter )
 
 sanIterSubsolo=  do
@@ -355,7 +636,7 @@ sanIterSubsolo=  do
        iter = solveIter preiter jacobianEqNodeHeadGrid
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
-  reportIter "sanmarino_subsolo" 0 iter
+  -- reportIter "sanmarino_subsolo" 0 iter
   return (drawIter iter )
 
 
@@ -366,7 +647,7 @@ sanIterTerraco =  do
   -- print preiter
   printMatrix $ lintInitialConditions iter
   printMatrix $ lintGridElements (grid iter)
-  reportIter "sanmarino_terraco" 0 iter
+  -- reportIter "sanmarino_terraco" 0 iter
   return (drawIter iter )
 
 sanmarino = do
@@ -427,20 +708,39 @@ recurse render r@(Left n@(ni,lks,e)) = do
   ti <- mapM (recurse render . Right . flip var nodemap) nexts
   return $ render r : concat ti
 
-reportIter :: String -> Int -> Iteration Double -> IO ()
-reportIter name i (Iteration f h a)  = do
-    writeFile (name <> ".csv")  $(( L.intercalate "\n"    $ (L.intercalate ","  nodeHeader :) (evalState (runReaderT (do
+sf2 = formatFloatN 2
+sf3 = formatFloatN 3
+
+reportIter :: ProjectHeader -> Int -> Iteration Double -> IO ()
+reportIter header i (Iteration f h a)  = do
+    let name = regionFile $ regionInfo header
+    writeFile (name <> ".csv")  $(headerCalculo <> "\n\n" <> "Relatório dos Nós" <> "\n\n" <>( L.intercalate "\n"    $ (L.intercalate ","  nodeHeader :) (evalState (runReaderT (do
            nodemap  <- fst <$> ask
-           recurse (either nmap lmap) (Left $ fromJust $ M.lookup i nodemap )) (M.fromList $ fmap (\(i,(j,k))-> (i,(i,j,k))) $ findNodesLinks a (nodesFlow a) ,M.fromList $ fmap (\l@(i,h,t,e)-> (i,l))$ links a )) (S.empty,S.empty)))
-            <> "\n\n" <> L.intercalate "," linkHeader <>"\n" <> (L.intercalate "\n" $ lsmap <$> (links a))
-            <> "\n\n" <> "Bomba\n" <> "Pressão Nominal;250;kpa\n" <> "Vazão Nominal;1166;L/min\n" <> "Potência;10;cv"
-            <> "\n\n" <> "Reservatório\n" <> "Volume;60000;L\n" <> "Tempo de Duração;30;min"
-            <> "\n\n" <> "Sprinkler\n" <> "Diâmetro;11;mm\n" <> "Area;12;m²\n" <> "K;8;L/min/(kpa^(-1/2))\n"<> "Vazão Mínima;54;L/min" )
+           recurse (either nmap lmap) (Left $ fromJust $ M.lookup i nodemap )) (M.fromList $ fmap (\(i,(j,k))-> (i,(i,j,k))) $ findNodesLinks a (nodesFlow a) ,M.fromList $ fmap (\l@(i,h,t,e)-> (i,l))$ links a )) (S.empty,S.empty))) <>
+            "\n\n" <> "Relatório dos Links" <> "\n\n" <> L.intercalate "," linkHeader <>"\n" <> (L.intercalate "\n" $ lsmap <$> (links a)))
   where
-    nmap = (\n@(ni,s,e) -> L.intercalate "," $ ["N-"<> show ni,show $ maybe 0 id $p ni , show $h  ni,"",""] ++  expandNode (p ni) e )
+    vazao = fromJust $ M.lookup 1 (M.fromList f)
+    bomba :: Element Double
+    bomba@(Bomba (Just (pn,vn)) _ _  _) = fromJust $ join $ L.find isBomba . (\(_,_,_,l) -> l)<$> L.find (\(_,_,_,l) -> L.any isBomba l ) (links a )
+    isBomba (Bomba _ _ _ _ ) = True
+    isBomba _ = False
+    isSprinkler  (Sprinkler _ _ _ _ ) = True
+    isSprinkler _ = False
+    pressao = abs $ pipeElement vazao bomba
+    sprinklers =  fmap (\(i,e) -> (i,fromJust $ M.lookup i  (M.fromList h ),e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
+    (_,_,Sprinkler (Just (dsp,ksp))  _ _ _) = head sprinklers
+    spkReport = L.intercalate "\n" $ L.intercalate ","  . (\(ix,p,e@(Sprinkler (Just (d,k )) (dl) f a ))-> [show ix , formatFloatN 2 p ,   formatFloatN 2 $ k*sqrt p]  ) <$>    sprinklers
+    projectHeader =  L.intercalate "\n" ["Projeto," <> projectName header   ,"Proprietário," <> projectOwner header , "Endereço," <> endereco header, formation ainfo <> "," <> authorName ainfo , "Crea," <> creaNumber ainfo , "Empresa," <>   empresa ainfo , "Região Cálculo," <> regionName (regionInfo header)]
+        where ainfo = authorInfo header
+    headerCalculo = projectHeader <> "\n\n" <> "Dados do projeto" <> "\n\n" <> L.intercalate "\n\n"
+            ["Bomba\n" <> "Pressão Nominal," <> sf2 pn <> ",kpa\n" <> "Vazão Nominal," <> sf2 vn <> ",L/min\n" <> "Potência,185,cv\n" <> "Vazão Operação," <> sf2 vazao <> ",L/min\n" <>  "Pressão Operação," <> sf2 pressao <> ",kpa,"
+            ,"Reservatório\n" <> "Volume," <> sf2 (vazao * 60) <> ",L\n" <> "Tempo de Duração,60,min"
+            ,"Sprinkler\nTipo,ESFR\n"  {-<> "Diâmetro,25,mm\n" <> "Area,9,m²\n" <> -}<> "K," <> sf2 ksp <> ",L/min/(kpa^(-1/2))\n"<> "Vazão Mínima," <> sf2 (ksp*sqrt 350) <>  ",L/min\n" <> "Pressão Mínima,350,kpa\n" <> "Quantidade Bicos," <> show (L.length sprinklers) <> ",un" ] <>  "\nId,Pressão(kpa),Vazão(L/min)\n" <> spkReport
+
+    nmap = (\n@(ni,s,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 2 $ maybe 0 id $p ni , formatFloatN 2 $h  ni,"",""] ++  expandNode (p ni) e )
         where p ni =  varM ni hm
               h ni =  fst ( fromJust  (varM ni  pm)) ^. _z
-    lmap = (\n@(ni,h,t,e) ->  L.intercalate "," ["T-"<> show h <>  "-" <> show t ,"","",show $ maybe 0 id (abs <$> p ni) ,show $ abs (pr h - pr t){-  show  (sum $ expandLink' ("L-"<> show h <>  "-" <> show t <> "-") (p ni) <$>  zip [0..] e)-},"Trecho"])
+    lmap = (\n@(ni,h,t,e) ->  L.intercalate "," ["T-"<> show h <>  "-" <> show t ,"","",formatFloatN 2 $  maybe 0 id (abs <$> p ni) ,formatFloatN 2  $ abs (pr h - pr t),"Trecho"])
         where pr ni =  maybe 0 id (varM ni hm)
               p ni =  varM ni fm
     lsmap = (\n@(ni,h,t,e) ->    (L.intercalate "\n" $ fmap (L.intercalate ",") $ expandLink ("T-"<> show h <>  "-" <> show t <> "-") (p ni) <$>  zip [0..] e))
@@ -448,22 +748,19 @@ reportIter name i (Iteration f h a)  = do
     fm = M.fromList f
     hm = M.fromList h
     pm = M.fromList (shead a )
-    nodeHeader = ["ID","Pressão Dinâmica (kpa)","Altura (m)","Vazão (L/min)","Perda (kpa)","Elemento","Vazão Chuveiro"]
-    expandNode (Just p) (Sprinkler (Just (d,k)) (dl) f a ) = ["Sprinkler", show $ k*sqrt p]
+    nodeHeader = ["ID","Pressão Dinâmica (kpa)","Altura (m)","Vazão (L/min)","Perda (kpa)","Elemento"]
+    expandNode (Just p) (Sprinkler (Just (d,k)) (dl) f a ) = ["Sprinkler"]
     expandNode _ (Reservatorio  _ _ _)  = ["Reservatorio"]
     expandNode _ (Tee (TeeConfig i r db dr c) _ )  = ["Tê"]
     expandNode _ (Open 0 )  = ["Tampa"]
+    expandNode _ (Open i )  = ["Hidrante"]
     expandNode _ i = []
     linkHeader = ["SubTrecho","Diametro (m)","Perda (kpa)","Elemento","Comprimento (m)"]
-    expandLink st (Just f) (i,t@(Tubo (Just d ) dl  _)) = [st <> show i ,  show d , show $ Grid.ktubo t*(abs f)**1.85,"Tubo " , formatFloatN 2 dl ]
+    expandLink st (Just f) (i,t@(Tubo (Just d ) dl  _)) = [st <> show i ,  sf3 d , sf2$   Grid.ktubo t*(abs f)**1.85,"Tubo " , sf3 dl ]
     expandLink st (Just f) (i,t@(Turn   _)) = [st <> show i ,  "" , "","Turn" , "" ]
-    expandLink st (Just f) (i,b@(Bomba (Just (d,_))  dl  _ _ )) = [st <> show i, "0.1 - 0.1", show $ pipeElement f b,"Bomba"]
-    expandLink st (Just f) (i,j@(Joelho (Just d)  (_,_,c)  _ _ ) ) = [st <> show i , show d, show $Grid.ktubo j*(abs f)**1.85,"Joelho " <> c]
+    expandLink st (Just f) (i,b@(Bomba (Just (d,_))  dl  _ _ )) = [st <> show i, "", sf2 $ pipeElement f b,"Bomba"]
+    expandLink st (Just f) (i,j@(Joelho (Just d)  (_,_,c)  _ _ ) ) = [st <> show i , sf3 d, sf2 $Grid.ktubo j*(abs f)**1.85,"Joelho " <> c]
 
-    expandLink' st (Just f) (i,t@(Tubo (Just d ) dl  _)) = Grid.ktubo t*(abs f)**1.85
-    expandLink' st (Just f) (i,t@(Turn   _)) = 0 -- Grid.ktubo t*(abs f)**1.85
-    expandLink' st (Just f) (i,b@(Bomba (Just (d,_))  dl  _ _ )) =  pipeElement f b
-    expandLink' st (Just f) (i,j@(Joelho (Just d)  (_,_,c)  _ _ ) ) =  Grid.ktubo j*(abs f)**1.85
 
 
 

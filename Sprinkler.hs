@@ -12,15 +12,19 @@ import Element
 import Data.Maybe
 import Data.Monoid
 import Tee
+import Prelude hiding(null)
 import qualified Data.Foldable as F
 import Data.Foldable ( Foldable)
-import Data.Packed.Matrix(Matrix)
-import Data.List as L
+-- import Data.Packed.Matrix(Matrix)
+import qualified Data.List as L
+import Data.List (minimumBy,maximumBy)
 import qualified Data.Traversable as Tra
 import qualified Data.Map as M
 import Control.Applicative hiding ((<|>))
 import Debug.Trace
 
+null :: [a] -> Bool
+null = L.null
 
 minPressure =(\i -> if null i then [] else pure . minimumBy (comparing pNode) $ i)
 
@@ -406,7 +410,7 @@ stack (Left f ) (el:xs) = do
   stack  (Left (\i xs -> f i (el:xs))) xs
 stack (Left i) [] = do
   return (i,([],[]))
-stack (Right i)  j  = error $ show j <> " " <> show i
+stack (Right i)  j  = error $ "no match" <>  show j <> " " <> show i
 
 
 diametroEJ i = case diametroE i of

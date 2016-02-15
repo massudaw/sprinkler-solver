@@ -20,22 +20,24 @@ executable Test
   -- other-modules:       
   -- other-extensions:    
   ghc-options :   -O2 -threaded
-  build-depends:        base >=4.7 && <4.8
+  build-depends:        base >=4.7 && <4.9
                       , hmatrix
                       , hmatrix-gsl
                       , mtk
                       , containers
-                      ,distributive
-                      , ad
-                      , reflection
-                      , transformers
+                      , distributive
+                      , ad 
+                      , comonad 
+                      , reflection 
+                      , transformers 
                       , diagrams-core
                       , diagrams-svg
                       , diagrams-lib
-                      , data-kiln
-                      , mecha == 0.1.3
-                      , lens
+                      , mecha 
+                      , lens 
                       , void
-                      , linear
+                      , semigroupoids 
+                      , linear 
+                      ,process
   -- hs-source-dirs:      
   default-language:    Haskell2010

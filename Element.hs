@@ -68,7 +68,7 @@ data Element a
   , recalqueElements :: [Element a]
   , succaoElements :: [Element a]
   }
-  | Tee (TeeConfig a) ConfigType
+  | Tee (TeeConfig a) TeeConfigType
   | Joelho
   { diametroJ :: Maybe a
   , tipoJ :: (String,String,String)
@@ -136,7 +136,7 @@ data Node a
   ,pathNode :: [Node a]
   }deriving(Eq,Foldable,Show)
 
-data ConfigType = Table | Formula deriving (Eq,Ord,Show)
+data TeeConfigType = Table | Formula deriving (Eq,Ord,Show)
 
 data TeeConfig a
   = TeeConfig
@@ -179,7 +179,7 @@ elementE i = Nothing
 joelhos :: (Ord a ,Fractional a,Num a )=> M.Map ((String,String,String),a) (M.Map a a)
 joelhos = M.fromList
     [((("Conexao","Joelho","90"),130),M.fromList [(32,1.5),(40,3.2),(50,3.4),(65,3.7)])
-    ,((("Conexao","Joelho","90"),100),M.fromList [(25,0.8),(32,1.1),(40,1.3),(50,1.7),(65,2.0),(75,2.5),(80,2.5),(100,3.4),(125,4.2),(150,4.9),(200,6.4)])
+    ,((("Conexao","Joelho","90"),100),M.fromList [(25,0.8),(32,1.1),(40,1.3),(50,1.7),(65,2.0),(75,2.5),(80,2.5),(100,3.4),(125,4.2),(150,4.9),(200,6.4),(250,6.7)])
     ,((("Valvula","","Gaveta"),100),M.fromList [(25,0.2),(32,0.2),(40,0.3),(50,0.4),(65,0.4),(75,0.5),(80,0.5),(100,0.7),(125,0.9),(150,1.1)])
     ,((("Bocais","Saida",""),100),M.fromList [(25,0.7),(32,0.9),(40,1.0),(50,1.5),(65,1.9),(75,2.2),(80,2.2),(100,3.2),(125,4.0),(150,5.0)])
     ,((("Valvula","Retencao",""),100),M.fromList [(25,2.1),(32,2.7),(40,3.2),(50,4.2),(65,5.2),(75,6.3),(80,6.3),(100,8.4),(125,10.4),(150,12.5)])
@@ -198,8 +198,10 @@ data Grid a
   }deriving(Functor,Show)
 
 bombaSuccaoFrontal, bombaBipartida :: (Num a ,Fractional a )=> a -> a
-bombaSF :: Floating a => Curva a
+bombaSF ,bombaJohnson2:: Floating a => Curva a
 bombaSF = Poly [(0,151.229),(1,-0.422331),(2,-0.000979227),(3,- 1.194467786948394e-7)]
+bombaJohnson = Poly [ (0,3000/31) ,(1,12/31) ,(2,-324/96875)]
+bombaJohnson2 = Poly [(0,3250/31),(1,111 /775) , (2,-486 /484375),(3,-2187 /302734375 )]
 bombaSuccaoFrontal x = 151.229 - 0.422331*x - 0.000979227*x^2 - 1.194467786948394e-7*x^3
 bombaBP p v  = Bomba (Just (p,v)) (Poly [(0,120),(1,0.142857),(2,-0.00134921),(3,-7.936507936507936e-6)])
 bombaBipartida x = 120 + 0.0142857*x - 0.00134921*x^2 - 7.936507936507936e-6*x^3
