@@ -2,6 +2,7 @@
 module Tee where
 
 import Debug.Trace
+import Data.Monoid
 import Element
 import qualified Data.Map as M
 import Control.Applicative
@@ -25,7 +26,7 @@ allMaybes i
   | otherwise = []
 
 fromJustE e (Just i) = i
-fromJustE e i = error e
+fromJustE e i = error $ "fromJustE" <> e
 
 ktubo t  v = perda*10*v**1.85
         where
@@ -61,19 +62,41 @@ classifyTee  Table flowMap  t =  classifyFlow flow
         dr = teeDiameterRun t
         r =  teeRadius t
         rho = teeMaterial t
-        direct = Perda (Just dr) ("Conexao","Te","Direta")  rho
-        lateral = Perda (Just db) ("Conexao","Te","Lateral")  rho
+        direct = Perda (Just $ dr) ("Conexao","Te","Direta")  rho
+        lateral = Perda (Just $db) ("Conexao","Te","Lateral")  rho
         classifyFlow bl@[rls,bs,rrs]
-          |  rls > 0 && bs <= 0 && rrs <= 0 = zip [rri,bi]  [ktubo direct  rr , ktubo lateral b ]
-          |  rrs > 0 && bs <= 0 && rls <= 0 = zip [rli,bi]  [ktubo direct rl , ktubo lateral b ]
+          |  rls > 0 && bs <= 0 && rrs <= 0 = zip [rri,bi]  [ktubo direct rr,ktubo lateral b]
+          |  rrs > 0 && bs <= 0 && rls <= 0 = zip [rli,bi]  [ktubo direct rl,ktubo lateral b]
           |  rls >= 0 && bs >= 0 && rrs < 0 = zip [rli,bi]  [ktubo direct rl,ktubo lateral b]
           |  rrs >= 0 && bs >= 0 && rls < 0 = zip [rri,bi]  [ktubo direct rr,ktubo lateral b]
           |  bs > 0 && rrs <= 0 && rls <= 0 = zip [rli,rri] [ktubo lateral rl,ktubo lateral rr]
-          |  bs < 0 && rrs >= 0 && rls >= 0 = zip [rli,rri] [ktubo lateral rl ,ktubo lateral rr]
+          |  bs < 0 && rrs >= 0 && rls >= 0 = zip [rli,rri] [ktubo lateral rl,ktubo lateral rr]
           | otherwise =  traceShow ("no case for branch list " ++ show  t ++ show flow ++ show flowMap) []
           where rl = abs rls
                 rr = abs rrs
                 b = abs bs
+
+classifyTeeEl  Table flowMap  t =  classifyFlow flow
+  where flow = fmap (\i -> fromJustE ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
+        [rli,bi,rri] = teeConfig t
+        db = teeDiameterBranch t
+        dr = teeDiameterRun t
+        r =  teeRadius t
+        rho = teeMaterial t
+        direct = Perda (Just $ dr) ("Conexao","Te","Direta")  rho
+        lateral = Perda (Just $db) ("Conexao","Te","Lateral")  rho
+        classifyFlow bl@[rls,bs,rrs]
+          |  rls > 0 && bs <= 0 && rrs <= 0 = zip [rri,bi]  [direct,lateral]
+          |  rrs > 0 && bs <= 0 && rls <= 0 = zip [rli,bi]  [direct ,lateral]
+          |  rls >= 0 && bs >= 0 && rrs < 0 = zip [rli,bi]  [direct ,lateral]
+          |  rrs >= 0 && bs >= 0 && rls < 0 = zip [rri,bi]  [direct ,lateral]
+          |  bs > 0 && rrs <= 0 && rls <= 0 = zip [rli,rri] [lateral ,lateral]
+          |  bs < 0 && rrs >= 0 && rls >= 0 = zip [rli,rri] [lateral ,lateral]
+          | otherwise =  traceShow ("no case for branch list " ++ show  t ++ show flow ++ show flowMap) []
+          where rl = abs rls
+                rr = abs rrs
+                b = abs bs
+
 
 divergingFlowThroughRun :: (Ord a,Floating a) => a -> a -> a -> a -> a -> a -> a -> a -> a
 divergingFlowThroughRun  w3 0 w1  d3 d2 d1 rho  r  = 0

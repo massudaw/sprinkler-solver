@@ -52,17 +52,17 @@ renderElem _ i = regPoly 4 0.1 -- error $  show i
                       -> Int
                       -> Element Double
                       -> Diagram b R2-}
-renderLinkSVG (f,nf) l t@(Tubo _ c _) =   (line ) -- <> foldr1 mappend (zipWith (\i j-> translate (r3 (c/2,(0.4 - 0.2*i ),0)) j ) [0..] [label , dlabel , llabel , flabel]))
+renderLinkSVG (f,nf) sl l t@(Tubo _ c _) =   (line ) -- <> foldr1 mappend (zipWith (\i j-> translate (r3 (c/2,(0.4 - 0.2*i ),0)) j ) [0..] [label , dlabel , llabel , flabel]))
   where
     -- label  = text (show l) # fontSizeL 0.2 -- # fc black
     -- dlabel  = text (show (1000* (fromJust $ diametroE t)) ++ " cm" ) # fontSizeL 0.2 -- # fc black
     -- llabel  = text (show (1000*  c ) ++ " cm" ) # fontSizeL 0.2 -- # fc black
     --flabel  = text ((formatFloatN 2 f) ++ " L/min" ) # fontSizeL 0.2 -- # fc black
     line =  translateX (c/2) (if f > 0 then ahead else reflectX ahead )<> (fromOffsets [c *^ unitX ] ) -- # lwL 0.04# opacity (0.3 + 0.7*nf)
-renderLinkSVG f _ j@(Joelho _ _ _ _ )  =  joelho
+renderLinkSVG f sl l j@(Joelho _ _ _ _ )  =  joelho
   where
     joelho = fromOffsets [0.1 *^ unitX,0.1 *^ unitY]
-renderLinkSVG f _ i = mempty
+renderLinkSVG f sl l i = mempty
 
 instance
         Target  (Path  V3 Double ) where

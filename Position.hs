@@ -42,7 +42,7 @@ import Data.Void
 
 class  Target a  where
   renderNode :: [Double] -> (S.Set Int,(Double,(Int,Element Double))) -> a
-  renderLink ::  (Double,Double) ->  Int -> Element Double -> a
+  renderLink ::  (Double,Double) ->  Int  -> Int -> Element Double -> a
   errorItem :: a
   type TCoord a
   transformElement  :: Coord (TCoord a) => (TCoord a,Ang (TCoord a)) -> a -> a
@@ -185,9 +185,9 @@ styleNodes  it = catMaybes $ fmap (\i -> do
 --styleLinks :: Iteration Double -> [Mecha.Solid]
 styleLinks it = concat $ catMaybes $  fmap (\(l,_,_,i)  -> do
             pos <- varM l  posMap
-            return $ catMaybes $ zipWith (\m n ->  do
+            return $ catMaybes $ zipWith3 (\m ix n ->  do
               flow <- varM l flowMap
-              return $ transformElement m $ renderLink (flow ,nf flow ) l n ) pos  i ) (links (grid it))
+              return $ transformElement m $ renderLink (flow ,nf flow ) ix  l n ) pos  [0..] i ) (links (grid it))
   where [max,min]= [maximum (snd <$> flows it), minimum (snd <$> flows it)]
         nf f =  abs f /(max - min)
         posMap = M.fromList $ linksPosition (grid it)

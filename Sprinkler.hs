@@ -400,12 +400,12 @@ stack (Left l) ((Sprinkler c _ i j):xs) = do
   un <- unNode  e
   (i,r) <- stack (Right un) xs
   return $ (i,([(un,e)],[l un []]) <> r)
-stack (Right i) (el:xs) = do
-  un <- unLink el
+stack (Right i) l@(el:xs) = do
+  un <- unLink (last l )
   stack (Left (\t xs -> (un,i,t,el:xs))) xs
-stack (Left f ) (Joelho _ j k l :xs) = do
+stack (Left f ) (Joelho jdia  j k l :xs) = do
   eo <- fst.snd <$> get
-  stack  (Left (\i xs -> f i (Joelho (diametroE eo) j k l :xs))) xs
+  stack  (Left (\i xs -> f i (Joelho (fromMaybe (diametroE eo) (Just <$> jdia) ) j k l :xs))) xs
 stack (Left f ) (el:xs) = do
   stack  (Left (\i xs -> f i (el:xs))) xs
 stack (Left i) [] = do
@@ -418,7 +418,7 @@ diametroEJ i = case diametroE i of
                     Nothing -> error $ "sem diametro elemento " ++ show i
 unrollNode (ln,oe) e@(Origem i) =  do
   (el ,l) <- stack (Right ln) (init i)
-  ul <-(snd <$> get)
+  ul <- (snd <$> get)
   (n,r) <- unrollNode   (swap ul) (last i)
   return $ (snd ul,([],[el n []]) <> l<> r)
 unrollNode (ln,oe) e@(Te _ n i j ) = do
@@ -431,12 +431,13 @@ unrollNode (ln,oe) e@(Te _ n i j ) = do
   (eli ,li ) <- stack (Right un) (init i)
   uli  <-(snd <$> get)
   (ni,ri) <- unrollNode  (swap uli) (last i)
-  let conf = case n of
-       TeBranch -> TeeConfig [uljl +1 , ln ,ulil +1 ] 0.01 (diametroEJ oe) (max (diametroEJ oe) $max (diametroEJ (head i)) (diametroEJ (head j)))
-       TeRunL -> TeeConfig [ln,uljl +1 ,ulil +1 ] 0.01 (diametroEJ (head j)) (max (diametroEJ (head j)) $max ( diametroEJ (head i)) (diametroEJ oe))
-       TeRunR -> TeeConfig [uljl +1 ,ulil +1,ln ] 0.01 ( diametroEJ (head i)) (max (diametroEJ (head i)) $ max (diametroEJ oe) (diametroEJ (head j)))
 
-  return $ (un,([(un,Tee ( conf 1000)Table )],[elj nj [], eli ni []]) <> lj <> li  <> ri <> rj)
+  let conf = case n of
+       TeBranch -> TeeConfig [uljl +1 , ln ,ulil +1 ] 0.01 (diametroEJ oe) (max (diametroEJ oe ) $ max (diametroEJ (head i)) (diametroEJ (head j)))
+       TeRunL -> TeeConfig [ln,uljl +1 ,ulil +1 ] 0.01 (diametroEJ (head j)) (max (diametroEJ (head j)) $max (diametroEJ (head i)) (diametroEJ oe))
+       TeRunR -> TeeConfig [uljl +1 ,ulil +1,ln ] 0.01 (diametroEJ (head i)) (max (diametroEJ (head i)) $max (diametroEJ oe) (diametroEJ (head j)))
+
+  return $ (un,([(un,Tee ( traceShow (oe ,(head i) ,(head j)) $ traceShowId $ conf 1000)Table )],[elj nj [], eli ni []]) <> lj <> li  <> ri <> rj)
 unrollNode (ln,oe) e@(Sprinkler _ _ _ _ ) = do
   un <- unNode e
   return $ (un,([(un,e)],[]))

@@ -17,7 +17,6 @@ import qualified Data.Map as M
 
 import Control.Applicative
 import Numeric.AD
--- import Diagrams.Prelude.ThreeD
 import Control.Lens
 import Linear.V3
 
@@ -33,17 +32,17 @@ data Iteration a
   { flows :: [(Int,a)]
   , nodeHeads :: [(Int,a)]
   , grid :: Grid a
-  }-- deriving(Show,Functor)
+  }deriving(Show,Functor)
 
 
 isTee (Tee _ _ ) = True
 isTee i = False
 
-elementsFHIter i = (pipeFHIter i , nodeFHIter i)
+-- elementsFHIter i = (pipeFHIter i , nodeFHIter i)
 
-nodeFHIter (Iteration vm h grid) = fmap (nodeFlowsHeads grid (M.fromList vm ) (M.fromList h) ) $ nodesFlow grid
+-- nodeFHIter (Iteration vm h grid) = fmap (nodeFlowsHeads grid (M.fromList vm ) (M.fromList h) ) $ nodesFlow grid
 
-nodeFlowsHeads grid vm h e@(ni,Tee config conf ) = (e,fmap (\li-> (var li sflow ,  var ni h  + addTee li   ))  pipes)
+{-nodeFlowsHeads grid vm h e@(ni,Tee config conf ) = (e,fmap (\li-> (var li sflow ,  traceShow (nodeLosses) var ni h  + addTee li   ))  pipes)
   where
     tp = M.lookup  ni h
     pipes =  (teeConfig config)
@@ -52,17 +51,17 @@ nodeFlowsHeads grid vm h e@(ni,Tee config conf ) = (e,fmap (\li-> (var li sflow 
     addTee k = maybe 0 id (M.lookup k nodeLosses)
 nodeFlowsHeads grid vm h e@(ni,Sprinkler (Just (d,k)) l c _ ) = (e,[(k* sqrt (abs $ var ni h) ,var ni h )])
 nodeFlowsHeads grid vm h e@(ni,Open v ) = (e,[(v,var ni h )])
+-}
+-- pipeFHIter (Iteration vm h grid) = fmap (pipeFlowsHeads grid (M.fromList vm ) (M.fromList h) ) $ links grid
 
-pipeFHIter (Iteration vm h grid) = fmap (pipeFlowsHeads grid (M.fromList vm ) (M.fromList h) ) $ links grid
-
-pipeFlowsHeads grid vm h e@(ni,th,tt,tubo) = (e,(var ni vm,) . pipeElement (var ni vm) <$>  tubo)
+-- pipeFlowsHeads grid vm h e@(ni,th,tt,tubo) = (e,(var ni vm,) . pipeElement (var ni vm) <$>  tubo)
 
 
 ktubo t  = perda*10/(1000*60)**1.85
         where
               d = case diametroE t of
                        Just d -> d
-                       i -> error $ show t
+                       i -> error $ "elemento sem diametro " <>  show t
               c = materialE t
               -- note : abs na vazão pois gera NaNs para valores negativos durante iterações
               perda = 10.65*(distanciaE t)/((c**1.85)*(d**4.87))
@@ -85,12 +84,13 @@ jacobianEqNodeHeadGrid l vh = loops <> nodes
           v = M.fromList $ zip (fmap (\(i,_,_,_) -> i) $ links l)  $ take nlinks vh
           h = M.fromList $ zip ( fmap fst $ nodesFlow l) $ drop nlinks vh
 
+printResidual iter@(Iteration n f a) modeler = modeler a  (snd <$> flows iter <> nodeHeads iter )
 
 solveIter :: (forall a . (Show a , Ord a , Floating a ) => Iteration  a ) -> (forall b. (Show b, Ord b, Floating b) => Grid b -> [b] -> [b] ) -> (Iteration Double)
 solveIter iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid iter) $ take fl res) (zip (fmap fst $ nodesFlow $ grid iter)  $ drop fl res) (grid iter)
   where
     fl = length (flows iter)
-    res = fst . rootJ GNewton 1e-5 100 (modeler (grid iter) ) (jacobian (modeler (grid iter)  ) )  $ (snd <$> flows iter <> nodeHeads iter )
+    res = fst . rootJ HybridsJ 1e-7 1000 (modeler (grid iter) ) (jacobian (modeler (grid iter)  ) )  $ (snd <$> flows iter <> nodeHeads iter )
 
 var :: Show a => Int -> M.Map Int a -> a
 var i m = case M.lookup i m of
@@ -109,6 +109,7 @@ pipeElement v (Bomba  _ (Poly l ) _ _ ) = negate $ foldr1 (+) (polyTerm <$> l)
 pipeElement v e@(Resistive k p)  = k*v**p
 pipeElement v e@(Tubo _ _ _)  = (ktubo e)*v**1.85
 pipeElement v e@(Joelho _ _ _ _)  = (ktubo e)*v**1.85
+pipeElement v e@(Perda __ _ _)  = (ktubo e)*v**1.85
 pipeElement v (Turn _)   = 0
 
 
@@ -146,7 +147,7 @@ jacobianNodeHeadEquation grid  vm nh =  term <$> l
     sflow = signedFlow grid vm
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,h,t,e) =   sum ( pipeElement (var l vm) <$> e) - ( varn h nh  + (varr3 h nhs ^. _z) *9.81 )  +  addTee (h,l) + addTee (t,l) + ( ((varr3 t nhs ^. _z) *9.81 ) + varn t nh )
+    term (l,h,t,e) =   sum (pipeElement (var l vm) <$> e) - ( varn h nh  + (varr3 h nhs ^. _z) *9.81 )  +  addTee (h,l) + addTee (t,l) + ( ((varr3 t nhs ^. _z) *9.81 ) + varn t nh )
       where
          nhs = fmap fst (M.fromList $shead grid)
 

@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFunctor,DeriveFoldable #-}
 module Element where
 import Data.Foldable
+import Data.Monoid
 import qualified Data.Map as M
 import Control.Monad
 
@@ -163,8 +164,8 @@ diametroE i = Nothing
 
 distanciaE :: (Show a,Ord a,Fractional a )=> Element a -> a
 distanciaE (Tubo _ d _ ) = d
-distanciaE (Joelho (Just dtubom) tipo _ c) =  justError (show (tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
-distanciaE i  =  0
+distanciaE (Joelho (Just dtubom) tipo _ c) =  justError (show ("joelho",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
+distanciaE (Perda   (Just dtubom)  tipo c) = justError (show ("perda",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
 
 materialE :: Show a => Element  a -> a
 materialE (Tubo _ _ c) =  c
@@ -179,14 +180,18 @@ elementE i = Nothing
 joelhos :: (Ord a ,Fractional a,Num a )=> M.Map ((String,String,String),a) (M.Map a a)
 joelhos = M.fromList
     [((("Conexao","Joelho","90"),130),M.fromList [(32,1.5),(40,3.2),(50,3.4),(65,3.7)])
-    ,((("Conexao","Joelho","90"),100),M.fromList [(25,0.8),(32,1.1),(40,1.3),(50,1.7),(65,2.0),(75,2.5),(80,2.5),(100,3.4),(125,4.2),(150,4.9),(200,6.4),(250,6.7)])
+    ,((("Conexao","Joelho","90"),100),M.fromList [(25,0.8),(32,1.1),(40,1.3),(50,1.7),(65,2.0),(75,2.5),(80,2.1),(100,3),(125,3.7),(150,4.5),(200,5.5),(250,6.7)])
     ,((("Valvula","","Gaveta"),100),M.fromList [(25,0.2),(32,0.2),(40,0.3),(50,0.4),(65,0.4),(75,0.5),(80,0.5),(100,0.7),(125,0.9),(150,1.1)])
     ,((("Bocais","Saida",""),100),M.fromList [(25,0.7),(32,0.9),(40,1.0),(50,1.5),(65,1.9),(75,2.2),(80,2.2),(100,3.2),(125,4.0),(150,5.0)])
     ,((("Valvula","Retencao",""),100),M.fromList [(25,2.1),(32,2.7),(40,3.2),(50,4.2),(65,5.2),(75,6.3),(80,6.3),(100,8.4),(125,10.4),(150,12.5)])
     ,((("Conexao","Joelho","45"),100),M.fromList [(25,0.4),(32,0.5),(40,0.6),(50,0.8),(65,0.9),(75,1.2),(80,1.2),(100,1.5),(125,1.9),(150,2.3),(200,3),(250,3.8)])
     ,((("Conexao","Te","Lateral"),130),M.fromList [(32,4.6),(40,7.3),(50,7.6),(65,7.8),(75,8.0)])
-    ,((("Conexao","Te","Direta"),100),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4)])
-    ,((("Conexao","Te","Lateral"),100),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0)])]
+    ,((("Conexao","Te","Direta"),100),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4),(200,4.3),(250,5.5)])
+    ,((("Conexao","Te","Direta"),100),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4),(200,4.3),(250,5.5)])
+    ,((("Conexao","Te","Direta"),1000),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4),(200,4.3),(250,5.5)])
+    ,((("Valvula","Governo",""),100),M.fromList [(200 ,8.84),(250 ,9.84)])
+    ,((("Conexao","Te","Lateral"),100),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])
+    ,((("Conexao","Te","Lateral"),1000),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
 
 data Grid a
   = Grid
@@ -211,5 +216,5 @@ bombaBipartida x = 120 + 0.0142857*x - 0.00134921*x^2 - 7.936507936507936e-6*x^3
 isReservoir (Reservatorio _ _ _) = True
 isReservoir _ = False
 
-justError e Nothing = error e
+justError e Nothing = error ("justError" <> e)
 justError _ (Just i) = i
