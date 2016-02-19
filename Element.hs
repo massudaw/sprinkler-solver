@@ -15,6 +15,12 @@ data Direction a
   = Direction a a
   deriving(Eq,Show,Functor)
 
+isBomba (Bomba _ _ ) = True
+isBomba _ = False
+isSprinkler  (Sprinkler _ _ _ _ ) = True
+isSprinkler _ = False
+isReservoir (Reservatorio _ ) = True
+isReservoir _ = False
 
 data TeTipo
   = TeBranch
@@ -40,34 +46,20 @@ data Element a
   , comprimento :: a
   , atrito :: a
   }
-  | Gravidade
-  { distanciaQueda :: a
-  }
   | Reservatorio
   { tempo :: a
-  , volume :: Maybe a
-  , element :: Element a
   }
-  | Tip
   | Open
   { openFlow :: a
-  }
-  | Resistive
-  {  load :: a
-  ,  power :: a
   }
   | DiameterChange
   { input :: Maybe a
   , output :: Maybe a
   , material :: a
   }
-  | Bocal
-  { diametroJ :: Maybe a}
   | Bomba
-  { nominalValues :: Maybe (a,a)
+  { nominalValues :: (a,a)
   , curva :: Curva a
-  , recalqueElements :: [Element a]
-  , succaoElements :: [Element a]
   }
   | Tee (TeeConfig a) TeeConfigType
   | Joelho
@@ -96,11 +88,6 @@ data Element a
   , pathRight :: [Element a]
   , pathLeft :: [Element a]
   }
-  | OptTe
-  { tipoTe ::  TeTipo
-  , pathRight :: [Element a]
-  , pathLeft :: [Element a]
-  }
   | Reduction
   { diametroRH :: a
   , diametroRT :: a
@@ -108,12 +95,7 @@ data Element a
   | Origem
   { elements :: [Element a]
   }
-  | OptionalPath
-  { pathOption :: [Element a]
-  }
-  | RamalElement
-  { pathElement :: [Element a]
-  }deriving(Eq,Show,Functor)
+  deriving(Eq,Show,Functor)
 
 data Node a
   = Node
@@ -188,10 +170,9 @@ joelhos = M.fromList
     ,((("Conexao","Te","Lateral"),130),M.fromList [(32,4.6),(40,7.3),(50,7.6),(65,7.8),(75,8.0)])
     ,((("Conexao","Te","Direta"),100),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4),(200,4.3),(250,5.5)])
     ,((("Conexao","Te","Direta"),100),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4),(200,4.3),(250,5.5)])
-    ,((("Conexao","Te","Direta"),1000),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4),(200,4.3),(250,5.5)])
     ,((("Valvula","Governo",""),100),M.fromList [(200 ,8.84),(250 ,9.84)])
-    ,((("Conexao","Te","Lateral"),100),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])
-    ,((("Conexao","Te","Lateral"),1000),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
+    ,((("Conexao","Te","Lateral"),100),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
+    --,((("Conexao","Te","Lateral"),1000),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
 
 data Grid a
   = Grid
@@ -199,7 +180,6 @@ data Grid a
   , links :: [(Int,Int,Int,[Element a])]
   , shead :: [(Int,(V3 a,(a,a,a) ))]
   , nodesFlow :: [(Int,Element a)]
---  , origin :: (Int,R3 Double,(a,a,a))
   }deriving(Functor,Show)
 
 bombaSuccaoFrontal, bombaBipartida :: (Num a ,Fractional a )=> a -> a
@@ -208,13 +188,11 @@ bombaSF = Poly [(0,151.229),(1,-0.422331),(2,-0.000979227),(3,- 1.19446778694839
 bombaJohnson = Poly [ (0,3000/31) ,(1,12/31) ,(2,-324/96875)]
 bombaJohnson2 = Poly [(0,3250/31),(1,111 /775) , (2,-486 /484375),(3,-2187 /302734375 )]
 bombaSuccaoFrontal x = 151.229 - 0.422331*x - 0.000979227*x^2 - 1.194467786948394e-7*x^3
-bombaBP p v  = Bomba (Just (p,v)) (Poly [(0,120),(1,0.142857),(2,-0.00134921),(3,-7.936507936507936e-6)])
+bombaBP p v  = Bomba (p,v) (Poly [(0,120),(1,0.142857),(2,-0.00134921),(3,-7.936507936507936e-6)])
 bombaBipartida x = 120 + 0.0142857*x - 0.00134921*x^2 - 7.936507936507936e-6*x^3
 
 
 
-isReservoir (Reservatorio _ _ _) = True
-isReservoir _ = False
 
 justError e Nothing = error ("justError" <> e)
 justError _ (Just i) = i

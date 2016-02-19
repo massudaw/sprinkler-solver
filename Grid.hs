@@ -72,7 +72,7 @@ continuity (Iteration q nh g ) = fmap (\(i,f) -> sumn (flipped i (links g)) + su
         correct i= filter (\(_,h,t,_) -> t == i )
         nflow i = genFlow i $ var i $ M.fromList (nodesFlow g)
         genFlow idx (Open i ) = i
-        genFlow idx (Reservatorio _ _ _  ) = 0
+        genFlow idx (Reservatorio _   ) = 0
         genFlow idx (Sprinkler (Just (ds,k)) _ _ _) = k -- *sqrt(var idx pm)
         suma = sum . fmap (\(li,_,_,_)-> var  li (M.fromList q) )
         sumn = sum . fmap (\(li,_,_,_)-> negate $var  li (M.fromList q) )
@@ -100,13 +100,10 @@ var i m = case M.lookup i m of
 
 
 pipeElement v e | v < 0 = negate $ pipeElement (abs v) e
-pipeElement v (Bomba  (Just (pn,vn)) (Poly l ) _ _ ) = negate $ (*pn) $ (/100)  $foldr1 (+) (polyTerm <$> l)
+pipeElement v (Bomba  ((pn,vn)) (Poly l ) ) = negate $ (*pn) $ (/100)  $foldr1 (+) (polyTerm <$> l)
       where polyTerm (0,c) =   c
             polyTerm (p,c) =   c*(100*v/vn)**p
-pipeElement v (Bomba  _ (Poly l ) _ _ ) = negate $ foldr1 (+) (polyTerm <$> l)
-      where polyTerm (0,c) =   c
-            polyTerm (p,c) =   c*v**p
-pipeElement v e@(Resistive k p)  = k*v**p
+-- pipeElement v e@(Resistive k p)  = k*v**p
 pipeElement v e@(Tubo _ _ _)  = (ktubo e)*v**1.85
 pipeElement v e@(Joelho _ _ _ _)  = (ktubo e)*v**1.85
 pipeElement v e@(Perda __ _ _)  = (ktubo e)*v**1.85
@@ -134,7 +131,7 @@ jacobianContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( 
         genFlow _ (Open i ) = i
         genFlow _ (Tee _ _ ) = 0
         genFlow idf (Sprinkler (Just (_,k)) _ _ _) = k*sqrt(abs idf)
-        genFlow _ (Reservatorio _ _ _ ) = error "reservatorio doesn't preserve flow"
+        genFlow _ (Reservatorio _  ) = error "reservatorio doesn't preserve flow"
 
 varn h = maybe 0 id .  M.lookup h
 varr3 h = maybe (V3 0 0  0)  id .  M.lookup h
@@ -147,7 +144,7 @@ jacobianNodeHeadEquation grid  vm nh =  term <$> l
     sflow = signedFlow grid vm
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,h,t,e) =   sum (pipeElement (var l vm) <$> e) - ( varn h nh  + (varr3 h nhs ^. _z) *9.81 )  +  addTee (h,l) + addTee (t,l) + ( ((varr3 t nhs ^. _z) *9.81 ) + varn t nh )
+    term (l,h,t,e) =   sum (pipeElement (var l vm) <$> e) - ( varn h nh  + (varr3 h nhs ^. _z) *9.78235  )  +  addTee (h,l) + addTee (t,l) + ( ((varr3 t nhs ^. _z) *9.81 ) + varn t nh )
       where
          nhs = fmap fst (M.fromList $shead grid)
 

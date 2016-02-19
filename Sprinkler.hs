@@ -29,7 +29,7 @@ null = L.null
 minPressure =(\i -> if null i then [] else pure . minimumBy (comparing pNode) $ i)
 
 minFlow =(\i -> if null i then [] else pure . minimumBy (comparing vNode) $ i)
-
+{-
 -- solveRamalN :: Node Element -> Node Element -> [Node Element]
 solveRamalN s@(RamalNode  _ _  e )  n = minFlow $   do
   let
@@ -115,8 +115,8 @@ perdatubo' t  v =  (Node (perda*10) 0 t)
               perda = 10.65*(abs (vazao)**1.85)*(distanciaE t)/((c**1.85)*(d**4.87))
 
 minimumTubo v = minimumBy (comparing (abs . ((diametroSeg (v/1000/60))-) )) $ fmap (/1000) diametrosTubos
-
-
+-}
+{-
 diffElement j@(Joelho preD tipo jd c)  nodo = do
     let v = vNode nodo
         p = pNode nodo
@@ -164,7 +164,6 @@ diffElement s@(RamalElement l) n = minFlow $ do
   return (RamalNode 0 vlast  res )
 
 diffElement i j = error ("No match for addElement " <> show i <> "   " <> show j)
-
 nodePlus n1 (Node p v e) = Node (pNode n1 + p)  (vNode n1 + v ) e
 nodePlus n1 (RamalNode p v e) = RamalNode (pNode n1 + p)  (vNode n1 + v ) e
 
@@ -229,161 +228,8 @@ addElement s@(RamalElement l) n = minFlow $ do
 
 addElement i j = error ("No match for addElement " <> show (i :: Element Double) <> "   " <> show (j :: Node (Element Double)))
 
+-}
 
-pv :: Double -> Double -> Double
-pv v d =  225*v^2/(d*1000.0) ^4
-
-showNode i n@(Node _ _ _) = (concat $ replicate i "\t") ++ show n
-showNode i (RamalNode p v n ) = (concat $ replicate i "\t") ++ "RamalNode " ++ show p ++ "  " ++ show v ++ {-"  " ++ show res ++-} "\n" ++ (L.intercalate "\n" $ fmap (showNode (i +1))  n)
-showNode i (OptionalNode p v n ) = (concat $ replicate i "\t") ++ "OptionalNode" ++ show p ++ "  " ++ show v ++ {-"  " ++ show res ++-} "\n" ++ (L.intercalate "\n" $ fmap (showNode (i +1))  n)
-
-initialSprinkler e@(Sprinkler _ mdm area den)  =  do
-  b@(d,k) <- bicos
-  let
-      vmin = vminSprinkler e
-      dm = maybe (minimumTubo  vmin ) id mdm
-      p = pv vmin dm  + pressao vmin k
-  guard $ p > 50
-  guard $ vmin >= area*den
-  return (Node p vmin (Sprinkler (Just (d,k)) (Just dm) area den))
-
-calcSprinkler v e@(Sprinkler (Just (d,k)) (Just dm) _ _) = (Node (pv v dm + pressao v k) v e)
-
-minSprinkler e@(Sprinkler (Just (d,k)) (Just dm) a den) = (Node (pv vmin dm + pressao vmin k) vmin e)
-  where vmin = vminSprinkler e
-
-vminSprinkler e@(Sprinkler _ _ a den) =  a * den
-
-
-deConstructPath  i v = pp
-    where pp = foldr (\ n m -> concat $ fmap (\l -> fmap (:l) $ removeElement n (head l)) m) (backPressurePath (last i) v) (init i)
-deConstructPath' i v = join $ fmap (\ppi-> fmap (tail ppi ++ ) . backPressurePath (last i) . last $ ppi) pp
-    where pp = foldl (\ m n -> concat $ fmap (\l -> fmap (\ll -> l ++ [ll]) $ removeElement n (last l)) m) [[v]] (init i)
-
-backPressurePath :: Element Double -> Node (Element Double) -> [[Node (Element Double)]]
-backPressurePath (Origem i ) n@(Node v p e ) =  filter (not .null) $ deConstructPath i n
-backPressurePath t@(Te _ _  i j ) n@(Node v p e ) =  filter (not .null) $ solveBifurcation t  n
-backPressurePath  b@(Bocal d)  n@(Node v p e) = return $ join $ unConsPath (Perda d ("Bocais","Saida","")  100)  [Node v p b]
--- backPressurePath  Bocal  n@(Node v p e) = return $  [Node v p Bocal]
-backPressurePath l m = error $ "no pattern for backPressure" ++ show l ++ " ____ " ++show m
-
--- Expand  main path
-constructPath i= foldr (\n m -> concat $ fmap (\l -> fmap (:l) $ addElement n (head l)) m) ( pressurePath (last i )) (init i)
-
-consPath n l =  fmap (:l) $ addElement n (head l)
-unConsPath n l =  fmap (:l) $ removeElement n (head l)
-
-backSolveN c assoc left right = do
-          let li = (head left)
-              ri = (head right)
-          (Node pn vn res) <- solveRamalN (RamalNode (pNode li ) ((vNode li ) `assoc`  (vNode ri )) left) ri
-          return (c pn (vn `assoc` vNode ri) res : right)
-
-
-backSolveE c assoc left right = do
-          let li = (head left)
-              ri = (head right)
-          (Node pn vn res) <- solveRamal (RamalElement $ fmap extractElement left) ri
-          return   (c pn (vn `assoc` vNode ri) res : right)
-
-
-
-bifurcationSolve  solve i j = filter (not .null) $do
-  left <- constructPath i
-  right <- constructPath j
-  let cond li ri
-        | pNode ri > pNode li =  solve left right
-        | otherwise = solve right left
-  return $ join $ cond (head left) (head right)
-
-
-
-pressurePath :: Element Double  -> [[Node (Element Double )]]
-pressurePath (Origem i) = filter (not.null) $ constructPath i
-pressurePath (Te d _ i j) = bifurcationSolve (\l ->  backSolveE RamalNode (+) l )  ((Perda Nothing ("Conexao","Te","Lateral" ) 100 ):i) ((Perda Nothing ("Conexao","Te","Direta" ) 100 ):j)
-
--- pressurePath (OptTe _ i j) = bifurcationSolve (\l -> join . fmap (consPath (te DRight)) .backSolveN OptionalNode max l) i j
-pressurePath (OptTe _ i j) =  join [constructPath ((Perda Nothing ("Conexao","Te","Lateral" ) 100 ):i) , constructPath ((Perda Nothing ("Conexao","Te","Direta" ) 100 ):j)]
-pressurePath s@(Sprinkler _ _ _ _) = fmap pure $ initialSprinkler s
-pressurePath (Reservatorio t v b) = do
-    let vmax =  maximumBy (comparing (vazao .head))  pb
-        pb = pressurePath b
-    i <- pb
-    return $ (Node 0 (vazao $ head i) $Reservatorio t (Just $ (vazao . head $ vmax)*t) b ) : i
-pressurePath g@(Bomba _ (Curva c) e suc )  = do
-  let
-      rawPaths =  do
-         p <- constructPath e
-         bp <- backPressurePath (Origem suc) (Node (0 :: Double) (negate $ vazao $head p) Tip )
-         return (p,bp)
-      minBomb (p,v) = minimumBy (comparing (\(i,j) -> (i - p,j - v))) $ filter (\(i,j) -> i - p > 0 && j - v> 0 ) $  bomb
-      calcBomb (p,bp) = (pNode (head p) - pNode (head bp), vNode (head p))
-      (minp,minv) = maximum $ fmap (minBomb.calcBomb) rawPaths
-      pmin v = minp*(c (v/minv*100))/100
-      fun rawPath [v] = (\res -> if null res then v else minimum res) $ (abs.(v-) .vazao) <$> ( solveRamalN (RamalNode pm v (fst rawPath)) (Node pm v Tip))
-          where pm = pmin v + (pressaoNode (head $ (\(i:xs)-> i) $  (backPressurePath (Origem suc) (Node 0 (-v) Tip))))
-      minFun rawPath = (fst $ rawPath,fst  $  minimize NMSimplex 1e-3 60  [1.0*minv] (fun rawPath ) [minv])
-  (path,[vres]) <- fmap (minFun ) rawPaths
-  bp <- backPressurePath (Origem suc ) (Node (0 :: Double) (-vres) Tip)
-  n@(Node p v res) <- solveRamalN  (RamalNode (pmin vres) vres path) (Node (pmin vres + pressaoNode (head $  bp )) vres Tip)
-  return $  RamalNode (pressaoNode (head bp))  v bp : Node (pressaoNode (head bp))  v (Bomba (Just (minp,minv)) (Curva bombaSuccaoFrontal) e suc ) :  res
-
-pressurePath i = error $ "pressure path no match " ++ show i
-
--- te d = Joelho Nothing ("Conexao","Te","Lateral") d 100
--- ted d  = Joelho (Just d) ("Conexao","Te","Lateral") DRight 100
-
-preheader =  fmap (unlines .fmap (\(k,v)-> k ++ ": " ++ v) ) tables
-    where t12a = [("Área de Aplicação","140m²")
-                 ,("Densidade","4,1")
-                 ,("Risco","Leve")
-                 ,("Diâmetro Bicos","11mm")
-                 ,("Coeficiente Bico","5.8 kpa^1/2")
-                 ,("Cobertura Bico","11m²")
-                 ,("Ocupação","B-2 Serviço de Hospedagem")
-                 ,("Carga de Incêndio","300MJ/m2")
-                 ,("Área","12º Pavimento Tipo- Região A")]
-          t12b = [("Área de Aplicação","140m²")
-                 ,("Densidade","4,1")
-                 ,("Diâmetro Bicos","11mm")
-                 ,("Cobertura Bico","11m²")
-                 ,("Risco","Leve")
-                 ,("Ocupação","B-2 Serviço de Hospedagem")
-                 ,("Carga de Incêndio","300MJ/m2")
-                 ,("Área","12º Pavimento Tipo- Região B")]
-          t1a = [("Área de Aplicação","140m²")
-                 ,("Densidade","4,1")
-                 ,("Diâmetro Bicos","11mm")
-                 ,("Risco","Leve")
-                 ,("Cobertura Bico","11m²")
-                 ,("Ocupação","B-2 Serviço de Hospedagem")
-                 ,("Carga de Incêndio","300MJ/m2")
-                 ,("Área","1º Pavimento Tipo - Região A")]
-          ss  = [("Área de Aplicação","140m²")
-                 ,("Densidade","6,1")
-                 ,("Diâmetro Bico","11mm")
-                 ,("Cobertura Bico","12m²")
-                 ,("Risco","Ordinário I")
-                 ,("Ocupação","G-1 Serviço Automotivo")
-                 ,("Carga de Incêndio","200MJ/m2")
-                 ,("Área","Subsolo 2")]
-          tables = [t12a,t12b,t1a,ss]
-
-projectHeader =unlines .fmap (\(k,v)-> k ++ ": " ++ v) $
-            [("Proprietário", "HIMALAIA SPE LTDA")
-            ,("Projetista","Eng ª Civil Denise Sales Guimarães Massuda")
-            ,("CREA","19.750/D-GO")
-            ,("Tipo da Edificação","Mista - Garagem/Flat")]
-
-
-assinatura = "\n\n Assinatura do Profissional    ___________________________"
-
-
-header = "indice;pressão;vazão;delta pressão;delta vazão;elemento;diâmetro;comprimento;velocidade;densidade\n" ++ headerunit
-headerunit= ";kPa;l/min;kPa;l/min;;m;m;m/s;l/(min.m²)\n"
-
-writeExcelCsv pheader n r1 = writeFile (n ++ ".csv" ) . (++ assinatura) . (projectHeader ++). L.intercalate "\n\n" . fmap (\(h,(i,l)) -> (h ++ header ++ l ) ) $ zip pheader $ zip [0..] $ (fmap (fmap (\i -> if i == '.' then ',' else i ). diffLists) )$  r1
-writeCsv r1 = mapM (\(i,l) -> writeFile ("westpoint" ++ show i ++ ".csv" ) (header ++ l) >> print i) $ zip [0..] $ (fmap (fmap (\i -> if i == '.' then ',' else i ). diffLists) )$  pressurePath r1
 
 unNode :: Element a -> State ((Element a,Int),(Element a,Int)) Int
 unNode e = do
@@ -437,14 +283,14 @@ unrollNode (ln,oe) e@(Te _ n i j ) = do
        TeRunL -> TeeConfig [ln,uljl +1 ,ulil +1 ] 0.01 (diametroEJ (head j)) (max (diametroEJ (head j)) $max (diametroEJ (head i)) (diametroEJ oe))
        TeRunR -> TeeConfig [uljl +1 ,ulil +1,ln ] 0.01 (diametroEJ (head i)) (max (diametroEJ (head i)) $max (diametroEJ oe) (diametroEJ (head j)))
 
-  return $ (un,([(un,Tee ( traceShow (oe ,(head i) ,(head j)) $ traceShowId $ conf 1000)Table )],[elj nj [], eli ni []]) <> lj <> li  <> ri <> rj)
+  return $ (un,([(un,Tee ( traceShow (oe ,(head i) ,(head j)) $ traceShowId $ conf 100)Table )],[elj nj [], eli ni []]) <> lj <> li  <> ri <> rj)
 unrollNode (ln,oe) e@(Sprinkler _ _ _ _ ) = do
   un <- unNode e
   return $ (un,([(un,e)],[]))
 unrollNode (ln,oe) e@(Open _) = do
   un <- unNode e
   return $ (un,([(un,e)],[]))
-unrollNode (ln,oe) e@(Reservatorio _ _ _) = do
+unrollNode (ln,oe) e@(Reservatorio _ ) = do
   un <- unNode e
   return $ (un,([(un,e)],[]))
 unrollNode i j = error $ show i ++ show j
@@ -535,7 +381,6 @@ twopass = do
    -- mapM (\(i,l) -> writeFile ("andar_12" ++ show i ++ ".csv" ) (header ++ l) >> print i) $ zip [0..] $ (fmap (fmap (\i -> if i == '.' then ',' else i ). nodeLists  ) )$  last $ result1N req
 -}
 -}
-result1N inp = scanl (\j i-> concat $ fmap (\l-> fmap (:l) $ addNode i (head l)) j) ( pure $  pure $ last inp) . reverse . init $ inp
 
 -- main  = twopass
 
@@ -549,29 +394,8 @@ showJust f (Just i ) = f i
 showJust _ Nothing = ""
 
 
-extractElement (Node _ _ e) = e
-extractElement (OptionalNode _ _ e) = OptionalPath (fmap extractElement e)
-extractElement (RamalNode _ _ e) = RamalElement (fmap extractElement e)
 
 i <|>  j = i ++ ";" ++ j
-
-diffLists  els = L.intercalate "\n" . fst $ foldr (\(i,v) (s,vl)-> (diffList i [] v vl:s,v) ) ([], Node 0 0 Tip) $ zip  [0..] els
-diffList idx ix (RamalNode p  v l) nl  = L.intercalate "_" (reverse $ fmap show $ idx:ix)  <|> formatFloatN 1 p <|> formatFloatN 1 v <|> formatFloatN 1 (p - pressaoNode nl) <|> formatFloatN 1 (v - vazao nl) <|>"Ramal" ++ "\n"  ++ (L.intercalate "\n" $  fst $ foldr (\(i,v) (s,vl)-> (diffList i (idx: ix) v vl:s,v) ) ([], Node 0 0 Tip) $ zip  [0..] l)
-diffList idx ix i nl = L.intercalate "_" (reverse $ fmap show $ idx:ix)  <|> diffCsv i nl
-
-diffCsv (Node p v e ) nl  = formatFloatN 3 p <|> formatFloatN 3 v <|> formatFloatN 1 dp <|> formatFloatN 1 dv  <|> eCsv e
-  where
-    lp = pNode nl
-    lv = vNode nl
-    dv = v - lv
-    dp = p - lp
-    eCsv sp@(Sprinkler (Just (dsp,_)) (Just d)  a den) =  "Sprinkler" <|>  formatFloatN 3 d <|> "-" <|> "-" <|>  formatFloatN 2 (dv / a)
-    eCsv (Tubo (Just d) c   _) = "Tubo"  <|> formatFloatN 3 d <|> show c  <|> formatFloatN 2 (v/60/1000/(pi*(d/2)^2)) -- <|> formatFloatN 3 (diametroSeg ((abs v)/1000.0/60.0))
-    eCsv jo@(Joelho (Just d) (i,j,k) _ _) = (i ++ " " ++  j  ++ " " ++ k) <|> showJust (formatFloatN 3) (diametroE jo) <|> show (distanciaE jo)
-    eCsv (Gravidade d ) = "Gravidade" <|> "-" <|> show d
-    eCsv (Bomba  (Just (p, v)) _ _   _ ) = "Bomba "  <> formatFloatN 1 p <> " kpa - " <> formatFloatN 1 v <> " L/min"
-    eCsv (Reservatorio t (Just v) _ ) = "Reservatorio "  <> formatFloatN 0 t <> " min - " <> formatFloatN 0 v <> " L"
-    eCsv (Bocal _) = "Bocal"
 
 
 pNode (Node p _ _ ) = p

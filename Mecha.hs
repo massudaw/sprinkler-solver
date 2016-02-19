@@ -43,7 +43,7 @@ data  Relation c a b
 
 
 renderElemMecha  _ (_,(_,(ni,Open i))) = Mecha.color (0,1,0,1) $ Mecha.sphere 0.1
-renderElemMecha  _ (_,(_,(ni,Reservatorio _ _ i))) = (Mecha.color (1,1,1,1) $ Mecha.sphere 0.5 )<>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
+renderElemMecha  _ (_,(_,(ni,Reservatorio  i))) = (Mecha.color (1,1,1,1) $ Mecha.sphere 0.5 )<>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
 
 renderElemMecha  _ (_,(_,(ni,Tee (TeeConfig _ r i j _ ) _ ))) =( Mecha.color (1,0,0,1) $ Mecha.rotateY (-pi/2) $ Mecha.moveZ (-0.5*j) $ Mecha.cone i (2*j) (2*j)) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
 
@@ -55,13 +55,13 @@ renderElemMecha  [maxf,minf] (_,(p,(ni,Sprinkler (Just (d,k)) _ fa a))) = (color
         coloring = if f - fa*a > 0 then Mecha.color (0,0,1,1) else  Mecha.color (1,0,0,1)
 
 
-renderElemMecha  _ i = error $ "renderElemMecha " <>  show i
+renderElemMecha  _ i = error $ show i
 
-renderLinkMecha (f,nf)  nis ni (Tubo (Just d)  c _ ) = (Mecha.color (0.2,0.2,1, 1 ) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (c*0.9999)) -- <> Mecha.moveY (d/2) (Mecha.moveX (c/2)(Mecha.scale (0.03,0.03,0.03) $  (Mecha.text (show ni <> "-" <> show nis ))))
+renderLinkMecha (f,nf)  nis ni (Tubo (Just d)  c _ ) = (Mecha.color (0.2,0.2,1, 1 ) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (c*0.9999)) <> Mecha.moveY (d/2) (Mecha.moveX (c/2)(Mecha.scale (0.03,0.03,0.03) $  (Mecha.text (show ni <> "-" <> show nis ))))
 -- renderLinkMecha (f,nf)  _ (Tubo (Just d)  c _ ) = Mecha.color (0.2,0.2,1, 0.3 +0.7*nf) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (c*0.9999)
 
-renderLinkMecha _ nis ni (Joelho (Just d)  c _  _  ) = Mecha.sphere d -- <> (Mecha.scale (0.03,0.03,0.03) $ Mecha.text (show ni <> "-" <> show nis ))
-renderLinkMecha _ nis ni  (Bomba i  v [] []) = Mecha.moveX (0.03/2) $ Mecha.sphere 0.4 <> (Mecha.scale (0.03,0.03,0.03) $ Mecha.text (show ni <> "-" <> show nis ))
+renderLinkMecha _ nis ni (Joelho (Just d)  c _  _  ) = Mecha.sphere d <> (Mecha.scale (0.03,0.03,0.03) $ Mecha.text (show ni <> "-" <> show nis ))
+renderLinkMecha _ nis ni  (Bomba i  v ) = Mecha.moveX (0.03/2) $ Mecha.sphere 0.4 <> (Mecha.scale (0.03,0.03,0.03) $ Mecha.text (show ni <> "-" <> show nis ))
 renderLinkMecha _ nis _  o = Mecha.sphere 0.02
 
 instance Target  Mecha.Solid  where

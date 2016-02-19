@@ -61,7 +61,7 @@ about (ix,iy,iz) = transform (aboutX (ix @@ turn)) . transform (aboutZ (iz @@ tu
 instance Coord (V3  Double) where
   type Ang (V3 Double) = (Double,Double,Double) -- Transform V3 Double
   nextElement _ (p,(n,Open i))  =  []
-  nextElement _ (p,(n,Reservatorio _ _ i))  =  []
+  nextElement _ (p,(n,Reservatorio   i))  =  []
   nextElement l (s,(n,Sprinkler i _ _ _ ))  =  [(h,(0, (0,0,0)))]
     where h = case S.toList $ S.delete l  s of
             [h] -> h
@@ -72,7 +72,7 @@ instance Coord (V3  Double) where
     | b == l = [(rr,(0, (0,0,-1/4))) , (rl,(0, (0,0,1/4) ))]
   nextElement l p = errorWithStackTrace  (show (l,p))
   thisElement l (p,(n,Open i))  =  (0,(0,0,0))
-  thisElement l (p,(n,Reservatorio _ _ i))  =  (0,(0,0,0))
+  thisElement l (p,(n,Reservatorio  i))  =  (0,(0,0,0))
   thisElement l (p,(n,Sprinkler _ _ _ _ ))  =  (0,(0,0,0))
   thisElement l (p,(n,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ))
     | rl == l =  (0,(0,0,1/4))
@@ -102,8 +102,8 @@ instance Num (Double,Double,Double) where
 
 locateGrid
   :: (Coord a, Show (Ang a), Show a,  Num a, Monad m) =>
-     M.Map Int (Int, Int, Int, [Element Double])
-     -> M.Map Int (S.Set Int, (Int, Element Double))
+     M.Map Int (Int, Int, Int, [Element Double ])
+     -> M.Map Int (S.Set Int, (Int, Element Double ))
      -> Int
      -> (a, Ang a)
      -> Either
@@ -153,7 +153,7 @@ angleE (Turn c) = (c,0,0)
 angleE  i = (0,0,0)
 
 
-lengthE :: Element Double -> V3 Double
+lengthE :: Num a => Element a -> V3 a
 lengthE (Tubo _ c _ ) = r3 (c,0,0)
 lengthE i = 0
 
@@ -164,7 +164,7 @@ transEleml i e =  trans i (elemTrans e)
 revElems :: Num a => [Element a ] -> [Element a]
 revElems = reverse .fmap revElem
   where
-    revElem (Joelho i j (a,b) k) = Joelho i j (-a,-b) k
+    revElem (Joelho i j (a,b) k) = Joelho i j (a,-b) k
     revElem (Turn i ) = Turn (-i)
     revElem i = i
 
