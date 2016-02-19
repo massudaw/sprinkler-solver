@@ -13,7 +13,6 @@ import Control.Concurrent.Async (mapConcurrently)
 
 
 
-
 gridInput  = [(ph (rteto "teto-grid-D-limite-minimo"), pregrid  bombamin ),(ph (rteto "teto-grid-D"), pregrid  bombareal )]
       where
         ph = ProjectHeader  "Depósito Armazém Johnson & Johnson - Galpão 01"  "\"RODOVIA BR-153, QUADRA CH, JARDIM GUANABARA, GALPÃO 01, GOIÂNIA, GOIÁS\"" "ATLAS LOGÍSTICA LTDA" (Author "Priscila Sathler Garcia" "13.524/ - GO" "Engenheira" "Guava Engenharia")
