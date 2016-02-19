@@ -1,5 +1,5 @@
 {-# LANGUAGE RecursiveDo,TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
-module Test where
+module Main where
 
 import Grid
 import Project
