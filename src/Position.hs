@@ -23,7 +23,9 @@ import Data.Traversable (traverse)
 import Linear.V3
 import Linear.V1
 import Linear.Matrix ((!*!),(!*))
-import Rotation.SO3
+import Rotation.SO3 hiding (rotM)
+import Space.SO3
+import Space.Class
 import Linear.Affine
 
 import qualified Language.Mecha.Types as Mecha
@@ -47,7 +49,6 @@ class  Target a  where
   type TCoord a
   transformElement  :: Coord (TCoord a) => (TCoord a,Ang (TCoord a)) -> a -> a
 
-
 class Coord a where
   type Ang a
   nextElement :: Int -> (S.Set Int,(Int,Element Double)) -> [(Int,(a,Ang a))]
@@ -59,30 +60,39 @@ class Coord a where
 about (ix,iy,iz) = transform (aboutX (ix @@ turn)) . transform (aboutZ (iz @@ turn))  . transform (aboutY (iy @@ turn))
 
 instance Coord (V3  Double) where
-  type Ang (V3 Double) = (Double,Double,Double) -- Transform V3 Double
-  nextElement _ (p,(n,Open i))  =  []
-  nextElement _ (p,(n,Reservatorio   i))  =  []
-  nextElement l (s,(n,Sprinkler i _ _ _ ))  =  [(h,(0, (0,0,0)))]
-    where h = case S.toList $ S.delete l  s of
-            [h] -> h
-            i -> error $ " empty link set " <> show s
-  nextElement l (p,(n,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ) )
-    | rl == l = [(rr,(0, (0,0,0))), (b,(0, (0,0,-1/4))) ]
-    | rr == l = [(rl,(0, (0,0,0))), (b,(0, (0,0,1/4)))]
-    | b == l = [(rr,(0, (0,0,-1/4))) , (rl,(0, (0,0,1/4) ))]
-  nextElement l p = errorWithStackTrace  (show (l,p))
-  thisElement l (p,(n,Open i))  =  (0,(0,0,0))
-  thisElement l (p,(n,Reservatorio  i))  =  (0,(0,0,0))
-  thisElement l (p,(n,Sprinkler _ _ _ _ ))  =  (0,(0,0,0))
-  thisElement l (p,(n,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ))
-    | rl == l =  (0,(0,0,1/4))
-    | rr == l =   (0,(0,0,-1/4))
-    | b == l =   (0,(0,0,0))
-  trans (l,i@(ix,iy,iz)) (lo,a@(ax,ay,az)) = ( l + rot i !* lo  , unr3 $ r3 i <>   r3 a )
+  type Ang (V3 Double) = SO3 Double  -- Transform V3 Double
+  nextElement l i = fmap (\(i,j ) -> (i,SO3 $ rotM $ fmap opi $ r3 j)) <$> next l i
+    where
+      next l (s,(n,Open i))  = case S.toList $ S.delete l  s of
+                [h] -> [(h,(0,(0,0,0)))]
+                [] -> []
+      next _ (p,(n,Reservatorio   i))  =  []
+      next l (s,(n,Sprinkler i _ _ _ ))  =  [(h,(0, (0,0,0)))]
+        where h = case S.toList $ S.delete l  s of
+                [h] -> h
+                i -> error $ " empty link set " <> show s
+      next l (p,(n,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ) )
+        | rl == l = [(rr,(0, (0,0,0))), (b,(0, (0,0,-1/4))) ]
+        | rr == l = [(rl,(0, (0,0,0))), (b,(0, (0,0,1/4)))]
+        | b == l = [(rr,(0, (0,0,-1/4))) , (rl,(0, (0,0,1/4) ))]
+      next l p = errorWithStackTrace  (show (l,p))
+  thisElement l i = (\(i,j ) -> (i,SO3 $ rotM $ fmap opi $ r3 j)) $ this l i
+    where
+      this l (p,(n,Open i))  =  (0,(0,0,0))
+      this l (p,(n,Reservatorio  i))  =  (0,(0,0,0))
+      this l (p,(n,Sprinkler _ _ _ _ ))  =  (0,(0,0,0))
+      this l (p,(n,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ))
+        | rl == l =  (0,(0,0,1/4))
+        | rr == l =   (0,(0,0,-1/4))
+        | b == l =   (0,(0,0,0))
+  -- trans (l,i@(ix,iy,iz)) (lo,a@(ax,ay,az)) = ( l + rot i !* lo  , unr3 $ fmap upi $ unRot132 $ SO3 (rot  i) |+| (fmap opi $ r3 a ))
+  trans (l,i) (lo,a) = ( l + (unSO3 i) !* lo  , SO3 $ unSO3 i !*!  unSO3 a )
   elemTrans t = (lengthE t , angleE t)
   dist i j = distance (r2p i) (r2p j)
 
-rot (ix,iy,iz) = ( distribute (rotX (V1 (opi  ix))) !*! (distribute (rotZ (V1 $ opi iz))  !*! distribute (rotY (V1 $ opi iy))) )
+rot (V3 ix iy iz) = rotY (V1 iy) !*! rotZ (V1  iz)  !*! rotX (V1  ix)
+
+rotD (V3 ix iy iz) = distribute (rotX (V1 ix)) !*! (distribute (rotZ (V1  iz))  !*! distribute (rotY (V1  iy)))
 
 instance Semigroup (V3 Double) where
   i <> x = i + x
@@ -90,7 +100,7 @@ opi i = i * 2 *pi
 upi i = i/(2 *pi)
 
 -- unr3 (V3 i j k) = (i,j,k)
-
+{-
 instance Num (Double,Double,Double) where
   (a,b,c) + (i,j,k) = (a+i,b+j,c+k)
   (a,b,c) * (i,j,k) = (a*i,b*j,c*k)
@@ -99,7 +109,7 @@ instance Num (Double,Double,Double) where
   negate (a,b,c) = (negate a,negate b, negate c)
   signum (a,b,c) = (signum a,signum b ,signum c)
 
-
+-}
 locateGrid
   :: (Coord a, Show (Ang a), Show a,  Num a, Monad m) =>
      M.Map Int (Int, Int, Int, [Element Double ])
@@ -112,11 +122,11 @@ locateGrid
      -> StateT (M.Map Int (a, Ang a), M.Map Int [(a, Ang a)]) m ()
 locateGrid lmap nmap l r (Right oe@(s,(e@(n,_)))) = do
   let
-      t = thisElement l (s,e)
-  modify (<> (M.singleton n (trans r t {-(fst r + fst t,snd r + snd t)-}),mempty))
-  let trav (i,(ri,ai))  =  do
-        let pos = trans r (ri,ai) -- (fst r + ri ,snd r  + ai)
-        locateGrid lmap nmap n pos (Left $ var i lmap )
+      t =  thisElement l (s,e)
+  modify (<> (M.singleton n ( trans r t),mempty))
+  let trav ne@(i,coo)  =  do
+        let pos = trans r coo
+        locateGrid lmap nmap n  pos (Left $ var i lmap )
   mapM trav  (nextElement l (s,e))
   return ()
 
@@ -141,16 +151,19 @@ locateGrid lmap nmap n r ll@(Left (l,h,t,e))
             locateGrid lmap nmap l pos (Right $ var h nmap)
           else
             if  dist dt ( fst $ var h visitedNode) < 1e-2
-             -- then traceShow ("link (" <> show l <> ") exact union node (" <> show h <> ") " <> show dt <> " == " <>  show (fst $ var h visitedNode ))  $return ()
              then return ()
              else traceShow ("link (" <> show l <> ") non exact union node (" <> show h <> ") " <> show dt <> " /= " <>  show (fst $ var h visitedNode)) $ (return ())
 
 r2p = p3 . unr3
 
-angleE :: Fractional a => Element a -> (a,a,a)
-angleE (Joelho _ _ (c,r) _ ) = (0,c,r)
-angleE (Turn c) = (c,0,0)
-angleE  i = (0,0,0)
+rotM = rotD
+
+angleE  = SO3 . rotM . (\i-> opi i ) . angE
+  where
+    angE :: Fractional a => Element a -> V3 a
+    angE (Joelho _ _ (c,r) _ ) = r3 (0,c,r)
+    angE (Turn c) = r3 (c,0,0)
+    angE  i = r3 (0,0,0)
 
 
 lengthE :: Num a => Element a -> V3 a
@@ -165,7 +178,7 @@ revElems :: Num a => [Element a ] -> [Element a]
 revElems = reverse .fmap revElem
   where
     revElem (Joelho i j (a,b) k) = Joelho i j (a,-b) k
-    revElem (Turn i ) = Turn (-i)
+    revElem (Turn i ) = Turn i
     revElem i = i
 
 
@@ -193,7 +206,7 @@ styleLinks it = concat $ catMaybes $  fmap (\(l,_,_,i)  -> do
         posMap = M.fromList $ linksPosition (grid it)
         flowMap  = M.fromList (flows it)
 
-drawIter iter = L.foldl1' (<>) $ nds <> lds
+drawIter iter = L.foldr1 (<>) $ nds <> lds
   where nds = styleNodes iter
         lds = styleLinks iter
 

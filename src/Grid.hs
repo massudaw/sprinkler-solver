@@ -86,11 +86,12 @@ jacobianEqNodeHeadGrid l vh = loops <> nodes
 
 printResidual iter@(Iteration n f a) modeler = modeler a  (snd <$> flows iter <> nodeHeads iter )
 
-solveIter :: (forall a . (Show a , Ord a , Floating a ) => Iteration  a ) -> (forall b. (Show b, Ord b, Floating b) => Grid b -> [b] -> [b] ) -> (Iteration Double)
+solveIter :: (forall a . (Show a , Ord a , Floating a ) => Iteration  a ) -> (forall b. (Show b, Ord b, Floating b) => Grid b -> [b] -> [b] ) -> Iteration Double
 solveIter iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid iter) $ take fl res) (zip (fmap fst $ nodesFlow $ grid iter)  $ drop fl res) (grid iter)
   where
     fl = length (flows iter)
     res = fst . rootJ HybridsJ 1e-7 1000 (modeler (grid iter) ) (jacobian (modeler (grid iter)  ) )  $ (snd <$> flows iter <> nodeHeads iter )
+{-# NOINLINE solveIter #-}
 
 var :: Show a => Int -> M.Map Int a -> a
 var i m = case M.lookup i m of

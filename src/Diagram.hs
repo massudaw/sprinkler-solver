@@ -5,6 +5,7 @@ import Grid
 import qualified Linear.V3 as V3
 import Debug.Trace
 import Lint
+import Rotation.SO3
 import Data.Maybe
 import Sprinkler
 import Tee
@@ -70,7 +71,7 @@ instance
   renderNode = renderElem
   renderLink = renderLinkSVG
   errorItem = errorCross
-  transformElement (r,x)= translateX (r ^. _x) . translateY (r ^. _y) . translateZ(r ^. _z) . about x
+  transformElement (r,x)= translateX (r ^. _x) . translateY (r ^. _y) . translateZ(r ^. _z) . about (unr3 $ unRot123 x)
 
 
 errorCross =   fromOffsets [ unitX , unitY  ]

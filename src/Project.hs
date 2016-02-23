@@ -2,10 +2,12 @@
 module Project where
 
 import Grid
+import Rotation.SO3 hiding (rotM)
 import System.Process
 import Control.Monad.Fix
 import Control.Monad
 import Lint
+import qualified Data.Text.IO as T
 import Control.Concurrent.Async (mapConcurrently)
 import Position
 import Exponential.Class
@@ -95,7 +97,7 @@ joelhoDV  c = Joelho Nothing ("Conexao","Joelho","90") (dowC  c ) 100
 displayModel (header,model) = do
   let iter = makeIter 0 1 model
       fname  = regionFile $ regionInfo header
-  writeFile (fname <> "-temp.scad") $openSCAD (drawIter iter )
+  T.writeFile (fname <> "-temp.scad") $openSCAD (drawIter iter )
   callCommand $ "mv " <> (fname <> "-temp.scad") <>  "  " <> (fname <> ".scad")
 
 
@@ -103,15 +105,16 @@ solveModel (header ,model) = do
   let
        iter = solveIter (makeIter 0 1 model ) jacobianEqNodeHeadGrid
        fname  = regionFile $ regionInfo header
-
   reportIter header 0 iter
   print $ "renderReport" <> (fname <> ".csv")
   let sofficec = "soffice --convert-to xls --infilter=csv:\"Text - txt - csv (StarCalc)\":59/44,34,0,1,,1033,true,true  " <> fname <> ".csv"
   putStrLn sofficec
-  callCommand $ sofficec
-  print $ "renderReport" <> (fname <> ".xls")
-  writeFile (fname <> "-temp.scad") $openSCAD (drawIter iter )
-  callCommand $ "mv " <> (fname <> "-temp.scad") <>  "  " <> (fname <> ".scad")
+  -- callCommand $ sofficec
+  print $ "renderReport " <> (fname <> ".xls")
+  let scadFile = openSCAD (drawIter iter )
+  T.writeFile (fname <> "-temp.scad") scadFile
+  let movefile = "mv " <> (fname <> "-temp.scad") <>  "  " <> (fname <> ".scad")
+  callCommand movefile
   print $ "renderSCAD" <> (fname <> ".scad")
   mapM (\v -> do
       let command  = "openscad -o " <> fname <> "-" <> fst v<> ".png " <> fname <> ".scad  " <> snd v
@@ -138,8 +141,8 @@ upgradeGrid :: Int -> Int -> Grid Double -> Grid  Double
 upgradeGrid ni li a = a {shead = M.toList nodesPos, linksPosition = M.toList linksPos}
   where
     (nodesPos,linksPos) =  snd $ runState (do
-                      modify (<> (M.singleton ni (0,0), mempty))
-                      locateGrid lmap nmap ni (0,0 ) (Left $ var li lmap ))
+                      modify (<> (M.singleton ni (0,SO3 $ rotM 0), mempty))
+                      locateGrid lmap nmap ni (0,SO3 $rotM 0 ) (Left $ var li lmap ))
                         (mempty,mempty)
     lmap = M.fromList (fmap (\l@(li,_,_,_)-> (li,l))  $ links a)
     nmap = M.fromList (findNodesLinks a $ fmap (\n@(ni,_) -> (ni,n)) $ (nodesFlow a) )
@@ -167,7 +170,7 @@ reportIter header i iter@(Iteration f h a)  = do
     let name = regionFile $ regionInfo header
     writeFile (name <> ".csv")  $(headerCalculo <> "\n\n" <> "Relatório dos Nós" <> "\n\n" <>( L.intercalate "\n"    $ (L.intercalate ","  nodeHeader :) (evalState (runReaderT (do
            nodemap  <- fst <$> ask
-           recurse (either nmap lmap) (Left $ fromJust $ M.lookup i nodemap )) (M.fromList $ fmap (\(i,(j,k))-> (i,(i,j,k))) $ findNodesLinks a (nodesFlow a) ,M.fromList $ fmap (\l@(i,h,t,e)-> (i,l))$ links a )) (S.empty,S.empty))) <>
+           recurse (either nmap lmap) (Left $ fromJustE "no node" $ M.lookup i nodemap )) (M.fromList $ fmap (\(i,(j,k))-> (i,(i,j,k))) $ findNodesLinks a (nodesFlow a) ,M.fromList $ fmap (\l@(i,h,t,e)-> (i,l))$ links a )) (S.empty,S.empty))) <>
             "\n\n" <> "Relatório dos Links" <> "\n\n" <> L.intercalate "," linkHeader <>"\n" <> (L.intercalate "\n" $ lsmap <$> (links a)))
   where
     residual = printResidual iter jacobianEqNodeHeadGrid
@@ -180,11 +183,12 @@ reportIter header i iter@(Iteration f h a)  = do
     resc= res "Resíduo Node Head" (L.take (length (flows iter)) residual)
     resnh = res "Resíduo Continuity" (L.drop (length (flows iter)) residual)
     residuos = "Dados Solução\n\n" <> resnh <> "\n"  <>resc
-    vazao = fromJust $ M.lookup 1 (M.fromList f)
+    vazao = fromJustE "no flow for node 1 " $ M.lookup 1 (M.fromList f)
     bomba :: Element Double
-    bomba@(Bomba (pn,vn)   _) = fromJust $ join $ L.find isBomba . (\(_,_,_,l) -> l)<$> L.find (\(_,_,_,l) -> L.any isBomba l ) (links a )
+    bomba@(Bomba (pn,vn)   _) = fromJustE "no pump"$ join $ L.find isBomba . (\(_,_,_,l) -> l)<$> L.find (\(_,_,_,l) -> L.any isBomba l ) (links a )
     pressao = abs $ pipeElement vazao bomba
-    sprinklers =  fmap (\(i,e) -> (i,fromJust $ M.lookup i  (M.fromList h ),e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
+    sprinklers =  fmap (\(i,e) -> (i,fromJustE "no sprinkler" $ M.lookup i  (M.fromList h ),e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
+    areaSprinkler =  sum $ fmap coverageArea ((\(_,_,i) -> areaCobertura i)<$> sprinklers)
     (_,_,Sprinkler (Just (dsp,ksp))  _ _ _) = head sprinklers
     spkReport = L.intercalate "\n" $ L.intercalate ","  . (\(ix,p,e@(Sprinkler (Just (d,k )) (dl) f a ))-> [show ix , formatFloatN 2 p ,   formatFloatN 2 $ k*sqrt p]  ) <$>    sprinklers
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTeeEl conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow a
@@ -196,11 +200,11 @@ reportIter header i iter@(Iteration f h a)  = do
     headerCalculo = projectHeader <> "\n\n" <> "Dados do projeto" <> "\n\n" <> L.intercalate "\n\n"
             ["Bomba\n" <> "Pressão Nominal," <> sf2 pn <> ",kpa\n" <> "Vazão Nominal," <> sf2 vn <> ",L/min\n" <> "Potência,185,cv\n" <> "Vazão Operação," <> sf2 vazao <> ",L/min\n" <>  "Pressão Operação," <> sf2 pressao <> ",kpa,"
             ,"Reservatório\n" <> "Volume," <> sf2 (vazao * tempo) <> ",L\n" <> "Tempo de Duração," <> sf2 tempo<> ",min"
-            ,"Sprinkler\nTipo,ESFR\n"  {-<> "Diâmetro,25,mm\n" <> "Area,9,m²\n" <> -}<> "K," <> sf2 ksp <> ",L/min/(kpa^(-1/2))\n"<> "Vazão Mínima," <> sf2 (ksp*sqrt 350) <>  ",L/min\n" <> "Pressão Mínima,350,kpa\n" <> "Quantidade Bicos," <> show (L.length sprinklers) <> ",un" ] <>  "\nId,Pressão(kpa),Vazão(L/min)\n" <> spkReport <>  "\n\n" <>residuos
+            ,"Sprinkler\nTipo,ESFR\n"  {-<> "Diâmetro,25,mm\n" <> "Area,9,m²\n" <> -}<> "K," <> sf2 ksp <> ",L/min/(kpa^(-1/2))\n"<> "Vazão Mínima," <> sf2 (ksp*sqrt 350) <>  ",L/min\n" <> "Pressão Mínima,350,kpa\n" <> "Area Projeto;" <> sf3 areaSprinkler <>  ";m²\n" <> "Quantidade Bicos," <> show (L.length sprinklers) <> ",un" ] <>  "\nId,Pressão(kpa),Vazão(L/min)\n" <> spkReport <>  "\n\n" <>residuos
 
     nmap = (\n@(ni,s,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 2 $ maybe 0 id $p ni , formatFloatN 2 $h  ni,"",""] ++  expandNode (p ni) e )
         where p ni =  varM ni hm
-              h ni =  fst ( fromJust  (varM ni  pm)) ^. _z
+              h ni =  fst ( (fromJustE $"no position pressure for node " <> show ni) (varM ni  pm)) ^. _z
     lmap = (\n@(ni,h,t,e) ->  L.intercalate "," ["T-"<> show h <>  "-" <> show t ,"","",formatFloatN 2 $  maybe 0 id (abs <$> p ni) ,formatFloatN 2  $ abs (pr h - pr t),"Trecho"])
         where pr ni =  maybe 0 id (varM ni hm)
               p ni =  varM ni fm
@@ -240,7 +244,7 @@ expandGrid a = runState (recurseNode  [] (lookNode (fst $ head sortedHeads))) (S
            backLinks =  filter ((`S.member` visitedNode)  . lookLinkNode  n ) $ fmap (flip var linkMap) $ filter (not . (`S.member` visited )) (fmap fst $ S.toList s)
            fnodes = nextNodes
        modify (<> (S.map fst  s,S.fromList nextNodes))
-       tnodes <- traverse (\p  -> fmap (\j -> Left (BranchLink (fromJust $ L.find (\(l,h,t,_) -> h == fst p  || t == fst p ) nextLinks )) : j) . recurseNode (n:path) $ p ) $ L.sortBy (flip (comparing (\(i,p) ->  totalHead 0.08 (var i nodePressures ) ((/2) $ sum $ fmap (abs .snd ) $ S.toList $fst p)))) $ fmap lookNode fnodes
+       tnodes <- traverse (\p  -> fmap (\j -> Left (BranchLink (fromJustE "no link for brach " $ L.find (\(l,h,t,_) -> h == fst p  || t == fst p ) nextLinks )) : j) . recurseNode (n:path) $ p ) $ L.sortBy (flip (comparing (\(i,p) ->  totalHead 0.08 (var i nodePressures ) ((/2) $ sum $ fmap (abs .snd ) $ S.toList $fst p)))) $ fmap lookNode fnodes
        return  $ Right (path,totalHead 0.08 (var n nodePressures) ((/2) $ sum $ fmap (abs .snd ) $ S.toList $fst l),t) :  (fmap (Left . CloseLink ) backLinks <>  concat  tnodes)
     lookLinkNode bn (l,h,t,_) = if bn == h then t else h
     nodePressures = M.fromList $ nodeHeads a <> (fmap (\(j,i) -> (j,9.81* ( fst i ^. _z))) $ shead (grid a))

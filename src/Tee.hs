@@ -7,6 +7,7 @@ import Element
 import qualified Data.Map as M
 import Control.Applicative
 import Data.Maybe
+import GHC.Stack
 --
 -- From Pipe Flow A Pratical and Comprehensive Guide - Chapter Tee - page 170 to 199
 --
@@ -26,7 +27,7 @@ allMaybes i
   | otherwise = []
 
 fromJustE e (Just i) = i
-fromJustE e i = error $ "fromJustE" <> e
+fromJustE e i = errorWithStackTrace $ "fromJustE" <> e
 
 ktubo t  v = perda*10*v**1.85
         where

@@ -40,6 +40,20 @@ instance Eq (Curva  a) where
 instance Show (Curva  a) where
   show _ = ""
 
+data SPKCoverage a = SPKCoverage
+  { xdir :: a
+  , ydir :: a
+  , hdistance :: a
+  , goods :: SPKGoods a
+  }deriving(Eq,Ord,Show,Functor)
+
+data SPKGoods a = SPKGoods
+  { goodsHeight ::  a
+  , goodsClass :: Int
+  }deriving(Eq,Ord,Show,Functor)
+
+coverageArea (SPKCoverage x y _ _ ) = x*y
+
 data Element a
   = Tubo
   { diametro :: Maybe a
@@ -79,7 +93,7 @@ data Element a
   | Sprinkler
   { tipo :: Maybe (a,a)
   , diametroJ :: Maybe a
-  , areaCobertura :: a
+  , areaCobertura :: SPKCoverage a
   , densidadeMin ::a
   }
   | Te
@@ -176,9 +190,9 @@ joelhos = M.fromList
 
 data Grid a
   = Grid
-  { linksPosition :: [(Int,[(V3 a ,(a,a,a)  )])]
+  { linksPosition :: [(Int,[(V3 a ,SO3 a  )])]
   , links :: [(Int,Int,Int,[Element a])]
-  , shead :: [(Int,(V3 a,(a,a,a) ))]
+  , shead :: [(Int,(V3 a,SO3 a ))]
   , nodesFlow :: [(Int,Element a)]
   }deriving(Functor,Show)
 
