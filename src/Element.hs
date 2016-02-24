@@ -1,15 +1,12 @@
 {-# LANGUAGE DeriveFunctor,DeriveFoldable #-}
 module Element where
-import Data.Foldable
 import Data.Monoid
 import qualified Data.Map as M
 import Control.Monad
 
-import Diagrams.Prelude(Transformation)
 
 import Linear.V3
 import Rotation.SO3
-import Exponential.SO3
 
 data Direction a
   = Direction a a
@@ -52,17 +49,6 @@ data SPKGoods a = SPKGoods
   }deriving(Eq,Ord,Show,Functor)
 
 coverageArea (SPKCoverage x y _ _ ) = x*y
-
-data Eletric a
-  = Resistor
-  { res :: a
-  }
-  | VoltageSource
-  { ddp :: a
-  }
-  | Node
-  | Ground
-  deriving(Show,Eq,Ord,Functor)
 
 data Element a
   = Tubo

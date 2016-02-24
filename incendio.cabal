@@ -19,6 +19,7 @@ library
   exposed-modules:
      Project
     ,Element
+    ,Eletric
     ,Grid
     ,Input
     ,Sprinkler

@@ -5,7 +5,6 @@ import Debug.Trace
 import Data.Monoid
 import Element
 import qualified Data.Map as M
-import Control.Applicative
 import Data.Maybe
 import GHC.Stack
 --
@@ -61,7 +60,7 @@ classifyTee  Table flowMap  t =  classifyFlow flow
         [rli,bi,rri] = teeConfig t
         db = teeDiameterBranch t
         dr = teeDiameterRun t
-        r =  teeRadius t
+        -- r =  teeRadius t
         rho = teeMaterial t
         direct = Perda (Just $ dr) ("Conexao","Te","Direta")  rho
         lateral = Perda (Just $db) ("Conexao","Te","Lateral")  rho
@@ -82,7 +81,7 @@ classifyTeeEl  Table flowMap  t =  classifyFlow flow
         [rli,bi,rri] = teeConfig t
         db = teeDiameterBranch t
         dr = teeDiameterRun t
-        r =  teeRadius t
+        -- r =  teeRadius t
         rho = teeMaterial t
         direct = Perda (Just $ dr) ("Conexao","Te","Direta")  rho
         lateral = Perda (Just $db) ("Conexao","Te","Lateral")  rho
@@ -94,9 +93,9 @@ classifyTeeEl  Table flowMap  t =  classifyFlow flow
           |  bs > 0 && rrs <= 0 && rls <= 0 = zip [rli,rri] [lateral ,lateral]
           |  bs < 0 && rrs >= 0 && rls >= 0 = zip [rli,rri] [lateral ,lateral]
           | otherwise =  traceShow ("no case for branch list " ++ show  t ++ show flow ++ show flowMap) []
-          where rl = abs rls
-                rr = abs rrs
-                b = abs bs
+          where -- rl = abs rls
+                -- rr = abs rrs
+                -- b = abs bs
 
 
 divergingFlowThroughRun :: (Ord a,Floating a) => a -> a -> a -> a -> a -> a -> a -> a -> a

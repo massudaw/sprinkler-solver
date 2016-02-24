@@ -2,24 +2,17 @@
 module Project where
 
 import Grid
+import Eletric
 import Rotation.SO3 hiding (rotM)
 import System.Process
-import qualified Debug.SimpleReflect as SR
-import Control.Monad.Fix
 import Control.Monad
-import Lint
 import qualified Data.Text.IO as T
-import Control.Concurrent.Async (mapConcurrently)
 import Position
-import Exponential.Class
-import Data.Distributive
 import Data.Maybe
 import Sprinkler
 import Tee
 import Element
-import Numeric.AD
 import qualified Data.Map as M
-import Control.Applicative
 import qualified Data.List as L
 import qualified Data.Set as S
 import Data.Ord
@@ -27,12 +20,9 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
 import Mecha
-import Diagram
 
 import Control.Lens
-import Data.Traversable (traverse)
 
-import Input
 import Diagrams.Prelude hiding (end)
 
 

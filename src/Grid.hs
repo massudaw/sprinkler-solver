@@ -1,21 +1,13 @@
 {-# LANGUAGE DeriveFunctor,NoMonomorphismRestriction,TypeFamilies,TupleSections ,RankNTypes #-}
 module Grid where
 
-import Debug.Trace
-import Data.Functor.Identity
-import Control.Monad.Trans.Writer
-import Control.Monad
-import Sprinkler
+import Eletric
 import Data.Monoid
 import Tee hiding (ktubo)
 import Element
-import Data.Reflection
-import qualified Data.List  as L
 import Numeric.GSL.Root
-import Data.Maybe
 import qualified Data.Map as M
 
-import Control.Applicative
 import Numeric.AD
 import Control.Lens
 import Linear.V3

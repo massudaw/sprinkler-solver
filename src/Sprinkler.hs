@@ -4,228 +4,17 @@ module Sprinkler (unrollNode,editDiametro ,formatFloatN )where
 import Control.Monad
 import Data.Tuple
 import Control.Monad.Trans.State
-import Numeric.GSL.Minimization
-import Numeric.GSL.Root
 import Numeric
 import Data.Ord
 import Element
 import Data.Maybe
 import Data.Monoid
-import Tee
 import Prelude hiding(null)
-import qualified Data.Foldable as F
-import Data.Foldable ( Foldable)
 -- import Data.Packed.Matrix(Matrix)
-import qualified Data.List as L
-import Data.List (minimumBy,maximumBy)
-import qualified Data.Traversable as Tra
-import qualified Data.Map as M
-import Control.Applicative hiding ((<|>))
 import Debug.Trace
 
-null :: [a] -> Bool
-null = L.null
-
-{-
--- solveRamalN :: Node Element -> Node Element -> [Node Element]
-solveRamalN s@(RamalNode  _ _  e )  n = minFlow $   do
-  let
-      pinit = pNode n
-      vinit = vNode n
-      sp@(Node _ vlast es) = last e
-      sp2 si v =  calcSprinkler v ssp
-        where (Node _ _ ssp)= si
-      fun2 spi [v] = if null res then pinit  else minimum  res
-          where res = fmap abs $ fmap (\i ->  i - pinit )  (fmap pNode $ foldr (\i j->  concat $ mapM (addNode i) j) [sp2 spi v] (init e))
-      minimizer spi  = minimize NMSimplex 1e-3 100 (fmap (*0.6) initvalue ) (fun2 spi)  initvalue
-      initvalue = [(vminSprinkler es) ]
-      ([vmin],res) =  minimizer ( sp)
-      spmin =  sp2 sp vmin
-  path@((Node plast vlast _): _)  <-  foldr (\i j-> concat $ mapM (\l -> fmap (:l)  $ addNode i (head l) ) j) [[spmin]] (init e)
-  guard $   (abs $ plast - pinit ) < 1e-1
-  return  (Node pinit vlast path)
-
-addNode (Node i j e ) n = addElement e  n
-
-addNode r@(RamalNode _ _  _ ) n = do
-  let pinit = pNode n
-      vinit = vNode n
-  (Node pinit vlast res) <- solveRamalN r n
-  return (RamalNode pinit (vinit + vlast ) res )
-
-addNode (OptionalNode p v  r) n = do
-  let pinit = pNode n
-      vinit = vNode n
-  (Node pinit vlast res) <- solveRamalN (RamalNode p v r) n
-  return (OptionalNode pinit (max vinit  vlast ) res )
-
-solveBifurcation (Te _ _ l rl) n@(Node pinit vinit o) =  do
-  let
-      buildPaths invr =do
-             let res1 =  deConstructPath l n1
-                 res2 =  deConstructPath rl n2
-                 n1 = Node pinit (r1*vinit) o
-                 n2 = Node pinit (r2*vinit) o
-                 r1 = if invr <= 0 then 1 else 1/invr
-                 r2 = 1 - r1
-             v1 <- res1
-             v2 <- res2
-             return $ (v1 , v2)
-      fun2 [r] =  (\res -> if null res then 0 else minimum res ) $ fmap (\(v1,v2) ->  abs ( (pressaoNode . head) v1 - (pressaoNode . head) v2)) $buildPaths r
-      minimizer = minimize NMSimplex2 1e-4 140  (fmap (*0.9) initvalue ) (fun2 )  initvalue
-      initvalue = [1]
-      ([rmin],res) =  minimizer
-  ep@(path1@((Node plast vlast _): _), path2@((Node plast2 vlast2 _): _)) <- buildPaths rmin
-  guard   {-traceShow (rmin,plast,plast2,res)-} $ (abs $ plast - plast2 ) < 1e-2
-  return  $  (RamalNode plast (vlast + vlast2) path1):  path2
-
-solveRamal s@(RamalElement l)  n@(Node pinit vinit o) =  do
-  let
-      sp = minSprinkler $ last l
-      sp2 si v =  calcSprinkler v ssp
-        where (Node _ _ ssp)= si
-      fun2 sp [v] =  if null res then pinit  else minimum  res
-          where res =  fmap abs $ fmap (pinit-)  (fmap pressaoNode $ foldr (\i j->  concat $ mapM (addElement i) j) [sp2 sp v] (init l))
-      minimizer sp  = minimize NMSimplex 1e-2 100  (fmap (*0.4) initvalue ) (fun2 sp)  initvalue
-      initvalue = [vminSprinkler (last l)]
-  let spmin = let ([vmin],_) =  minimizer sp
-                    in sp2 sp vmin
-  path@((Node plast vlast _): _)  <- foldr (\i j-> concat $ mapM (\l -> fmap (:l)  $ addElement i (head l) ) j) [[spmin]] (init l)
-  guard $  (abs $ plast - pinit ) < 1e-1
-  return  (Node pinit vlast path)
-
-perdatubo t  p  v =  (Node (p + perda*10) v t)
-        where
-              (Just d ) = diametroE t
-              c = materialE t
-              vazao = v/1000/60
-              -- NOTE : Abs na vazão pois gera NaNs para valores negativos durante iterações
-              perda = 10.65*(abs (vazao)**1.85)*(distanciaE t)/((c**1.85)*(d**4.87))
 
 
-perdatubo' t  v =  (Node (perda*10) 0 t)
-        where
-              (Just d ) = diametroE t
-              c = materialE t
-              vazao = v/1000/60
-              -- NOTE : Abs na vazão pois gera NaNs para valores negativos durante iterações
-              perda = 10.65*(abs (vazao)**1.85)*(distanciaE t)/((c**1.85)*(d**4.87))
-
-minimumTubo v = minimumBy (comparing (abs . ((diametroSeg (v/1000/60))-) )) $ fmap (/1000) diametrosTubos
--}
-{-
-diffElement j@(Joelho preD tipo jd c)  nodo = do
-    let v = vNode nodo
-        p = pNode nodo
-        e = elementE nodo
-    return $ case preD of
-      Just dtubom -> perdatubo' j  v
-      Nothing -> case join $ fmap diametroE e of
-            Just d -> perdatubo' (Joelho (Just d)  tipo jd c )  v
-            Nothing ->  perdatubo' (Joelho (Just $ minimumTubo v ) tipo jd c)  v
-
-diffElement t@(Tubo preD distancia c)  nodo = do
-    let v = vNode nodo
-        p = pNode nodo
-        e = elementE nodo
-    return $ case preD of
-         Just _ -> perdatubo' t v
-         Nothing ->  case join $ fmap diametroE e of
-                Just d -> perdatubo' (Tubo (Just d) distancia c)  v
-                Nothing ->  perdatubo' (Tubo (Just $ minimumTubo v ) distancia c)  v
-
-diffElement g@(Gravidade d) n = do
-  return (Node (negate $  d*10 ) 0  g)
-
-diffElement s@(Sprinkler i  mdm area densidadeMin)  n = do
-  let v = vNode n
-      p = pNode n
-  case  i of
-       Just (d,k1) -> do
-            let
-                dm = maybe (minimumTubo (v + k1*sqrt p)) id mdm
-                pn = p - pv v (dm*1000.0)
-            return $ Node 0 ( k1*sqrt pn)  s
-       Nothing ->  do
-            b@(d,k1) <- bicos
-            let
-                dm = maybe (minimumTubo (v + k1*sqrt p)) id mdm
-                pn = p - pv v (dm*1000)
-            return $ Node 0 ( k1*sqrt pn)  (Sprinkler (Just (d,k1)) (Just dm) area densidadeMin)
-
-
-diffElement s@(RamalElement l) n = minFlow $ do
-  let vinit = vNode n
-      pinit = pNode n
-  (Node pinit vlast res) <- solveRamal s n
-  return (RamalNode 0 vlast  res )
-
-diffElement i j = error ("No match for addElement " <> show i <> "   " <> show j)
-nodePlus n1 (Node p v e) = Node (pNode n1 + p)  (vNode n1 + v ) e
-nodePlus n1 (RamalNode p v e) = RamalNode (pNode n1 + p)  (vNode n1 + v ) e
-
-nodeSub n1 (Node p v e) = Node (pNode n1 - p)  (vNode n1 - v ) e
-nodeSub n1 (RamalNode p v e) = RamalNode (pNode n1 - p)  (vNode n1 - v ) e
-
-addElement' j nodo = fmap (nodePlus nodo) (diffElement j nodo)
-removeElement j nodo = fmap (nodeSub nodo) (diffElement j nodo)
-
-testAddElement i j = addElement' i j == addElement i j
-
-addElement j@(Joelho preD tipo jd c)  nodo = do
-    let v = vNode nodo
-        p = pNode nodo
-        e = elementE nodo
-    return $ case preD of
-      Just dtubom -> perdatubo j p v
-      Nothing -> case join $ fmap diametroE e of
-            Just d -> perdatubo (Joelho (Just d)  tipo jd c ) p v
-            Nothing ->  perdatubo (Joelho (Just $ minimumTubo v ) tipo jd c) p v
-
-addElement t@(Tubo preD distancia c)  nodo = do
-    let v = vNode nodo
-        p = pNode nodo
-        e = elementE nodo
-    return $ case preD of
-         Just _ -> perdatubo t p v
-         Nothing ->  case join $ fmap diametroE e of
-                Just d -> perdatubo (Tubo (Just d) distancia c) p v
-                Nothing ->  perdatubo (Tubo (Just $ minimumTubo v ) distancia c) p v
-
-addElement g@(Gravidade d) n = do
-  return (Node ((pressaoNode n) - d*10 ) (vazao n) g)
-
-addElement s@(Sprinkler i  mdm area densidadeMin)  n = do
-  let v = vNode n
-      p = pNode n
-  case  i of
-       Just (d,k1) -> do
-            let
-                dm = maybe (minimumTubo (v + k1*sqrt p)) id mdm
-                pn = p - pv v dm
-            return $ Node p (v +  k1*sqrt pn) (Sprinkler i (Just dm) area densidadeMin)
-       Nothing ->  do
-            b@(d,k1) <- bicos
-            let
-                dm = maybe (minimumTubo (v + k1*sqrt p)) id mdm
-                pn = p - pv v dm
-            return $ Node p (v +  k1*sqrt pn)  (Sprinkler (Just (d,k1)) (Just dm) area densidadeMin)
-
-addElement s@(OptionalPath i) n = minFlow $ do
-  let vinit = vNode n
-      pinit = pNode n
-  nr@(Node pr vr res ) <- solveRamal (RamalElement i) n
-  return $ (OptionalNode pinit (max vr vinit) res)
-
-addElement s@(RamalElement l) n = minFlow $ do
-  let vinit = vNode n
-      pinit = pNode n
-  (Node pinit vlast res) <- solveRamal s n
-  return (RamalNode pinit (vinit + vlast ) res )
-
-addElement i j = error ("No match for addElement " <> show (i :: Element Double) <> "   " <> show (j :: Node (Element Double)))
-
--}
 
 
 unNode :: Element a -> State ((Element a,Int),(Element a,Int)) Int
@@ -381,44 +170,11 @@ twopass = do
 
 -- main  = twopass
 
-backed i = backedzero i ++ show i
-backedzero i
-  | i <10 = "000"
-  | i <100 = "00"
-  | i <1000 = "0"
-
-showJust f (Just i ) = f i
-showJust _ Nothing = ""
-
-
-
-i <|>  j = i ++ ";" ++ j
 
 
 
 
-periodoFuncionamento = 1/24
-area d = pi*(d/2)**2
-diametrosTubos = [25,32,40,50,65,75,100,125,150]
-bicos = [{-(10,3.7),-}(11,5.8){-,(13,8),(14,11.5),(16,15.1)-}]
-diametroSeg qseg = 1.3*sqrt (abs qseg) *periodoFuncionamento**0.25
-pressao q k = (q/k)**2
 
-risco = [("Leve",c1),("Ordinário I",c2),("Ordinário II",c3),("Risco Extra Ordinário I",c4),("Risco Extra Ordinário II", c5)]
-  where
-    c1 = regr (2.8,279) (4.1,140)
-    c2 = regr (2.8,279) (4.1,140)
-    c3 = regr (2.8,279) (4.1,140)
-    c4 = regr (2.8,279) (4.1,140)
-    c5 = regr (2.8,279) (4.1,140)
-
-linFun (a,b) x = a*x + b
-invLinFun (a,b) x = (x - b)/a
-regr (x,fx) (y,fy)  =  (a, b)
-            where a = (fx - fy)/(x - y)
-                  b = fx - x*a
-
-bomb =fmap (\(p,v)-> (p,v*1000.0/60)) [(250,60),(250,70),(250,80),(250,90),(300,60),(300,70),(300,80),(300,90),(350,60),(350,70),(350,80),(350,90),(400,60),(400 ,70),(400,80),(400,90),(450,60),(450,70), (450,80),(450,90)]
 
 formatFloatN numOfDecimals floatNum = showFFloat (Just numOfDecimals) floatNum ""
 

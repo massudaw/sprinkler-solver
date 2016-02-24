@@ -1,26 +1,10 @@
 {-# LANGUAGE MultiParamTypeClasses,FlexibleInstances,TypeSynonymInstances,GADTs,TypeFamilies, FlexibleContexts,RankNTypes,TupleSections,RecursiveDo, NoMonomorphismRestriction #-}
 module Mecha (openSCAD) where
 
-import Grid
-import Debug.Trace
 import Data.Distributive
-import Lint
 import Position
-import Data.Maybe
-import Sprinkler
-import Tee
 import Rotation.SO3
 import Element
-import Numeric.AD
-import qualified Data.Map as M
-import Control.Applicative
-import qualified Data.List as L
-import qualified Data.Set as S
-import Data.Ord
-import Control.Monad.Trans.State
-import Control.Monad
-import Data.Foldable (foldMap)
-import Data.Traversable (traverse)
 
 import qualified Language.Mecha.Types as Mecha
 import qualified Language.Mecha.Solid as Mecha
@@ -28,19 +12,8 @@ import Language.Mecha.Export
 
 
 import Diagrams.Prelude
-import Diagrams.Backend.SVG.CmdLine
-import Diagrams.TwoD.Text (Text)
 
-import Control.Lens hiding(transform)
 
-import Data.Void
-
-data Diametro = Diametro Double
-data Vazao = Vazao Double
-data Pressao = Pressao Double
-
-data  Relation c a b
-  = Relation  [(Int,Int,c a b)]
 
 
 

@@ -5,7 +5,6 @@ import Sprinkler
 import Element
 
 import Data.Monoid
-import Control.Monad
 import Control.Monad.Trans.State
 
 import Control.Monad.Fix
@@ -31,21 +30,21 @@ link e  (h,_) (t,_) = do
   modify (\(Grid lp l np n,i) -> (Grid lp ((un,h,t,e): l) np n  ,i))
   return (un,e)
 
-main = do
-  print $ runState test1 (Grid [] [] [] [] ,(0,0))
 
 runInput t = snd $ runState t (Grid [] [] [] [] ,(-1,0))
 
 
+main = do
+  print $ runState test1 (Grid [] [] [] [] ,(0,0))
 test1 = mdo
   let t = Open (0 ::Int)
   let tl = [Open (0 ::Int) ]
   n1 <-node t
-  j <- link tl n1 n2
+  link tl n1 n2
   n2 <- node t
-  l <- link tl n2 n3
+  link tl n2 n3
   n3 <- node t
-  i <- link tl n3 n1
+  link tl n3 n1
   return ()
 
 unroll :: (Ord a,Fractional a,Show a) => [Element a] -> State (Grid Element a,(Int,Int)) ()

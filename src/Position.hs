@@ -5,44 +5,26 @@ import Grid
 import Debug.Trace
 import Control.Arrow
 import qualified Data.Foldable as F
-import Lint
-import GHC.Stack
 import Data.Maybe
 import Data.Distributive
-import Sprinkler
 import Tee
 import Element
-import Numeric.AD
 import qualified Data.Map as M
-import Control.Applicative
 import qualified Data.List as L
 import qualified Data.Set as S
-import Data.Ord
 import Control.Monad.Trans.State
-import Control.Monad
-import Data.Foldable (foldMap)
-import Data.Traversable (traverse)
 import Linear.V3
 import Linear.V1
 import Linear.Matrix ((!*!),(!*))
 import Rotation.SO3 hiding (rotM)
-import Space.SO3
-import Space.Class
-import Linear.Affine
 
-import qualified Language.Mecha.Types as Mecha
-import qualified Language.Mecha.Solid as Mecha
 
 
 import Diagrams.Prelude
 
 -- import Diagrams.Prelude.ThreeD
-import Diagrams.Backend.SVG.CmdLine
-import Diagrams.TwoD.Text (Text)
 
-import Control.Lens hiding(transform)
 
-import Data.Void
 
 class RBackend a where
   type TCoord a
@@ -219,7 +201,6 @@ drawIterGraph  iter = L.foldr1 (<>) $ nds <> lds
                       return $ renderLink (flow ,nf flow ) (h,t) ix  l n ) [0..] [0..] i ) (links (grid it))
           where [max,min]= [maximum (snd <$> flows it), minimum (snd <$> flows it)]
                 nf f =  abs f /(max - min)
-                posMap = M.fromList $ linksPosition (grid it)
                 flowMap  = M.fromList (flows it)
 
 
