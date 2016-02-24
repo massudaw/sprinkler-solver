@@ -17,7 +17,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:
-    Project
+     Project
     ,Element
     ,Grid
     ,Input
@@ -27,6 +27,8 @@ library
     ,Mecha
     ,Diagram
     ,Lint
+    ,Equation
+    ,Graphviz
   build-depends:        base >=4.7 && <4.9
                       , hmatrix
                       , hmatrix-gsl
@@ -44,10 +46,12 @@ library
                       , mecha 
                       , lens 
                       , void
+                      , simple-reflect
                       , semigroupoids 
                       , linear 
                       ,process
                       ,async
+                      ,graphviz
   -- hs-source-dirs:      
   default-language:    Haskell2010
   hs-source-dirs: src
@@ -61,6 +65,17 @@ executable Simple
   default-language:    Haskell2010
   hs-source-dirs: example
 
+executable EletricCircuit 
+  main-is:             EletricCircuit.hs
+  ghc-options :   -O2 -threaded
+  build-depends:       base >=4.7 && <4.9
+                      ,async
+                      ,incendio
+                      ,simple-reflect
+                      ,text
+  default-language:    Haskell2010
+  hs-source-dirs: example
+
 
 executable SaoJorge 
   main-is:             SaoJorge.hs
@@ -69,22 +84,6 @@ executable SaoJorge
                       ,async
                       ,incendio
                       ,text
-  default-language:    Haskell2010
-  hs-source-dirs: example
-
-executable Test 
-  main-is:             Test.hs
-  ghc-options :   -O2 -threaded -caf-all
-  build-depends:       base >=4.7 && <4.9
-                      ,async
-                      ,incendio
-                      ,diagrams-svg
-                      ,diagrams-core
-                      ,diagrams-lib
-                      ,mecha
-                      ,text
-                      ,mtl
-                      
   default-language:    Haskell2010
   hs-source-dirs: example
 

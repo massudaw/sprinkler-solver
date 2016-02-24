@@ -27,35 +27,16 @@ data Orientation
  deriving(Show)
 
 
-data Iteration a
+data Iteration b a
   = Iteration
   { flows :: [(Int,a)]
-  , nodeHeads :: [(Int,a)]
-  , grid :: Grid a
+  , pressures :: [(Int,a)]
+  , grid :: Grid b a
   }deriving(Show,Functor)
 
 
 isTee (Tee _ _ ) = True
 isTee i = False
-
--- elementsFHIter i = (pipeFHIter i , nodeFHIter i)
-
--- nodeFHIter (Iteration vm h grid) = fmap (nodeFlowsHeads grid (M.fromList vm ) (M.fromList h) ) $ nodesFlow grid
-
-{-nodeFlowsHeads grid vm h e@(ni,Tee config conf ) = (e,fmap (\li-> (var li sflow ,  traceShow (nodeLosses) var ni h  + addTee li   ))  pipes)
-  where
-    tp = M.lookup  ni h
-    pipes =  (teeConfig config)
-    sflow =  var ni $ signedFlow grid vm
-    nodeLosses = M.fromList . (\(n,Tee t conf ) -> (\(ti,v)-> (ti,(if var ti sflow > 0 then  id else negate ) v)) <$> classifyTee conf ( fmap (\i -> i/1000/60) $ sflow ) t) $ e
-    addTee k = maybe 0 id (M.lookup k nodeLosses)
-nodeFlowsHeads grid vm h e@(ni,Sprinkler (Just (d,k)) l c _ ) = (e,[(k* sqrt (abs $ var ni h) ,var ni h )])
-nodeFlowsHeads grid vm h e@(ni,Open v ) = (e,[(v,var ni h )])
--}
--- pipeFHIter (Iteration vm h grid) = fmap (pipeFlowsHeads grid (M.fromList vm ) (M.fromList h) ) $ links grid
-
--- pipeFlowsHeads grid vm h e@(ni,th,tt,tubo) = (e,(var ni vm,) . pipeElement (var ni vm) <$>  tubo)
-
 
 ktubo t  = perda*10/(1000*60)**1.85
         where
@@ -66,16 +47,14 @@ ktubo t  = perda*10/(1000*60)**1.85
               -- note : abs na vazão pois gera NaNs para valores negativos durante iterações
               perda = 10.65*(distanciaE t)/((c**1.85)*(d**4.87))
 
--- Mass Continuity Test
-continuity (Iteration q nh g ) = fmap (\(i,f) -> sumn (flipped i (links g)) + suma (correct i (links g))  - nflow i)  (nodesFlow g)
-  where flipped i=  filter (\(_,h,t,_) -> h == i )
-        correct i= filter (\(_,h,t,_) -> t == i )
-        nflow i = genFlow i $ var i $ M.fromList (nodesFlow g)
-        genFlow idx (Open i ) = i
-        genFlow idx (Reservatorio _   ) = 0
-        genFlow idx (Sprinkler (Just (ds,k)) _ _ _) = k -- *sqrt(var idx pm)
-        suma = sum . fmap (\(li,_,_,_)-> var  li (M.fromList q) )
-        sumn = sum . fmap (\(li,_,_,_)-> negate $var  li (M.fromList q) )
+
+circuitEq l vh = loops <> nodes
+    where loops =  circuitPotential l v h
+          nodes =  circuitContinuity l v h
+          nlinks =length (links  l)
+          v = M.fromList $ zip (fmap (\(i,_,_,_) -> i) $ links l)  $ take nlinks vh
+          h = M.fromList $ zip ( fmap fst $ nodesFlow l) $ drop nlinks vh
+
 
 jacobianEqNodeHeadGrid l vh = loops <> nodes
     where loops =  jacobianNodeHeadEquation l v h
@@ -84,19 +63,21 @@ jacobianEqNodeHeadGrid l vh = loops <> nodes
           v = M.fromList $ zip (fmap (\(i,_,_,_) -> i) $ links l)  $ take nlinks vh
           h = M.fromList $ zip ( fmap fst $ nodesFlow l) $ drop nlinks vh
 
-printResidual iter@(Iteration n f a) modeler = modeler a  (snd <$> flows iter <> nodeHeads iter )
+printResidual iter@(Iteration n f a) modeler = modeler a  (snd <$> flows iter <> pressures iter )
 
-solveIter :: (forall a . (Show a , Ord a , Floating a ) => Iteration  a ) -> (forall b. (Show b, Ord b, Floating b) => Grid b -> [b] -> [b] ) -> Iteration Double
+solveIter :: forall c . (forall  a . (Show a , Ord a , Floating a ) => Iteration  c a ) -> (forall   b. (Show b, Ord b, Floating b) => Grid c b -> [b] -> [b] ) -> Iteration c Double
 solveIter iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid iter) $ take fl res) (zip (fmap fst $ nodesFlow $ grid iter)  $ drop fl res) (grid iter)
   where
     fl = length (flows iter)
-    res = fst . rootJ HybridsJ 1e-7 1000 (modeler (grid iter) ) (jacobian (modeler (grid iter)  ) )  $ (snd <$> flows iter <> nodeHeads iter )
-{-# NOINLINE solveIter #-}
+    res = fst . rootJ HybridsJ 1e-7 1000 (modeler (grid iter) ) (jacobian (modeler (grid iter)  ) )  $ (snd <$> flows iter <> pressures iter )
 
 var :: Show a => Int -> M.Map Int a -> a
 var i m = case M.lookup i m of
                Just i -> i
                Nothing -> error $ "no variable " ++ show i  ++ " " ++ show m
+
+circuitElement v (Resistor i ) = v*i
+circuitElement _ (VoltageSource i ) = i
 
 
 
@@ -111,15 +92,39 @@ pipeElement v e@(Perda __ _ _)  = (ktubo e)*v**1.85
 pipeElement v (Turn _)   = 0
 
 
-signedFlow :: (Show a,Floating a )=> Grid a -> M.Map Int a ->M.Map Int (M.Map Int a)
+signedFlow :: (Show a,Floating a )=> Grid Element a -> M.Map Int a ->M.Map Int (M.Map Int a)
 signedFlow g v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromList $ ( ( sumn $ flipped i $ links g) ++   ((suma $ correct i $ links g))) ) (nodesFlow g)
   where flipped i=  filter (\(_,h,t,_) -> h == i )
         correct i= filter (\(_,h,t,_) -> t == i )
         suma =  fmap (\(li,_,_,_) -> (li,var li v ))
         sumn =  fmap (\(li,_,_,_) ->  (li,negate $ var li v))
 
+-- Generic Solver | Node + Head Method
+circuitPotential :: (Show a,Ord a,Floating a) => Grid Eletric a -> M.Map Int a ->M.Map Int a -> [a]
+circuitPotential grid  vm nh =  term <$> l
+  where
+    l = links grid
+    term (l,h,t,e) =   sum (circuitElement (var l vm) <$> e) - (varn h nh)   +   varn t nh
 
-jacobianContinuity :: (Show a,Ord a,Floating a )=> Grid a -> M.Map Int a ->M.Map Int a -> [a]
+
+isGround Ground = True
+isGround i = False
+
+circuitContinuity :: (Show a,Ord a,Floating a )=> Grid Eletric a -> M.Map Int a -> M.Map Int a -> [a]
+circuitContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( correct i $ links g))  - nflow i e) $ filter (not . isGround . snd) $ nodesFlow g
+  where
+        -- pipeFlow
+        flipped i=  sumn . filter (\(_,h,t,_) -> h == i )
+        correct i= suma . filter (\(_,h,t,_) -> t == i )
+        suma =  fmap (\(li,_,_,_) -> var li v )
+        sumn =  fmap negate . suma
+        -- nodeFlow
+        genFlow _ Node  = 0
+        genFlow _ Ground = 0
+        nflow i e = genFlow (var i pm) e
+
+
+jacobianContinuity :: (Show a,Ord a,Floating a )=> Grid Element a -> M.Map Int a -> M.Map Int a -> [a]
 jacobianContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( correct i $ links g))  - nflow i e) $ filter (not . isReservoir . snd) $ nodesFlow g
   where
         -- pipeFlow
@@ -138,7 +143,7 @@ varn h = maybe 0 id .  M.lookup h
 varr3 h = maybe (V3 0 0  0)  id .  M.lookup h
 
 -- Generic Solver | Node + Head Method
-jacobianNodeHeadEquation :: (Show a,Ord a,Floating a) => Grid a -> M.Map Int a ->M.Map Int a -> [a]
+jacobianNodeHeadEquation :: (Show a,Ord a,Floating a) => Grid Element a -> M.Map Int a ->M.Map Int a -> [a]
 jacobianNodeHeadEquation grid  vm nh =  term <$> l
   where
     l = links grid

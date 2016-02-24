@@ -1,4 +1,4 @@
-{-# LANGUAGE ViewPatterns,FlexibleInstances,TypeSynonymInstances,GADTs,TypeFamilies, FlexibleContexts,RankNTypes,TupleSections,RecursiveDo, NoMonomorphismRestriction #-}
+{-# LANGUAGE MultiParamTypeClasses,ViewPatterns,FlexibleInstances,TypeSynonymInstances,GADTs,TypeFamilies, FlexibleContexts,RankNTypes,TupleSections,RecursiveDo, NoMonomorphismRestriction #-}
 module Diagram (diagramRender) where
 
 import Grid
@@ -53,25 +53,26 @@ renderElem _ i = regPoly 4 0.1 -- error $  show i
                       -> Int
                       -> Element Double
                       -> Diagram b R2-}
-renderLinkSVG (f,nf) sl l t@(Tubo _ c _) =   (line ) -- <> foldr1 mappend (zipWith (\i j-> translate (r3 (c/2,(0.4 - 0.2*i ),0)) j ) [0..] [label , dlabel , llabel , flabel]))
+renderLinkSVG (f,nf) _ sl l t@(Tubo _ c _) =   (line ) -- <> foldr1 mappend (zipWith (\i j-> translate (r3 (c/2,(0.4 - 0.2*i ),0)) j ) [0..] [label , dlabel , llabel , flabel]))
   where
     -- label  = text (show l) # fontSizeL 0.2 -- # fc black
     -- dlabel  = text (show (1000* (fromJust $ diametroE t)) ++ " cm" ) # fontSizeL 0.2 -- # fc black
     -- llabel  = text (show (1000*  c ) ++ " cm" ) # fontSizeL 0.2 -- # fc black
     --flabel  = text ((formatFloatN 2 f) ++ " L/min" ) # fontSizeL 0.2 -- # fc black
     line =  translateX (c/2) (if f > 0 then ahead else reflectX ahead )<> (fromOffsets [c *^ unitX ] ) -- # lwL 0.04# opacity (0.3 + 0.7*nf)
-renderLinkSVG f sl l j@(Joelho _ _ _ _ )  =  joelho
+renderLinkSVG f _ sl l j@(Joelho _ _ _ _ )  =  joelho
   where
     joelho = fromOffsets [0.1 *^ unitX,0.1 *^ unitY]
-renderLinkSVG f sl l i = mempty
+renderLinkSVG f _ sl l i = mempty
 
-instance
-        Target  (Path  V3 Double ) where
+instance RBackend (Path V3 Double) where
   type TCoord (Path V3 Double ) = V3 Double
-  renderNode = renderElem
-  renderLink = renderLinkSVG
   errorItem = errorCross
   transformElement (r,x)= translateX (r ^. _x) . translateY (r ^. _y) . translateZ(r ^. _z) . about (unr3 $ unRot123 x)
+
+instance Target  Element (Path  V3 Double ) where
+  renderNode = renderElem
+  renderLink = renderLinkSVG
 
 
 errorCross =   fromOffsets [ unitX , unitY  ]

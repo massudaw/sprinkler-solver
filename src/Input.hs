@@ -48,7 +48,7 @@ test1 = mdo
   i <- link tl n3 n1
   return ()
 
-unroll :: (Ord a,Fractional a,Show a) => [Element a] -> State (Grid a,(Int,Int)) ()
+unroll :: (Ord a,Fractional a,Show a) => [Element a] -> State (Grid Element a,(Int,Int)) ()
 unroll l = do
   (g,(a,b)) <- get
   -- runState (unrollNode (0,Open 0) l  )

@@ -26,9 +26,6 @@ import Debug.Trace
 null :: [a] -> Bool
 null = L.null
 
-minPressure =(\i -> if null i then [] else pure . minimumBy (comparing pNode) $ i)
-
-minFlow =(\i -> if null i then [] else pure . minimumBy (comparing vNode) $ i)
 {-
 -- solveRamalN :: Node Element -> Node Element -> [Node Element]
 solveRamalN s@(RamalNode  _ _  e )  n = minFlow $   do
@@ -398,12 +395,6 @@ showJust _ Nothing = ""
 i <|>  j = i ++ ";" ++ j
 
 
-pNode (Node p _ _ ) = p
-pNode (RamalNode p _ _  ) = p
-pNode (OptionalNode p _ _  ) = p
-vNode (Node _ v _ ) = v
-vNode (RamalNode _ v _  ) = v
-vNode (OptionalNode _ v _  ) = v
 
 
 periodoFuncionamento = 1/24

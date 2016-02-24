@@ -28,11 +28,10 @@ data TeTipo
   | TeRunR
   deriving(Eq,Show)
 
-data Curva a = Curva (a -> a)
-           | Poly [(a,a)]
+data Curva a
+           = Poly [(a,a)]
 
 instance Functor Curva  where
-  -- fmap f (Curva l )  = Curva $ fmap f  l
   fmap f (Poly l ) = Poly $ fmap (\(i,j) -> (f i,f j)) l
 
 instance Eq (Curva  a) where
@@ -53,6 +52,17 @@ data SPKGoods a = SPKGoods
   }deriving(Eq,Ord,Show,Functor)
 
 coverageArea (SPKCoverage x y _ _ ) = x*y
+
+data Eletric a
+  = Resistor
+  { res :: a
+  }
+  | VoltageSource
+  { ddp :: a
+  }
+  | Node
+  | Ground
+  deriving(Show,Eq,Ord,Functor)
 
 data Element a
   = Tubo
@@ -79,7 +89,7 @@ data Element a
   | Joelho
   { diametroJ :: Maybe a
   , tipoJ :: (String,String,String)
-  , direction :: (a,a)
+  , direction :: a
   , material :: a
   }
   | Turn
@@ -102,6 +112,7 @@ data Element a
   , pathRight :: [Element a]
   , pathLeft :: [Element a]
   }
+
   | Reduction
   { diametroRH :: a
   , diametroRT :: a
@@ -110,28 +121,6 @@ data Element a
   { elements :: [Element a]
   }
   deriving(Eq,Show,Functor)
-
-data Node a
-  = Node
-  { pressaoNode :: Double
-  , vazao :: Double
-  , elemento :: a
-  }
-  | RamalNode
-  { pressaoNode :: Double
-  , vazao :: Double
-  , pathNode :: [Node a]
-  }
-  | OptionalNodes
-  { pressaoNode :: Double
-  , vazao :: Double
-  ,pathNodes :: [[Node a]]
-  }
-  | OptionalNode
-  { pressaoNode :: Double
-  , vazao :: Double
-  ,pathNode :: [Node a]
-  }deriving(Eq,Foldable,Show)
 
 data TeeConfigType = Table | Formula deriving (Eq,Ord,Show)
 
@@ -169,8 +158,6 @@ materialE (Joelho _ _ _ c) = c
 materialE (Perda _  _ c) = c
 materialE i = error $ "No Material Defined" ++ show i
 
-elementE (Node _ _ e) = Just e
-elementE i = Nothing
 
 
 joelhos :: (Ord a ,Fractional a,Num a )=> M.Map ((String,String,String),a) (M.Map a a)
@@ -188,12 +175,12 @@ joelhos = M.fromList
     ,((("Conexao","Te","Lateral"),100),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
     --,((("Conexao","Te","Lateral"),1000),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
 
-data Grid a
+data Grid b a
   = Grid
   { linksPosition :: [(Int,[(V3 a ,SO3 a  )])]
-  , links :: [(Int,Int,Int,[Element a])]
+  , links :: [(Int,Int,Int,[b a])]
   , shead :: [(Int,(V3 a,SO3 a ))]
-  , nodesFlow :: [(Int,Element a)]
+  , nodesFlow :: [(Int,b a)]
   }deriving(Functor,Show)
 
 bombaSuccaoFrontal, bombaBipartida :: (Num a ,Fractional a )=> a -> a

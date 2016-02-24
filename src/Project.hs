@@ -4,6 +4,7 @@ module Project where
 import Grid
 import Rotation.SO3 hiding (rotM)
 import System.Process
+import qualified Debug.SimpleReflect as SR
 import Control.Monad.Fix
 import Control.Monad
 import Lint
@@ -39,7 +40,13 @@ path i h t  l = (i,h,t,  l)
 
 jd dir d = Joelho (Just d) ("Conexao","Joelho","90")  dir 100
 
-makeIter i j g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  (nodesFlow g))(repeat 100)) (realToFrac  <$>  upgradeGrid i j g)
+initIterEletric ::  Num a => Grid Eletric a -> Iteration Eletric a
+initIterEletric g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) ( zip ( fmap fst $ filter (not .isGround .snd)  (nodesFlow g))(repeat 100))  g
+
+initIterElement ::  Num a =>Grid Element a -> Iteration Element a
+initIterElement g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  (nodesFlow g))(repeat 100))  g
+
+makeIter i j g = initIterElement (realToFrac  <$>  upgradeGrid i j g)
 
 data ProjectHeader
   = ProjectHeader { projectName :: String
@@ -63,14 +70,12 @@ data Author
 
 
 
-rightC d = (0,d)
+rightC d = d
 right90  = rightC $ 1/4
 right45  = rightC $ 1/8
-leftC d = (0,-d)
+leftC d = -d
 left90   = leftC $ 1/4
 left45   = leftC $ 1/8
-upC r = (-1/4,-r)
-dowC r = (1/4,r)
 
 
 end = [tubod 0.025 0.01,Open 0]
@@ -85,14 +90,12 @@ joelho45  = joelho45R
 joelho45R  = Joelho Nothing ("Conexao","Joelho","45") right45  100
 joelho45L  = Joelho Nothing ("Conexao","Joelho","45") left45  100
 
-joelhoU  = joelhoUV $ 1/4
-joelhoU0  = joelhoUV 0
-joelhoUV e = Joelho Nothing ("Conexao","Joelho","90") (upC e ) 100
 
-joelhoD  = joelhoDV 0
-joelhoD0  = joelhoDV $ 1/4
-joelhoDV  c = Joelho Nothing ("Conexao","Joelho","90") (dowC  c ) 100
 
+solveCircuit :: Grid Eletric Double  -> Iteration Eletric Double
+solveCircuit g = solveIter (initIterEletric (fmap realToFrac g)) circuitEq
+
+-- testResistor :: SR.Expr
 
 displayModel (header,model) = do
   let iter = makeIter 0 1 model
@@ -137,7 +140,7 @@ data CyclePoint a b
 nodesFlowSet g = findNodesLinks g $ fmap (\n@(ni,_) -> (ni,n)) $nodesFlow $ g
 
 
-upgradeGrid :: Int -> Int -> Grid Double -> Grid  Double
+upgradeGrid :: Int -> Int -> Grid Element Double -> Grid  Element Double
 upgradeGrid ni li a = a {shead = M.toList nodesPos, linksPosition = M.toList linksPos}
   where
     (nodesPos,linksPos) =  snd $ runState (do
@@ -165,7 +168,7 @@ recurse render r@(Left n@(ni,lks,e)) = do
 sf2 = show -- formatFloatN 2
 sf3 = show -- formatFloatN 3
 
-reportIter :: ProjectHeader -> Int -> Iteration Double -> IO ()
+reportIter :: ProjectHeader -> Int -> Iteration Element Double -> IO ()
 reportIter header i iter@(Iteration f h a)  = do
     let name = regionFile $ regionInfo header
     writeFile (name <> ".csv")  $(headerCalculo <> "\n\n" <> "Relatório dos Nós" <> "\n\n" <>( L.intercalate "\n"    $ (L.intercalate ","  nodeHeader :) (evalState (runReaderT (do
@@ -247,10 +250,10 @@ expandGrid a = runState (recurseNode  [] (lookNode (fst $ head sortedHeads))) (S
        tnodes <- traverse (\p  -> fmap (\j -> Left (BranchLink (fromJustE "no link for brach " $ L.find (\(l,h,t,_) -> h == fst p  || t == fst p ) nextLinks )) : j) . recurseNode (n:path) $ p ) $ L.sortBy (flip (comparing (\(i,p) ->  totalHead 0.08 (var i nodePressures ) ((/2) $ sum $ fmap (abs .snd ) $ S.toList $fst p)))) $ fmap lookNode fnodes
        return  $ Right (path,totalHead 0.08 (var n nodePressures) ((/2) $ sum $ fmap (abs .snd ) $ S.toList $fst l),t) :  (fmap (Left . CloseLink ) backLinks <>  concat  tnodes)
     lookLinkNode bn (l,h,t,_) = if bn == h then t else h
-    nodePressures = M.fromList $ nodeHeads a <> (fmap (\(j,i) -> (j,9.81* ( fst i ^. _z))) $ shead (grid a))
+    nodePressures = M.fromList $ pressures a <> (fmap (\(j,i) -> (j,9.81* ( fst i ^. _z))) $ shead (grid a))
     lookNode i = (i,var i nodeMap)
     linkflow = M.fromList (flows a)
-    sortedHeads = L.sortBy (flip (comparing (\(i,p) ->  totalHead 0.08 p ((/2) $ sum $ fmap (abs .snd ) $ S.toList $ fst $ var i nodeMap))))  (nodeHeads a)
+    sortedHeads = L.sortBy (flip (comparing (\(i,p) ->  totalHead 0.08 p ((/2) $ sum $ fmap (abs .snd ) $ S.toList $ fst $ var i nodeMap))))  (pressures a)
     nodeMap =  fmap (\(s,i) -> (S.map (\si-> (si,var si linkflow)) s, i) ) $ M.fromList $findNodesLinks (grid a) $ (fmap (Left ) <$>  (shead $ grid a )) <> (fmap Right <$> (nodesFlow $ grid a))
     linkMap = M.fromList $ (\l@(i,_,_,_) -> (i,l)) <$> (links $ grid a)
 

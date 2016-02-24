@@ -52,7 +52,7 @@ gridInput  = [(ph (rteto "mezanino"), pregrid  bombamin )]
           vga2 <- node (Open 0)
           lvga2 <- tubo dm 1.0 tvga2 vga2
           tvga2 <- te [lvga32,lvga2,lvga] dm dm
-          lvga <- link (editDiametro dm <$> [tubod 0.7 dm  , joelho, tubod 9.35 dm,jd (upC 0) dm , tubod 11 dm ,jd (dowC 0 ) dm , Perda  (Just dm) ("Valvula","Governo","")100 ,tubod 0.8 dm, joelhoL , tubod 0.62 dm]) tvga2 tg1
+          lvga <- link (editDiametro dm <$> [tubod 0.7 dm  , joelho, tubod 9.35 dm,Turn (1/4), joelhoR , tubod 11 dm ,joelhoL , Turn (-1/4) , Perda  (Just dm) ("Valvula","Governo","")100 ,tubod 0.8 dm, joelhoL , tubod 0.62 dm]) tvga2 tg1
           (lg1,tg1) <- (foldl1 (>~>)[ramal (editDiametro dm <$> [tubod bl dm]) ,ramal (editDiametro dm <$> [tubod 0.65 dm]) ,ramal (editDiametro dm <$> [tubod bl dm]) ,ramal (editDiametro dm <$> [tubod 0.65 dm])]) (lvga ,t1)
           tdr <- node (Open 0)
           ldr <- tubo dr 1 b1 tdr
@@ -66,8 +66,8 @@ gridInput  = [(ph (rteto "mezanino"), pregrid  bombamin )]
           or <- node (Open 0)
           ol <- node (Open 0)
           (_,(nil,nij))<- f  ((l5,l52),(or,ol))
-          let rm = [tubod 1.1 dr,jd (upC 0) dr ,tubod 1.1 dr, jd (dowC 0) dr ,tubod 1.1 dr ]
-          let brm = [tubod 1.1 dr,jd (dowC 0) dr ,tubod 1.1 dr, jd (upC 0) dr ,tubod 1.1 dr ]
+          let rm = [tubod 1.1 dr,Turn 0.25 ,joelhoR  ,tubod 1.1 dr, joelhoL,Turn (-0.25) , tubod 1.1 dr ]
+          let brm = [tubod 1.1 dr,Turn 0.25 ,joelhoL , tubod 1.1 dr, joelhoR , Turn (-0.25) , tubod 1.1 dr ]
           l5 <- link (editDiametro dr <$> brm )  nil b1
           l52 <- link (editDiametro dr <$> rm ) t1 nij
           return (b1,t1)
