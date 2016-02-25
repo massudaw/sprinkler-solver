@@ -1,7 +1,11 @@
 {-# LANGUAGE DeriveFunctor,NoMonomorphismRestriction,TypeFamilies,TupleSections ,RankNTypes #-}
 module Grid where
-
+import Data.Maybe
+import Control.Applicative
+import Control.Monad
 import Eletric
+import Thermal
+import Rotation.SO3
 import Data.Monoid
 import Tee hiding (ktubo)
 import Element
@@ -17,6 +21,15 @@ data Orientation
  = Clock
  | CounterClock
  deriving(Show)
+
+data Grid b a
+  = Grid
+  { linksPosition :: [(Int,[(V3 a ,SO3 a  )])]
+  , links :: [(Int,Int,Int,[b a])]
+  , shead :: [(Int,(V3 a,SO3 a ))]
+  , nodesFlow :: [(Int,b a)]
+  }deriving(Functor,Show)
+
 
 
 data Iteration b a
@@ -38,6 +51,14 @@ ktubo t  = perda*10/(1000*60)**1.85
               c = materialE t
               -- note : abs na vazão pois gera NaNs para valores negativos durante iterações
               perda = 10.65*(distanciaE t)/((c**1.85)*(d**4.87))
+
+thermalEq l vh = loops <> nodes
+    where loops =  thermalPotential l v h
+          nodes =  thermalContinuity l v h
+          nlinks =length (links  l)
+          v = M.fromList $ zip (fmap (\(i,_,_,_) -> i) $ links l)  $ take nlinks vh
+          h = M.fromList $ zip ( fmap fst $ nodesFlow l) $ drop nlinks vh
+
 
 
 circuitEq l vh = loops <> nodes
@@ -68,6 +89,9 @@ var i m = case M.lookup i m of
                Just i -> i
                Nothing -> error $ "no variable " ++ show i  ++ " " ++ show m
 
+thermalElement v (Conductor i ) = v*i
+thermalElement _ (HeatFlow i) = i
+
 circuitElement v (Resistor i ) = v*i
 circuitElement _ (VoltageSource i ) = i
 
@@ -92,11 +116,41 @@ signedFlow g v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromList $ ( ( sumn $ f
         sumn =  fmap (\(li,_,_,_) ->  (li,negate $ var li v))
 
 -- Generic Solver | Node + Head Method
+thermalPotential :: (Show a,Ord a,Floating a) => Grid Thermal a -> M.Map Int a ->M.Map Int a -> [a]
+thermalPotential grid  vm nh =  term <$> l
+  where
+    l = links grid
+    term (l,h,t,e) =   sum (thermalElement (var l vm) <$> e) - lookNode h   +   lookNode t
+    lookNode h = justError "cant find node "  $ (join $ fmap (\i -> if isAmbient i then (\(Ambient i) -> Just i) $ i else Nothing) $ varM h (M.fromList $ nodesFlow grid)) <|> varM h nh
+      where
+        varM h = M.lookup h
+
+
+isAmbient (Ambient i) = True
+isAmbient i = False
+
+thermalContinuity :: (Show a,Ord a,Floating a )=> Grid Thermal a -> M.Map Int a -> M.Map Int a -> [a]
+thermalContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( correct i $ links g))  - nflow i e) $ filter (not . isAmbient . snd) $ nodesFlow g
+  where
+        -- pipeFlow
+        flipped i=  sumn . filter (\(_,h,t,_) -> h == i )
+        correct i= suma . filter (\(_,h,t,_) -> t == i )
+        suma =  fmap (\(li,_,_,_) -> var li v )
+        sumn =  fmap negate . suma
+        -- nodeFlow
+        genFlow _ ThermalNode  = 0
+        nflow i e = genFlow (var i pm) e
+
+
+-- Generic Solver | Node + Head Method
 circuitPotential :: (Show a,Ord a,Floating a) => Grid Eletric a -> M.Map Int a ->M.Map Int a -> [a]
 circuitPotential grid  vm nh =  term <$> l
   where
     l = links grid
-    term (l,h,t,e) =   sum (circuitElement (var l vm) <$> e) - (varn h nh)   +   varn t nh
+    term (l,h,t,e) =   sum (circuitElement (var l vm) <$> e) - lookNode h   +  lookNode t
+    lookNode h = justError "cant find node " $ (join $ fmap (\i -> if isGround i then (\(Ground ) -> Just 0) $ i else Nothing) $ varM h (M.fromList $ nodesFlow grid)) <|> varM h nh
+      where
+        varM h = M.lookup h
 
 
 isGround Ground = True

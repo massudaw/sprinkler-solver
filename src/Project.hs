@@ -2,6 +2,7 @@
 module Project where
 
 import Grid
+import Thermal
 import Eletric
 import Rotation.SO3 hiding (rotM)
 import System.Process
@@ -31,7 +32,10 @@ path i h t  l = (i,h,t,  l)
 jd dir d = Joelho (Just d) ("Conexao","Joelho","90")  dir 100
 
 initIterEletric ::  Num a => Grid Eletric a -> Iteration Eletric a
-initIterEletric g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) ( zip ( fmap fst $ filter (not .isGround .snd)  (nodesFlow g))(repeat 100))  g
+initIterEletric g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) (zip (fmap fst <$> filter (not .isGround .snd)  (nodesFlow g))(repeat 100))  g
+
+initIterThermal ::  Num a =>Grid Thermal a -> Iteration Thermal a
+initIterThermal g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) (zip ( fmap fst $ filter (not .isAmbient.snd)  (nodesFlow g))(repeat 100))  g
 
 initIterElement ::  Num a =>Grid Element a -> Iteration Element a
 initIterElement g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  (nodesFlow g))(repeat 100))  g
@@ -81,6 +85,8 @@ joelho45R  = Joelho Nothing ("Conexao","Joelho","45") right45  100
 joelho45L  = Joelho Nothing ("Conexao","Joelho","45") left45  100
 
 
+solveThermal :: Grid Thermal Double  -> Iteration Thermal Double
+solveThermal g = solveIter (initIterThermal (fmap realToFrac g))thermalEq
 
 solveCircuit :: Grid Eletric Double  -> Iteration Eletric Double
 solveCircuit g = solveIter (initIterEletric (fmap realToFrac g)) circuitEq

@@ -2,6 +2,7 @@
 module Graphviz (renderGraph ) where
 
 import Eletric
+import Thermal
 import Position
 import qualified Data.Sequence as Seq
 
@@ -16,9 +17,9 @@ import Data.Monoid
 
 renderGraph ::  [DotStatement Int ] -> FilePath -> IO FilePath
 renderGraph i f =  do
-  runGraphviz (DotGraph { strictGraph = True
+  runGraphviz (DotGraph { strictGraph = False
          , directedGraph = False , graphID = Just (Num (Int 1))
-         , graphStatements = Seq.fromList ((GA $ GraphAttrs $ [Layout Neato]) : i)}) Png f
+         , graphStatements = Seq.fromList ({-(GA $ GraphAttrs $ [Layout Neato]) :-} i)}) Png f
 
 renderElemMecha  _ (_,(_,(ni,Node ))) = [DN $ DotNode ni [shape MDiamond]]
 renderElemMecha  _ (_,(_,(ni,Ground ))) = [DN $ DotNode ni [shape MSquare]]
@@ -31,7 +32,15 @@ instance RBackend [DotStatement Int] where
   type TCoord [DotStatement Int]= V3 Double
   errorItem = undefined
   transformElement (r,s)= id
+
 instance Target  Eletric [DotStatement Int] where
   renderNode = renderElemMecha
   renderLink = renderLinkMecha
+
+instance Target  Thermal [DotStatement Int] where
+  renderNode _ (_,(_,(ni,ThermalNode )))= [DN $ DotNode ni [shape Egg]]
+  renderNode _ (_,(_,(ni,(Ambient v) )))= [DN $ DotNode ni [XLabel $  StrLabel $ T.pack $ (show v) <> "ºC" , shape MSquare]]
+  renderLink (f,nf) (h,t) nis ni (HeatFlow v ) = [DE $ DotEdge h t [Label $ StrLabel $ T.pack $ show v <> "F"] ]
+  renderLink (f,nf) (h,t) nis ni (Conductor v ) = [DE $ DotEdge h t [Label $ StrLabel $ T.pack $ show v <> "R"] ]
+
 

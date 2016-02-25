@@ -188,8 +188,8 @@ drawIterGraph  iter = L.foldr1 (<>) $ nds <> lds
   where nds = styleNodes iter
         lds = styleLinks iter
         styleNodes  it = catMaybes $ fmap (\i -> do
-                pres <- varM (fst i) (M.fromList (pressures it))
-                return $ renderNode metrics (S.empty ,(0 + pres,i))) (nodesFlow (grid it))
+                let  pres  = varM (fst i) (M.fromList (pressures it))
+                return $ renderNode metrics (S.empty ,(fromMaybe 0  pres,i))) (nodesFlow (grid it))
           where metrics = [maximum (snd <$> flows it), minimum (snd <$> flows it)]
                 gridMap = (M.fromList (shead $ grid it))
                 headMap = (M.fromList (pressures $ it))

@@ -161,14 +161,6 @@ joelhos = M.fromList
     ,((("Conexao","Te","Lateral"),100),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
     --,((("Conexao","Te","Lateral"),1000),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
 
-data Grid b a
-  = Grid
-  { linksPosition :: [(Int,[(V3 a ,SO3 a  )])]
-  , links :: [(Int,Int,Int,[b a])]
-  , shead :: [(Int,(V3 a,SO3 a ))]
-  , nodesFlow :: [(Int,b a)]
-  }deriving(Functor,Show)
-
 bombaSuccaoFrontal, bombaBipartida :: (Num a ,Fractional a )=> a -> a
 bombaSF ,bombaJohnson2:: Floating a => Curva a
 bombaSF = Poly [(0,151.229),(1,-0.422331),(2,-0.000979227),(3,- 1.194467786948394e-7)]

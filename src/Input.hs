@@ -2,7 +2,9 @@
 module Input ((>~>),link,node,unroll, runInput) where
 
 import Sprinkler
+import Data.Functor.Identity
 import Element
+import Grid
 
 import Data.Monoid
 import Control.Monad.Trans.State
@@ -11,41 +13,32 @@ import Control.Monad.Fix
 
 
 -- getUniqueL :: Constr  Int
+
+getUniqueL
+  :: State (a1, (a, Int))  Int
 getUniqueL = do
   modify (\(i,(l,j)) -> (i,(l,j + 1)))
   snd.snd <$> get
 
 -- getUniqueN :: Constr  Int
+getUniqueN
+  :: State (a1,(Int, a))  Int
 getUniqueN = do
   modify (\(i,(j,l)) -> (i,(j + 1,l)))
   fst . snd <$> get
 
 node  e = do
   un <-  getUniqueN
-  modify (\(Grid lp l np n,i) -> (Grid lp l np ((un,e): n)   ,i))
+  modify (\(Grid lp l np n,i) -> (Grid lp l np ((un,e): n) ,i))
   return (un,e)
 
 link e  (h,_) (t,_) = do
   un <-  getUniqueL
-  modify (\(Grid lp l np n,i) -> (Grid lp ((un,h,t,e): l) np n  ,i))
+  modify (\(Grid lp l np n,i) -> (Grid lp ((un,h,t,e): l) np n ,i))
   return (un,e)
 
 
 runInput t = snd $ runState t (Grid [] [] [] [] ,(-1,0))
-
-
-main = do
-  print $ runState test1 (Grid [] [] [] [] ,(0,0))
-test1 = mdo
-  let t = Open (0 ::Int)
-  let tl = [Open (0 ::Int) ]
-  n1 <-node t
-  link tl n1 n2
-  n2 <- node t
-  link tl n2 n3
-  n3 <- node t
-  link tl n3 n1
-  return ()
 
 unroll :: (Ord a,Fractional a,Show a) => [Element a] -> State (Grid Element a,(Int,Int)) ()
 unroll l = do
