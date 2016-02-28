@@ -2,8 +2,11 @@
 module Mecha (openSCAD) where
 
 import Data.Distributive
+import Hydraulic
+import Force
 import Position
 import Rotation.SO3
+import Linear.V3
 import Element
 
 import qualified Language.Mecha.Types as Mecha
@@ -47,10 +50,32 @@ instance RBackend Mecha.Solid where
   transformElement (r,s)= Mecha.moveX (r ^. _x) . Mecha.moveY (r ^. _y) . Mecha.moveZ (r ^. _z) . Mecha.rotateX ( ax ) . Mecha.rotateZ (az ) . Mecha.rotateY (ay )
     where (V3 ax ay az) = unRot231 . SO3  $  distribute $ unSO3 s
 
+instance Target Force Mecha.Solid  where
+  renderNode  _ (_,(_,(ni,_))) =   Mecha.color (0,1,0,1) $ Mecha.sphere 0.1 <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
+  renderLink _ _  nis  ni  (Beam i )  =  (Mecha.color (0.2,0.2,1, 1 ) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (i*0.9999))
+    where d = 0.03
+  renderLink _ _  nis ni (BeamTurn _  ) = Mecha.sphere d
+    where d = 0.03
+  renderLink _ _  nis ni (BTurn _  ) = Mecha.sphere d
+    where d = 0.03
+  renderLink _ _ nis ni (Load2D x y  ) =  Mecha.color (0,1,0,1) $ Mecha.scale  (is,is,is) (arrow3d x) <> Mecha.scale  (js,js,js) (Mecha.rotateZ (pi/2) $arrow3d y)
+    where is = (x/norm i )
+          js = (y/norm i)
+          i = V3 x y 0
+  renderLink _ _ nis ni (Load3D i@(V3 x y z) j ) =  Mecha.color (0,1,0,1) $ Mecha.scale  (is,is,is) (arrow3d x) <> Mecha.scale  (js,js,js) (Mecha.rotateZ (pi/2) $arrow3d y)<> Mecha.scale  (ls,ls,ls) (Mecha.rotateY (pi/2) $arrow3d z)
+    where is = (x/norm i )
+          js = (y/norm i)
+          ls = (z/norm i)
+  renderLink _ _ nis ni (Load  ) =  Mecha.color (0,1,0,1) $  (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show (ni,nis))))
+  renderLink _ _ nis ni (Load2D  _ _ ) =  Mecha.color (0,1,0,1) $  (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show (ni,nis))))
 
-instance Target  Element Mecha.Solid  where
+
+arrow3d ni = (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
+
+instance Target Element Mecha.Solid  where
   renderNode = renderElemMecha
   renderLink = renderLinkMecha
+
 
 instance Semigroup Mecha.Solid where
   i <> j = Mecha.union i j

@@ -1,5 +1,6 @@
 module Lint where
 import Grid
+import Domains
 import Control.Monad
 import Control.Applicative
 import Control.Monad.Trans.Writer
@@ -10,9 +11,10 @@ import Sprinkler
 import qualified Data.Map as M
 import qualified Data.Foldable as F
 import qualified Data.Set as S
+import Hydraulic
 
 --lintLinks :: (Show a,Ord a) => Grid a -> [String]
-lintLinks grid =     mapM_ checkLinks (links grid)
+lintLinks grid = mapM_ checkLinks (links grid)
   where
         checkLinks c@(n,h,t,elems) = do
              F.foldl' (\i j -> do
@@ -34,10 +36,11 @@ nodeConnective grid = do
   mapM_ (\i -> tell $ ["OrphanNode " <> show i]) orphanNodes
 
 
-lintInitialConditions iter = snd $ runIdentity $ runWriterT $ do
-  lintInitialTee iter
+{-lintInitialConditions iter = snd $ runIdentity $ runWriterT $ do
+  lintInitialTee iter-}
 
 
+{-
 lintInitialTee  iter  = do
   let fl = ((/(1000*60)) <$> M.fromList (flows iter))
   mapM_ (\(n,Tee config conf )-> lintInitTee (var n $ signedFlow (grid iter) fl) config) ( filter (isTee .snd ) $  (nodesFlow (grid iter)))
@@ -81,4 +84,4 @@ lintTee grid =   mapM_ checkLinks tees
               tell $ ["diametro runs " ++ show rl ++ "," ++ show rr ++ " are different "++ show n ++ " " ++ show (diametroE lrl ) ++ " /= " ++ show (diametroE lrr)]
         linkMap = M.fromList $ fmap (\(li,h,t,e) ->   (li,(h,t,e))) (links grid)
 
-
+-}

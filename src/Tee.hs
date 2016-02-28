@@ -3,14 +3,13 @@ module Tee where
 
 import Debug.Trace
 import Data.Monoid
-import Element
 import qualified Data.Map as M
+import Hydraulic
 import Data.Maybe
 import GHC.Stack
 --
 -- From Pipe Flow A Pratical and Comprehensive Guide - Chapter Tee - page 170 to 199
 --
-
 eps = 1e-12
 
 -- g =  32.174
@@ -36,7 +35,7 @@ ktubo t  v = perda*10*v**1.85
               perda = 10.65*(distanciaE t)/((c**1.85)*(d**4.87))
 
 
-classifyTee  Formula flowMap  t@(TeeConfig _ _ _ _ _) =  fmap (/1000) <$> classifyFlow flow
+classifyTee Formula flowMap  t@(TeeConfig _ _ _ _ _) =  fmap (/1000) <$> classifyFlow flow
   where flow = fmap (\i -> fromJustE ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
         [rli,bi,rri] = teeConfig t
         db = teeDiameterBranch t
@@ -55,7 +54,7 @@ classifyTee  Formula flowMap  t@(TeeConfig _ _ _ _ _) =  fmap (/1000) <$> classi
                 rr = abs rrs
                 b = abs bs
 
-classifyTee  Table flowMap  t =  classifyFlow flow
+classifyTee Table   flowMap  t =  classifyFlow flow
   where flow = fmap (\i -> fromJustE ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
         [rli,bi,rri] = teeConfig t
         db = teeDiameterBranch t

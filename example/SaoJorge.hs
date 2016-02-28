@@ -52,6 +52,7 @@ gridInput  = [(ph (rteto "mezanino"), pregrid  bombamin )]
           vga2 <- node (Open 0)
           lvga2 <- tubo dm 1.0 tvga2 vga2
           tvga2 <- te [lvga32,lvga2,lvga] dm dm
+
           lvga <- link (editDiametro dm <$> [tubod 0.7 dm  , joelho, tubod 9.35 dm,Turn (1/4), joelhoR , tubod 11 dm ,joelhoL , Turn (-1/4) , Perda  (Just dm) ("Valvula","Governo","")100 ,tubod 0.8 dm, joelhoL , tubod 0.62 dm]) tvga2 tg1
           (lg1,tg1) <- (foldl1 (>~>)[ramal (editDiametro dm <$> [tubod bl dm]) ,ramal (editDiametro dm <$> [tubod 0.65 dm]) ,ramal (editDiametro dm <$> [tubod bl dm]) ,ramal (editDiametro dm <$> [tubod 0.65 dm])]) (lvga ,t1)
           tdr <- node (Open 0)
@@ -97,5 +98,5 @@ gridInput  = [(ph (rteto "mezanino"), pregrid  bombamin )]
             dm = dj
             tubod l d = Tubo (Just d) l 100
 
-main = mapConcurrently displayModel gridInput
+main = mapConcurrently solveModel gridInput
 

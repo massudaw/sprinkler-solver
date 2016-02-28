@@ -1,177 +1,134 @@
-{-# LANGUAGE DeriveFunctor,DeriveFoldable #-}
+{-# LANGUAGE MultiParamTypeClasses,FlexibleInstances,GeneralizedNewtypeDeriving,FlexibleContexts,TypeFamilies,DeriveFunctor,DeriveFoldable,DeriveTraversable#-}
+{-# LANGUAGE TupleSections,DeriveFunctor,DeriveFoldable #-}
 module Element where
-import Data.Monoid
-import qualified Data.Map as M
-import Control.Monad
 
+import Position hiding (rotM)
+import Hydraulic
+import qualified Position as P
+import Control.Lens ((^.))
+import Tee hiding (ktubo)
+import Data.Monoid
+import Data.Functor.Identity
+import qualified Data.Map as M
+import GHC.Stack
+import Domains
+import Position
+import Control.Monad
+import Linear.V3
+import Linear.Matrix
+import Linear.Vector
+import Control.Arrow
+import Rotation.SO3
+import qualified Data.Map as M
+import qualified Data.List as L
+import qualified Data.Foldable as F
 
 import Linear.V3
 import Rotation.SO3
 
-data Direction a
-  = Direction a a
-  deriving(Eq,Show,Functor)
 
-isBomba (Bomba _ _ ) = True
-isBomba _ = False
-isSprinkler  (Sprinkler _ _ _ _ ) = True
-isSprinkler _ = False
-isReservoir (Reservatorio _ ) = True
-isReservoir _ = False
 
-data TeTipo
-  = TeBranch
-  | TeRunL
-  | TeRunR
-  deriving(Eq,Show)
+instance PreSys Element  where
+  type NodeDomain Element = Identity
+  type LinkDomain Element= Identity
+  revElem (Joelho i j b k) = Joelho i j (-b) k
+  revElem (Turn i ) = Turn i
+  revElem i = i
 
-data Curva a
-           = Poly [(a,a)]
 
-instance Functor Curva  where
-  fmap f (Poly l ) = Poly $ fmap (\(i,j) -> (f i,f j)) l
+instance Coord Element (V3 Double) where
+  nextElement  = nextS
+  thisElement l i = (\j-> (0,SO3 $ P.rotM $ fmap opi $ (V3 0 0 j))) $ this l i
+    where
+      this l e  = justError "no el" $ M.lookup l  (M.fromList ( els $ first F.toList  e))
+        where
+          els (_,(_,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ))
+            =  [(rl,1/4),(rr,-1/4),(b,0)]
+          els ([a,b],i)
+            =  [(a,0),(b,1/2)]
+          els ([a],i)
+            =  [(a,0)]
+  elemTrans t = (lengthE t , angleE t)
+    where
+      angleE  = SO3 . P.rotM . (\i-> opi i ) . angE
+        where
+          angE :: Fractional a => Element a -> V3 a
+          angE (Joelho _ _ r _ ) = r3 (0,0,r)
+          angE (Turn c) = r3 (c,0,0)
+          angE  i = r3 (0,0,0)
 
-instance Eq (Curva  a) where
-  _ == _ = True
-instance Show (Curva  a) where
-  show _ = ""
 
-data SPKCoverage a = SPKCoverage
-  { xdir :: a
-  , ydir :: a
-  , hdistance :: a
-  , goods :: SPKGoods a
-  }deriving(Eq,Ord,Show,Functor)
-
-data SPKGoods a = SPKGoods
-  { goodsHeight ::  a
-  , goodsClass :: Int
-  }deriving(Eq,Ord,Show,Functor)
-
-coverageArea (SPKCoverage x y _ _ ) = x*y
-
-data Element a
-  = Tubo
-  { diametro :: Maybe a
-  , comprimento :: a
-  , atrito :: a
-  }
-  | Reservatorio
-  { tempo :: a
-  }
-  | Open
-  { openFlow :: a
-  }
-  | DiameterChange
-  { input :: Maybe a
-  , output :: Maybe a
-  , material :: a
-  }
-  | Bomba
-  { nominalValues :: (a,a)
-  , curva :: Curva a
-  }
-  | Tee (TeeConfig a) TeeConfigType
-  | Joelho
-  { diametroJ :: Maybe a
-  , tipoJ :: (String,String,String)
-  , direction :: a
-  , material :: a
-  }
-  | Turn
-  { jointTurn :: a
-  }
-  | Perda
-  { diametroJ :: Maybe a
-  , tipoJ :: (String,String,String)
-  , material :: a
-  }
-  | Sprinkler
-  { tipo :: Maybe (a,a)
-  , diametroJ :: Maybe a
-  , areaCobertura :: SPKCoverage a
-  , densidadeMin ::a
-  }
-  | Te
-  { diametro :: Maybe a
-  , tipoTe ::  TeTipo
-  , pathRight :: [Element a]
-  , pathLeft :: [Element a]
-  }
-
-  | Reduction
-  { diametroRH :: a
-  , diametroRT :: a
-  }
-  | Origem
-  { elements :: [Element a]
-  }
-  deriving(Eq,Show,Functor)
-
-data TeeConfigType = Table | Formula deriving (Eq,Ord,Show)
-
-data TeeConfig a
-  = TeeConfig
-  { teeConfig :: [Int] -- Left Run Branch Right Run
-  , teeRadius :: a
-  , teeDiameterBranch :: a
-  , teeDiameterRun :: a
-  , teeMaterial :: a
-  }
-  deriving(Eq,Ord,Show,Functor)
-
-diametroH ,diametroT:: Element a -> Maybe a
-diametroH (Reduction h _ ) = Just h
-diametroH i = diametroE i
-
-diametroT (Reduction _ t ) = Just t
-diametroT i = diametroE i
-
-diametroE :: Element a -> Maybe a
-diametroE (Tubo d _ _ ) = d
-diametroE (Joelho d _ _ _) = d
-diametroE (Perda d _  _) = d
-diametroE i = Nothing
-
-distanciaE :: (Show a,Ord a,Fractional a )=> Element a -> a
-distanciaE (Tubo _ d _ ) = d
-distanciaE (Joelho (Just dtubom) tipo _ c) =  justError (show ("joelho",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
-distanciaE (Perda   (Just dtubom)  tipo c) = justError (show ("perda",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
-
-materialE :: Show a => Element  a -> a
-materialE (Tubo _ _ c) =  c
-materialE (Joelho _ _ _ c) = c
-materialE (Perda _  _ c) = c
-materialE i = error $ "No Material Defined" ++ show i
+      lengthE :: Num a => Element a -> V3 a
+      lengthE (Tubo _ c _ ) = r3 (c,0,0)
+      lengthE i = 0
+      r3 (x,y,z) = V3 x y z
 
 
 
-joelhos :: (Ord a ,Fractional a,Num a )=> M.Map ((String,String,String),a) (M.Map a a)
-joelhos = M.fromList
-    [((("Conexao","Joelho","90"),130),M.fromList [(32,1.5),(40,3.2),(50,3.4),(65,3.7)])
-    ,((("Conexao","Joelho","90"),100),M.fromList [(25,0.8),(32,1.1),(40,1.3),(50,1.7),(65,2.0),(75,2.5),(80,2.1),(100,3),(125,3.7),(150,4.5),(200,5.5),(250,6.7)])
-    ,((("Valvula","","Gaveta"),100),M.fromList [(25,0.2),(32,0.2),(40,0.3),(50,0.4),(65,0.4),(75,0.5),(80,0.5),(100,0.7),(125,0.9),(150,1.1)])
-    ,((("Bocais","Saida",""),100),M.fromList [(25,0.7),(32,0.9),(40,1.0),(50,1.5),(65,1.9),(75,2.2),(80,2.2),(100,3.2),(125,4.0),(150,5.0)])
-    ,((("Valvula","Retencao",""),100),M.fromList [(25,2.1),(32,2.7),(40,3.2),(50,4.2),(65,5.2),(75,6.3),(80,6.3),(100,8.4),(125,10.4),(150,12.5)])
-    ,((("Conexao","Joelho","45"),100),M.fromList [(25,0.4),(32,0.5),(40,0.6),(50,0.8),(65,0.9),(75,1.2),(80,1.2),(100,1.5),(125,1.9),(150,2.3),(200,3),(250,3.8)])
-    ,((("Conexao","Te","Lateral"),130),M.fromList [(32,4.6),(40,7.3),(50,7.6),(65,7.8),(75,8.0)])
-    ,((("Conexao","Te","Direta"),100),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4),(200,4.3),(250,5.5)])
-    ,((("Conexao","Te","Direta"),100),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4),(200,4.3),(250,5.5)])
-    ,((("Valvula","Governo",""),100),M.fromList [(200 ,8.84),(250 ,9.84)])
-    ,((("Conexao","Te","Lateral"),100),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
-    --,((("Conexao","Te","Lateral"),1000),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
-
-bombaSuccaoFrontal, bombaBipartida :: (Num a ,Fractional a )=> a -> a
-bombaSF ,bombaJohnson2:: Floating a => Curva a
-bombaSF = Poly [(0,151.229),(1,-0.422331),(2,-0.000979227),(3,- 1.194467786948394e-7)]
-bombaJohnson = Poly [ (0,3000/31) ,(1,12/31) ,(2,-324/96875)]
-bombaJohnson2 = Poly [(0,3250/31),(1,111 /775) , (2,-486 /484375),(3,-2187 /302734375 )]
-bombaSuccaoFrontal x = 151.229 - 0.422331*x - 0.000979227*x^2 - 1.194467786948394e-7*x^3
-bombaBP p v  = Bomba (p,v) (Poly [(0,120),(1,0.142857),(2,-0.00134921),(3,-7.936507936507936e-6)])
-bombaBipartida x = 120 + 0.0142857*x - 0.00134921*x^2 - 7.936507936507936e-6*x^3
+pipeElement v e | v < 0 = negate $ pipeElement (abs v) e
+pipeElement v (Bomba  ((pn,vn)) (Poly l ) ) = negate $ (*pn) $ (/100)  $foldr1 (+) (polyTerm <$> l)
+      where polyTerm (0,c) =   c
+            polyTerm (p,c) =   c*(100*v/vn)**p
+-- pipeElement v e@(Resistive k p)  = k*v**p
+pipeElement v e@(Tubo _ _ _)  = (ktubo e)*v**1.85
+pipeElement v e@(Joelho _ _ _ _)  = (ktubo e)*v**1.85
+pipeElement v e@(Perda __ _ _)  = (ktubo e)*v**1.85
+pipeElement v (Turn _)   = 0
 
 
+signedFlow :: (Show a,Floating a )=> Grid Element a -> M.Map Int a ->M.Map Int (M.Map Int a)
+signedFlow g v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromList $ ( ( sumn $ flipped i $ links g) ++   ((suma $ correct i $ links g))) ) (nodesFlow g)
+  where flipped i=  filter (\(_,h,t,_) -> h == i )
+        correct i= filter (\(_,h,t,_) -> t == i )
+        suma =  fmap (\(li,_,_,_) -> (li,var li v ))
+        sumn =  fmap (\(li,_,_,_) ->  (li,negate $ var li v))
+
+jacobianContinuity :: (Show a,Ord a,Floating a )=> Grid Element a -> M.Map Int a -> M.Map Int a -> [a]
+jacobianContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( correct i $ links g))  - nflow i e) $ filter (not . isReservoir . snd) $ nodesFlow g
+  where
+        -- pipeFlow
+        flipped i=  sumn . filter (\(_,h,t,_) -> h == i )
+        correct i= suma . filter (\(_,h,t,_) -> t == i )
+        suma =  fmap (\(li,_,_,_) -> var li v )
+        sumn =  fmap negate . suma
+        -- nodeFlow
+        nflow i e = genFlow (var i pm) e
+        genFlow _ (Open i ) = i
+        genFlow _ (Tee _ _ ) = 0
+        genFlow idf (Sprinkler (Just (_,k)) _ _ _) = k*sqrt(abs idf)
+        genFlow _ (Reservatorio _  ) = errorWithStackTrace "reservatorio doesn't preserve flow"
+
+varn h = maybe 0 id .  M.lookup h
+varr3 h = maybe (V3 0 0  0)  id .  M.lookup h
+
+-- Generic Solver | Node + Head Method
+jacobianNodeHeadEquation :: (Show a,Ord a,Floating a) => Grid Element a -> M.Map Int a ->M.Map Int a -> [a]
+jacobianNodeHeadEquation grid  vm nh =  term <$> l
+  where
+    l = links grid
+    sflow = signedFlow grid vm
+    nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
+    addTee k = maybe 0 id (M.lookup k nodeLosses)
+    term (l,h,t,e) =   sum (pipeElement (var l vm) <$> e) - ( varn h nh  + (varr3 h nhs ^. _z) *9.78235  )  +  addTee (h,l) + addTee (t,l) + ( ((varr3 t nhs ^. _z) *9.81 ) + varn t nh )
+      where
+         nhs = fmap fst (M.fromList $shead grid)
+
+ktubo t  = perda*10/(1000*60)**1.85
+        where
+              d = case diametroE t of
+                       Just d -> d
+                       i -> errorWithStackTrace $ "elemento sem diametro " <>  show t
+              c = materialE t
+              -- note : abs na vazão pois gera NaNs para valores negativos durante iterações
+              perda = 10.65*(distanciaE t)/((c**1.85)*(d**4.87))
 
 
-justError e Nothing = error ("justError" <> e)
-justError _ (Just i) = i
+
+jacobianEqNodeHeadGrid l vh = loops <> nodes
+    where loops =  jacobianNodeHeadEquation l v h
+          nodes =  jacobianContinuity  l v h
+          nlinks =length (links  l)
+          v = M.fromList $ zip (fmap (\(i,_,_,_) -> i) $ links l)  $ take nlinks vh
+          h = M.fromList $ zip ( fmap fst $ nodesFlow l) $ drop nlinks vh
+
+

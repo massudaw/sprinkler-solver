@@ -2,6 +2,7 @@
 module Sprinkler (unrollNode,editDiametro ,formatFloatN )where
 
 import Control.Monad
+import Hydraulic
 import Data.Tuple
 import Control.Monad.Trans.State
 import Numeric

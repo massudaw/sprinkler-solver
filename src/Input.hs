@@ -2,6 +2,8 @@
 module Input ((>~>),link,node,unroll, runInput) where
 
 import Sprinkler
+import Hydraulic
+import Domains
 import Data.Functor.Identity
 import Element
 import Grid

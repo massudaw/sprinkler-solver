@@ -1,7 +1,7 @@
 {-# LANGUAGE RecursiveDo #-}
 module Main where
 import Eletric
-import Element
+import Domains
 import Input
 import Project
 import Graphviz
@@ -28,6 +28,6 @@ testResistor = fst $ runInput $ (mdo
 
 main = do
   putStrLn (displayEquation testResistor circuitEq)
-  let iter = solveCircuit testResistor
-  print $ solveCircuit testResistor
-  renderGraph (drawIterGraph  iter ) "testResistor.png"
+  let iter = solveIter (initIter testResistor) circuitEq
+  print $ iter
+  renderGraph (drawIterGraph  testResistor ) "testResistor.png"

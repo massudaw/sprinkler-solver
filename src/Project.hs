@@ -2,6 +2,8 @@
 module Project where
 
 import Grid
+import Domains
+import Hydraulic
 import Thermal
 import Eletric
 import Rotation.SO3 hiding (rotM)
@@ -31,16 +33,8 @@ path i h t  l = (i,h,t,  l)
 
 jd dir d = Joelho (Just d) ("Conexao","Joelho","90")  dir 100
 
-initIterEletric ::  Num a => Grid Eletric a -> Iteration Eletric a
-initIterEletric g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) (zip (fmap fst <$> filter (not .isGround .snd)  (nodesFlow g))(repeat 100))  g
+makeIter i j g = initIter (realToFrac  <$>  upgradeGrid i j g)
 
-initIterThermal ::  Num a =>Grid Thermal a -> Iteration Thermal a
-initIterThermal g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) (zip ( fmap fst $ filter (not .isAmbient.snd)  (nodesFlow g))(repeat 100))  g
-
-initIterElement ::  Num a =>Grid Element a -> Iteration Element a
-initIterElement g = Iteration ( zip (fmap (\(i,_,_,_)-> i) (links g)) (replicate 10 20 <>  repeat 4 )) ( zip ( fmap fst $ filter (not .isReservoir.snd)  (nodesFlow g))(repeat 100))  g
-
-makeIter i j g = initIterElement (realToFrac  <$>  upgradeGrid i j g)
 
 data ProjectHeader
   = ProjectHeader { projectName :: String
@@ -85,26 +79,20 @@ joelho45R  = Joelho Nothing ("Conexao","Joelho","45") right45  100
 joelho45L  = Joelho Nothing ("Conexao","Joelho","45") left45  100
 
 
-solveThermal :: Grid Thermal Double  -> Iteration Thermal Double
-solveThermal g = solveIter (initIterThermal (fmap realToFrac g))thermalEq
-
-solveCircuit :: Grid Eletric Double  -> Iteration Eletric Double
-solveCircuit g = solveIter (initIterEletric (fmap realToFrac g)) circuitEq
-
 -- testResistor :: SR.Expr
+
 
 displayModel (header,model) = do
   let iter = makeIter 0 1 model
-      fname  = regionFile $ regionInfo header
-  T.writeFile (fname <> "-temp.scad") $openSCAD (drawIter iter )
-  callCommand $ "mv " <> (fname <> "-temp.scad") <>  "  " <> (fname <> ".scad")
+  T.writeFile (header <> "-temp.scad") $openSCAD (drawIter iter )
+  callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
 
 
 solveModel (header ,model) = do
   let
        iter = solveIter (makeIter 0 1 model ) jacobianEqNodeHeadGrid
        fname  = regionFile $ regionInfo header
-  reportIter header 0 iter
+  -- reportIter header 0 iter
   print $ "renderReport" <> (fname <> ".csv")
   let sofficec = "soffice --convert-to xls --infilter=csv:\"Text - txt - csv (StarCalc)\":59/44,34,0,1,,1033,true,true  " <> fname <> ".csv"
   putStrLn sofficec
@@ -133,10 +121,9 @@ data CyclePoint a b
   deriving(Eq,Show,Ord)
 
 
-nodesFlowSet g = findNodesLinks g $ fmap (\n@(ni,_) -> (ni,n)) $nodesFlow $ g
 
 
-upgradeGrid :: Int -> Int -> Grid Element Double -> Grid  Element Double
+upgradeGrid :: (Show (f Double) , Coord f (V3 Double)) => Int -> Int -> Grid f Double -> Grid  f Double
 upgradeGrid ni li a = a {shead = M.toList nodesPos, linksPosition = M.toList linksPos}
   where
     (nodesPos,linksPos) =  snd $ runState (do
@@ -164,6 +151,7 @@ recurse render r@(Left n@(ni,lks,e)) = do
 sf2 = show -- formatFloatN 2
 sf3 = show -- formatFloatN 3
 
+{-
 reportIter :: ProjectHeader -> Int -> Iteration Element Double -> IO ()
 reportIter header i iter@(Iteration f h a)  = do
     let name = regionFile $ regionInfo header
@@ -228,9 +216,11 @@ reportIter header i iter@(Iteration f h a)  = do
     expandLink st (Just f) (i,j@(Joelho (Just d)  (_,_,c)  _ _ ) ) = [st <> show i , sf3 d, sf2 $Grid.ktubo j*(abs f)**1.85,"Joelho " <> c]
     expandLink st (Just f) (i,j@(Perda (Just d)  (s,m,c)   _ ) ) = [st <> show i , sf3 d, sf2 $Tee.ktubo j (abs f/1000/60),s <> m <> c]
 
+-}
 
 
 
+{-
 expandGrid a = runState (recurseNode  [] (lookNode (fst $ head sortedHeads))) (S.empty,S.empty)
   where
     recurseNode path t@(n,l@(s,_)) = do
@@ -252,7 +242,7 @@ expandGrid a = runState (recurseNode  [] (lookNode (fst $ head sortedHeads))) (S
     sortedHeads = L.sortBy (flip (comparing (\(i,p) ->  totalHead 0.08 p ((/2) $ sum $ fmap (abs .snd ) $ S.toList $ fst $ var i nodeMap))))  (pressures a)
     nodeMap =  fmap (\(s,i) -> (S.map (\si-> (si,var si linkflow)) s, i) ) $ M.fromList $findNodesLinks (grid a) $ (fmap (Left ) <$>  (shead $ grid a )) <> (fmap Right <$> (nodesFlow $ grid a))
     linkMap = M.fromList $ (\l@(i,_,_,_) -> (i,l)) <$> (links $ grid a)
-
+-}
 
 findNodesLinks grid = fmap (\(i,n) -> (i,(var i nodeMapSet,n)))
     where nodeMapSet = fmap S.fromList $ M.fromListWith mappend $ concat $ (\(l,h,t,_) -> [(h,[l ]),(t,[l ])]) <$> links grid

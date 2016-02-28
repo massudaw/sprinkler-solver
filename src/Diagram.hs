@@ -2,6 +2,7 @@
 module Diagram (diagramRender) where
 
 import Grid
+import Hydraulic
 import qualified Linear.V3 as V3
 import Debug.Trace
 import Lint
