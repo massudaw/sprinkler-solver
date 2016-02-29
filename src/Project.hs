@@ -95,7 +95,7 @@ solveModel (header ,model) = do
   let
        iter = solveIter (makeIter 0 1 model ) jacobianEqNodeHeadGrid
        fname  = regionFile $ regionInfo header
-  -- reportIter header 0 iter
+  reportIter header 0 iter
   print $ "renderReport" <> (fname <> ".csv")
   let sofficec = "soffice --convert-to xls --infilter=csv:\"Text - txt - csv (StarCalc)\":59/44,34,0,1,,1033,true,true  " <> fname <> ".csv"
   putStrLn sofficec
@@ -183,7 +183,7 @@ reportIter header i iter@(Iteration f h a)  = do
     spkReport = L.intercalate "\n" $ L.intercalate ","  . (\(ix,p,e@(Sprinkler (Just (d,k )) (dl) f a ))-> [show ix , formatFloatN 2 p ,   formatFloatN 2 $ k*sqrt p]  ) <$>    sprinklers
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTeeEl conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow a
     addTee k = maybeToList (M.lookup k nodeLosses)
-    sflow = signedFlow a  (justError "noflow " .runIdentity .getCompose <$> M.fromList f)
+    sflow = signedFlow a  (justError "no flow " .runIdentity .getCompose <$> M.fromList f)
 
     projectHeader =  L.intercalate "\n" ["Projeto," <> projectName header   ,"Proprietário," <> projectOwner header , "Endereço," <> endereco header, formation ainfo <> "," <> authorName ainfo , "Crea," <> creaNumber ainfo , "Empresa," <>   empresa ainfo , "Região Cálculo," <> regionName (regionInfo header)]
         where ainfo = authorInfo header

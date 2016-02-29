@@ -34,7 +34,9 @@ instance PreSys Element  where
   revElem (Joelho i j b k) = Joelho i j (-b) k
   revElem (Turn i ) = Turn i
   revElem i = i
-
+  constrained (Reservatorio i) = Identity (Just i)
+  constrained i = Identity $ Nothing
+  lconstrained i = Identity $ Nothing
 
 instance Coord Element (V3 Double) where
   nextElement  = nextS
