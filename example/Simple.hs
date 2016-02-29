@@ -4,6 +4,7 @@ module Main where
 
 import Data.Monoid
 import Project
+import Hydraulic
 import Sprinkler
 import Input
 import Element
@@ -11,7 +12,7 @@ import Element
 import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
-main = mapM displayModel [testGrid,testGrid2]
+main = mapM solveModel [testGrid,testGrid2]
 
 testGrid2 = (ph (rteto "simple2"),) $ fst $ runInput $ mdo
    let dm = 0.08

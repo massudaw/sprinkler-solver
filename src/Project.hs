@@ -2,7 +2,10 @@
 module Project where
 
 import Grid
+import Element
 import Domains
+import Data.Functor.Compose
+import Data.Functor.Identity
 import Hydraulic
 import Thermal
 import Eletric
@@ -84,7 +87,7 @@ joelho45L  = Joelho Nothing ("Conexao","Joelho","45") left45  100
 
 displayModel (header,model) = do
   let iter = makeIter 0 1 model
-  T.writeFile (header <> "-temp.scad") $openSCAD (drawIter iter )
+  T.writeFile (header <> "-temp.scad") $openSCAD (drawGrid $ grid iter )
   callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
 
 
@@ -98,7 +101,7 @@ solveModel (header ,model) = do
   putStrLn sofficec
   -- callCommand $ sofficec
   print $ "renderReport " <> (fname <> ".xls")
-  let scadFile = openSCAD (drawIter iter )
+  let scadFile = openSCAD (drawGrid $ grid iter )
   T.writeFile (fname <> "-temp.scad") scadFile
   let movefile = "mv " <> (fname <> "-temp.scad") <>  "  " <> (fname <> ".scad")
   callCommand movefile
@@ -151,7 +154,7 @@ recurse render r@(Left n@(ni,lks,e)) = do
 sf2 = show -- formatFloatN 2
 sf3 = show -- formatFloatN 3
 
-{-
+
 reportIter :: ProjectHeader -> Int -> Iteration Element Double -> IO ()
 reportIter header i iter@(Iteration f h a)  = do
     let name = regionFile $ regionInfo header
@@ -170,17 +173,17 @@ reportIter header i iter@(Iteration f h a)  = do
     resc= res "Resíduo Node Head" (L.take (length (flows iter)) residual)
     resnh = res "Resíduo Continuity" (L.drop (length (flows iter)) residual)
     residuos = "Dados Solução\n\n" <> resnh <> "\n"  <>resc
-    vazao = fromJustE "no flow for node 1 " $ M.lookup 1 (M.fromList f)
+    vazao = fromJustE "no flow for node 1 " $ join $ M.lookup 1 fm
     bomba :: Element Double
     bomba@(Bomba (pn,vn)   _) = fromJustE "no pump"$ join $ L.find isBomba . (\(_,_,_,l) -> l)<$> L.find (\(_,_,_,l) -> L.any isBomba l ) (links a )
     pressao = abs $ pipeElement vazao bomba
-    sprinklers =  fmap (\(i,e) -> (i,fromJustE "no sprinkler" $ M.lookup i  (M.fromList h ),e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
+    sprinklers =  fmap (\(i,e) -> (i,fromJustE "no sprinkler" $ join $ M.lookup i  hm ,e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
     areaSprinkler =  sum $ fmap coverageArea ((\(_,_,i) -> areaCobertura i)<$> sprinklers)
     (_,_,Sprinkler (Just (dsp,ksp))  _ _ _) = head sprinklers
     spkReport = L.intercalate "\n" $ L.intercalate ","  . (\(ix,p,e@(Sprinkler (Just (d,k )) (dl) f a ))-> [show ix , formatFloatN 2 p ,   formatFloatN 2 $ k*sqrt p]  ) <$>    sprinklers
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTeeEl conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow a
     addTee k = maybeToList (M.lookup k nodeLosses)
-    sflow = signedFlow a  (M.fromList f)
+    sflow = signedFlow a  (justError "noflow " .runIdentity .getCompose <$> M.fromList f)
 
     projectHeader =  L.intercalate "\n" ["Projeto," <> projectName header   ,"Proprietário," <> projectOwner header , "Endereço," <> endereco header, formation ainfo <> "," <> authorName ainfo , "Crea," <> creaNumber ainfo , "Empresa," <>   empresa ainfo , "Região Cálculo," <> regionName (regionInfo header)]
         where ainfo = authorInfo header
@@ -190,17 +193,17 @@ reportIter header i iter@(Iteration f h a)  = do
             ,"Sprinkler\nTipo,ESFR\n"  {-<> "Diâmetro,25,mm\n" <> "Area,9,m²\n" <> -}<> "K," <> sf2 ksp <> ",L/min/(kpa^(-1/2))\n"<> "Vazão Mínima," <> sf2 (ksp*sqrt 350) <>  ",L/min\n" <> "Pressão Mínima,350,kpa\n" <> "Area Projeto;" <> sf3 areaSprinkler <>  ";m²\n" <> "Quantidade Bicos," <> show (L.length sprinklers) <> ",un" ] <>  "\nId,Pressão(kpa),Vazão(L/min)\n" <> spkReport <>  "\n\n" <>residuos
 
     nmap = (\n@(ni,s,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 2 $ maybe 0 id $p ni , formatFloatN 2 $h  ni,"",""] ++  expandNode (p ni) e )
-        where p ni =  varM ni hm
+        where p ni =  join $ varM ni hm
               h ni =  fst ( (fromJustE $"no position pressure for node " <> show ni) (varM ni  pm)) ^. _z
     lmap = (\n@(ni,h,t,e) ->  L.intercalate "," ["T-"<> show h <>  "-" <> show t ,"","",formatFloatN 2 $  maybe 0 id (abs <$> p ni) ,formatFloatN 2  $ abs (pr h - pr t),"Trecho"])
-        where pr ni =  maybe 0 id (varM ni hm)
-              p ni =  varM ni fm
+        where pr ni =  maybe 0 id (join $ varM ni hm)
+              p ni =  join $ varM ni fm
     lsmap n@(ni,h,t,e) = L.intercalate "\n" $ fmap (L.intercalate ",") $ (mainlink:) $ expandLink (lname <>  "-") (p ni) <$>  zip [0..] (addTee (h,ni) <> e <> addTee (t ,ni))
-        where p ni =  varM ni fm
-              mainlink = [lname  , "", show $ fromMaybe 0 (varM h hm ) - fromMaybe 0 (varM t hm),"", ""]
+        where p ni =  join $ varM ni fm
+              mainlink = [lname  , "", show $ fromMaybe 0 (join $ varM h hm ) - fromMaybe 0 (join $ varM t hm),"", ""]
               lname = "T-"<> show h <>  "-" <> show t
-    fm = M.fromList f
-    hm = M.fromList h
+    fm = runIdentity . getCompose <$> M.fromList f
+    hm = runIdentity . getCompose <$> M.fromList h
     pm = M.fromList (shead a )
     nodeHeader = ["ID","Pressão Dinâmica (kpa)","Altura (m)","Vazão (L/min)","Perda (kpa)","Elemento"]
     expandNode (Just p) (Sprinkler (Just (d,k)) (dl) f a ) = ["Sprinkler"]
@@ -210,13 +213,13 @@ reportIter header i iter@(Iteration f h a)  = do
     expandNode _ (Open i )  = ["Hidrante"]
     expandNode _ i = []
     linkHeader = ["SubTrecho","Diametro (m)","Perda (kpa)","Elemento","Comprimento (m)"]
-    expandLink st (Just f) (i,t@(Tubo (Just d ) dl  _)) = [st <> show i ,  sf3 d , sf2$   Grid.ktubo t*(abs f)**1.85,"Tubo " , sf3 dl ]
+    expandLink st (Just f) (i,t@(Tubo (Just d ) dl  _)) = [st <> show i ,  sf3 d , sf2$   Element.ktubo t*(abs f)**1.85,"Tubo " , sf3 dl ]
     expandLink st (Just f) (i,t@(Turn   _)) = [st <> show i ,  "" , "","Turn" , "" ]
     expandLink st (Just f) (i,b@(Bomba (d,_)  dl  )) = [st <> show i, "", sf2 $ pipeElement f b,"Bomba"]
-    expandLink st (Just f) (i,j@(Joelho (Just d)  (_,_,c)  _ _ ) ) = [st <> show i , sf3 d, sf2 $Grid.ktubo j*(abs f)**1.85,"Joelho " <> c]
+    expandLink st (Just f) (i,j@(Joelho (Just d)  (_,_,c)  _ _ ) ) = [st <> show i , sf3 d, sf2 $Element.ktubo j*(abs f)**1.85,"Joelho " <> c]
     expandLink st (Just f) (i,j@(Perda (Just d)  (s,m,c)   _ ) ) = [st <> show i , sf3 d, sf2 $Tee.ktubo j (abs f/1000/60),s <> m <> c]
 
--}
+
 
 
 

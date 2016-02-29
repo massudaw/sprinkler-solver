@@ -3,6 +3,7 @@
 module Main where
 
 import Data.Monoid
+import Hydraulic
 import Project
 import Sprinkler
 import Input

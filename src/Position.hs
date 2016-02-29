@@ -26,8 +26,8 @@ class RBackend a where
   errorItem :: a
 
 class RBackend a => Target sys a  where
-  renderNode :: [Double] -> (S.Set Int,(Double,(Int,sys Double))) -> a
-  renderLink ::  (Double,Double) -> (Int,Int) ->  Int  -> Int -> sys Double -> a
+  renderNode :: S.Set Int -> Int -> sys Double -> a
+  renderLink ::  (Int,Int) -> Int -> Int -> sys Double -> a
 
 
 
@@ -113,6 +113,7 @@ transEleml i e =  trans i (elemTrans e)
 varM i j = case M.lookup i j of
               Nothing ->  Nothing
               i -> i
+
 drawGrid iter = L.foldr1 (<>) $ nds <> lds
   where nds = styleNodes iter
         lds = styleLinks iter
@@ -120,7 +121,7 @@ drawGrid iter = L.foldr1 (<>) $ nds <> lds
                 pos <- varM (fst i) gridMap
                 -- pres <- varM (fst i) (M.fromList (pressures it))
                 let pres = 0
-                return $ transformElement  pos $ renderNode [0,0] (S.empty ,((abs $ fst pos ^. _z ) *0 + pres,i))) (nodesFlow it)
+                return $ transformElement  pos $ renderNode S.empty (fst i ) (snd i) ) (nodesFlow it)
           where -- metrics = [maximum (snd <$> flows it), minimum (snd <$> flows it)]
                 gridMap = (M.fromList (shead $ it))
 
@@ -129,12 +130,12 @@ drawGrid iter = L.foldr1 (<>) $ nds <> lds
                     pos <- varM l  posMap
                     return $ catMaybes $ zipWith3 (\m ix n ->  do
                       let flow = 0
-                      return $ transformElement m $ renderLink (flow ,1 ) (h,t) ix  l n ) pos  [0..] i ) (links (it))
+                      return $ transformElement m $ renderLink  (h,t) ix  l n ) pos  [0..] i ) (links (it))
           where -- [max,min]= [maximum (snd <$> flows it), minimum (snd <$> flows it)]
                 -- nf f =  abs f /(max - min)
                 posMap = M.fromList $ linksPosition (it)
                 -- flowMap  = M.fromList (flows it)
-
+{-
 
 -- styleNodes :: Iteration Double -> [Mecha.Solid]
 drawIter iter = L.foldr1 (<>) $ nds <> lds
@@ -158,20 +159,20 @@ drawIter iter = L.foldr1 (<>) $ nds <> lds
                 -- nf f =  abs f /(max - min)
                 posMap = M.fromList $ linksPosition (grid it)
                 -- flowMap  = M.fromList (flows it)
+-}
 
 drawIterGraph  iter = L.foldr1 (<>) $ nds <> lds
   where nds = styleNodes iter
         lds = styleLinks iter
         styleNodes  it = catMaybes $ fmap (\i -> do
-                let  pres  = Just 0 -- varM (fst i) (M.fromList (pressures it))
-                return $ renderNode [0,0] (S.empty ,(fromMaybe 0  pres,i))) (nodesFlow (it))
+                return $ renderNode S.empty  (fst i) (snd i) ) (nodesFlow (it))
           where
                 gridMap = (M.fromList (shead $ it))
 
         --styleLinks :: Iteration Double -> [Mecha.Solid]
         styleLinks it = concat $ catMaybes $  fmap (\(l,h,t,i)  -> do
                     return $ catMaybes $ zipWith3 (\m ix n ->  do
-                      return $ renderLink (0 ,0 ) (h,t) ix  l n ) [0..] [0..] i ) (links (it))
+                      return $ renderLink  (h,t) ix  l n ) [0..] [0..] i ) (links (it))
 
 
 

@@ -34,37 +34,18 @@ import Diagrams.TwoD.Text (Text)
 
 
 
-{-renderElem
-  ::
-          [Double] -> (S.Set Int, (Double,(Int, Element Double)))
-     ->  (Diagram SVG R2)-}
-renderElem _ (s,(p,(n,Open i))) =  regPoly 6 0.1 -- text (show n) # fontSizeL 0.1 # fc white <> circle 0.1 # fc green # lwL 0.04
-renderElem _ (s,(p,(n,Tee (TeeConfig tc@[rl,b,rr] _ _ _ _) _ ) )) =   regPoly 3 0.1 -- text (show n ) # fontSizeL 0.2 # fc black <> rotateBy (1/4) (triangle 0.4) # fc red # lwL 0.04
-renderElem [maxf,minf] ite@((s,(p,(n,Sprinkler (Just (d,k))  _ _ _) ))) =  regPoly 5 0.1 {-sp
-  where
-        nf = (k*sqrt p)/(maxf -minf)
-        sp = text (show n ) # fontSizeL 0.2 # fc black <> circle 0.2 # opacity (0.3 + 0.7*nf) # fc darkblue # lwL 0.001 <> circle 0.21 #lwL 0.04 <> flabel <> plabel
-        flabel = translate (r2 (0,-0.45)) (text (formatFloatN 2 (k*sqrt p) ++ " L/min") # fontSizeL 0.2 )
-        plabel = translate (r2 (0,-0.70)) (text (formatFloatN 2 p ++ " kpa") # fontSizeL 0.2 )-}
-renderElem _ i = regPoly 4 0.1 -- error $  show i
+renderElem s n (Open i) =  regPoly 6 0.1
+renderElem s n (Tee (TeeConfig tc@[rl,b,rr] _ _ _ _) _ ) = regPoly 3 0.1
+renderElem s n (Sprinkler (Just (d,k))  _ _ _) = regPoly 5 0.1
+renderElem  _ _ _ = regPoly 4 0.1
 
-{-renderLinkSVG :: (Renderable Text b,
-                      Renderable (Path R2) b ) =>
-                      (Double,Double)
-                      -> Int
-                      -> Element Double
-                      -> Diagram b R2-}
-renderLinkSVG (f,nf) _ sl l t@(Tubo _ c _) =   (line ) -- <> foldr1 mappend (zipWith (\i j-> translate (r3 (c/2,(0.4 - 0.2*i ),0)) j ) [0..] [label , dlabel , llabel , flabel]))
+renderLinkSVG  _ sl l t@(Tubo _ c _) =   line
   where
-    -- label  = text (show l) # fontSizeL 0.2 -- # fc black
-    -- dlabel  = text (show (1000* (fromJust $ diametroE t)) ++ " cm" ) # fontSizeL 0.2 -- # fc black
-    -- llabel  = text (show (1000*  c ) ++ " cm" ) # fontSizeL 0.2 -- # fc black
-    --flabel  = text ((formatFloatN 2 f) ++ " L/min" ) # fontSizeL 0.2 -- # fc black
-    line =  translateX (c/2) (if f > 0 then ahead else reflectX ahead )<> (fromOffsets [c *^ unitX ] ) -- # lwL 0.04# opacity (0.3 + 0.7*nf)
-renderLinkSVG f _ sl l j@(Joelho _ _ _ _ )  =  joelho
+    line =  translateX (c/2) ahead <> (fromOffsets [c *^ unitX ] )
+renderLinkSVG  _ sl l j@(Joelho _ _ _ _ )  =  joelho
   where
     joelho = fromOffsets [0.1 *^ unitX,0.1 *^ unitY]
-renderLinkSVG f _ sl l i = mempty
+renderLinkSVG  _ sl l i = mempty
 
 instance RBackend (Path V3 Double) where
   type TCoord (Path V3 Double ) = V3 Double

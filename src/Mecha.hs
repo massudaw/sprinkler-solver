@@ -20,12 +20,14 @@ import Diagrams.Prelude
 
 
 
-renderElemMecha  _ (_,(_,(ni,Open i))) = Mecha.color (0,1,0,1) $ Mecha.sphere 0.1
-renderElemMecha  _ (_,(_,(ni,Reservatorio  i))) = (Mecha.color (1,1,1,1) $ Mecha.sphere 0.5 )<>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
+renderElemMecha  _ ni (Open i) = Mecha.color (0,1,0,1) $ Mecha.sphere 0.1
+renderElemMecha  _ ni (Reservatorio  i) = (Mecha.color (1,1,1,1) $ Mecha.sphere 0.5 )<>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
 
-renderElemMecha  _ (_,(_,(ni,Tee (TeeConfig _ r i j _ ) _ ))) = (Mecha.color (1,0,0,1) $ Mecha.rotateY (-pi/2) $ Mecha.moveZ (-0.5*j) $ Mecha.cone i (2*j) (2*j)) <>  (Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
+renderElemMecha  _ ni (Tee (TeeConfig _ r i j _ ) _ ) = (Mecha.color (1,0,0,1) $ Mecha.rotateY (-pi/2) $ Mecha.moveZ (-0.5*j) $ Mecha.cone i (2*j) (2*j)) <>  (Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
 
-renderElemMecha  [maxf,minf] (_,(p,(ni,Sprinkler (Just (d,k)) _ fa@(SPKCoverage sx sy sz (SPKGoods g _ ) ) a ))) = (coloring $ Mecha.sphere 0.15) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni))) -- <> goods
+renderElemMecha  _ ni (Sprinkler (Just (d,k)) _ fa@(SPKCoverage sx sy sz (SPKGoods g _ ) ) a ) = (Mecha.sphere 0.15) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
+
+{-renderElemMecha  [maxf,minf] (_,(p,(ni,Sprinkler (Just (d,k)) _ fa@(SPKCoverage sx sy sz (SPKGoods g _ ) ) a ))) = (coloring $ Mecha.sphere 0.15) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni))) -- <> goods
   where
         nf = f /( maxf - minf )
         nfa = (f - coverageArea fa*a)/( maxf - minf )
@@ -34,15 +36,16 @@ renderElemMecha  [maxf,minf] (_,(p,(ni,Sprinkler (Just (d,k)) _ fa@(SPKCoverage 
         goods = Mecha.moveZ (-sz)  (Mecha.scale (0.8*sx,0.8*sy,1.1*g) (Mecha.color (1,0.0,0, 1 ) $ Mecha.cube  1)) <> Mecha.moveZ (-sz) inner
           where
             inner =  Mecha.color (0.2,0.2,1, 1 ) $  Mecha.difference (Mecha.scale (sx,sy,g) (Mecha.cube  1)) (Mecha.scale (0.8*sx,0.8*sy,1.1*g) (Mecha.cube 1))
+-}
+renderElemMecha  s ni i = error $ show (s,ni,i)
 
-renderElemMecha  _ i = error $ show i
-
-renderLinkMecha (f,nf)  _ nis ni (Tubo (Just d)  c _ ) = (Mecha.color (0.2,0.2,1, 1 ) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (c*0.9999)) <> Mecha.moveY (d/2) (Mecha.moveX (c/2)(Mecha.scale (0.03,0.03,0.03) $  (Mecha.text (show ni <> "-" <> show nis ))))
+renderLinkMecha  _ nis ni (Tubo (Just d)  c _ ) = (Mecha.color (0.2,0.2,1, 1 ) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (c*0.9999)) <> Mecha.moveY (d/2) (Mecha.moveX (c/2)(Mecha.scale (0.03,0.03,0.03) $  (Mecha.text (show ni <> "-" <> show nis ))))
+-- renderLinkMecha (f,nf)  _ nis ni (Tubo (Just d)  c _ ) = (Mecha.color (0.2,0.2,1, 1 ) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (c*0.9999)) <> Mecha.moveY (d/2) (Mecha.moveX (c/2)(Mecha.scale (0.03,0.03,0.03) $  (Mecha.text (show ni <> "-" <> show nis ))))
 -- renderLinkMecha (f,nf)  _ (Tubo (Just d)  c _ ) = Mecha.color (0.2,0.2,1, 0.3 +0.7*nf) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (c*0.9999)
 
-renderLinkMecha _ _ nis ni (Joelho (Just d)  c _  _  ) = Mecha.sphere d <> (Mecha.scale (0.03,0.03,0.03) $ Mecha.text (show ni <> "-" <> show nis ))
-renderLinkMecha _ _ nis ni  (Bomba i  v ) = Mecha.moveX (0.03/2) $ Mecha.sphere 0.4 <> (Mecha.scale (0.03,0.03,0.03) $ Mecha.text (show ni <> "-" <> show nis ))
-renderLinkMecha _ _ nis _  o = Mecha.sphere 0.02
+renderLinkMecha  _ nis ni (Joelho (Just d)  c _  _  ) = Mecha.sphere d <> (Mecha.scale (0.03,0.03,0.03) $ Mecha.text (show ni <> "-" <> show nis ))
+renderLinkMecha  _ nis ni  (Bomba i  v ) = Mecha.moveX (0.03/2) $ Mecha.sphere 0.4 <> (Mecha.scale (0.03,0.03,0.03) $ Mecha.text (show ni <> "-" <> show nis ))
+renderLinkMecha  _ nis _  o = Mecha.sphere 0.02
 
 instance RBackend Mecha.Solid where
   type TCoord Mecha.Solid = V3 Double
@@ -51,23 +54,23 @@ instance RBackend Mecha.Solid where
     where (V3 ax ay az) = unRot231 . SO3  $  distribute $ unSO3 s
 
 instance Target Force Mecha.Solid  where
-  renderNode  _ (_,(_,(ni,_))) =   Mecha.color (0,1,0,1) $ Mecha.sphere 0.1 <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
-  renderLink _ _  nis  ni  (Beam i )  =  (Mecha.color (0.2,0.2,1, 1 ) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (i*0.9999))
+  renderNode  _ ni _ =   Mecha.color (0,1,0,1) $ Mecha.sphere 0.1 <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
+  renderLink  _  nis  ni  (Beam i )  =  (Mecha.color (0.2,0.2,1, 1 ) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (i*0.9999))
     where d = 0.03
-  renderLink _ _  nis ni (BeamTurn _  ) = Mecha.sphere d
+  renderLink  _  nis ni (BeamTurn _  ) = Mecha.sphere d
     where d = 0.03
-  renderLink _ _  nis ni (BTurn _  ) = Mecha.sphere d
+  renderLink  _  nis ni (BTurn _  ) = Mecha.sphere d
     where d = 0.03
-  renderLink _ _ nis ni (Load2D x y  ) =  Mecha.color (0,1,0,1) $ Mecha.scale  (is,is,is) (arrow3d x) <> Mecha.scale  (js,js,js) (Mecha.rotateZ (pi/2) $arrow3d y)
+  renderLink  _ nis ni (Load2D x y  ) =  Mecha.color (0,1,0,1) $ Mecha.scale  (is,is,is) (arrow3d x) <> Mecha.scale  (js,js,js) (Mecha.rotateZ (pi/2) $arrow3d y)
     where is = (x/norm i )
           js = (y/norm i)
           i = V3 x y 0
-  renderLink _ _ nis ni (Load3D i@(V3 x y z) j ) =  Mecha.color (0,1,0,1) $ Mecha.scale  (is,is,is) (arrow3d x) <> Mecha.scale  (js,js,js) (Mecha.rotateZ (pi/2) $arrow3d y)<> Mecha.scale  (ls,ls,ls) (Mecha.rotateY (pi/2) $arrow3d z)
+  renderLink  _ nis ni (Load3D i@(V3 x y z) j ) =  Mecha.color (0,1,0,1) $ Mecha.scale  (is,is,is) (arrow3d x) <> Mecha.scale  (js,js,js) (Mecha.rotateZ (pi/2) $arrow3d y)<> Mecha.scale  (ls,ls,ls) (Mecha.rotateY (pi/2) $arrow3d z)
     where is = (x/norm i )
           js = (y/norm i)
           ls = (z/norm i)
-  renderLink _ _ nis ni (Load  ) =  Mecha.color (0,1,0,1) $  (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show (ni,nis))))
-  renderLink _ _ nis ni (Load2D  _ _ ) =  Mecha.color (0,1,0,1) $  (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show (ni,nis))))
+  renderLink  _ nis ni (Load  ) =  Mecha.color (0,1,0,1) $  (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show (ni,nis))))
+  renderLink  _ nis ni (Load2D  _ _ ) =  Mecha.color (0,1,0,1) $  (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show (ni,nis))))
 
 
 arrow3d ni = (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
