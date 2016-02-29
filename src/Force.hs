@@ -70,21 +70,19 @@ instance PreSys Force where
         Friction x -> (V3 (Just 0) Nothing (Just 0) ,V3 (Just 0) (Just 0) (Just 0) )
     constr i  = (Just <$> 0,Just <$> 0)
 
-momentForceEquations :: (Floating a,Fractional a ,Show a ,PreSys Force,Ord a  ,Num a) =>Grid  Force a -> [a] -> [a]
-momentForceEquations g h =  traceShow (length $ concat eqs) $ fmap sum $  concat eqs
+momentForceEquations = (\l v h -> momentForce l (fmap unForces . getCompose <$> v) (unForces <$> h) )
+
+momentForce g linksIn nodesIn = fmap sum $  concat eqs
   where
     eqs = traceShowId $ eqLink <$> l
     forces vars = transpose $ fmap (\((f,m),(p,r)) ->  (unSO3 r !*! rotM pi)!*  f) vars
     moments vars = transpose $ fmap (\(((f,m)),(p,r)) ->  m ^+^ ((unSO3 r  !*! rotM pi ) !*  f ) `cross` p )  vars
-    nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip  (nodesIn) (reverse $ snd <$> shead g)
-    (nodesIn,linksIn) = fst $ runState ((,) <$> nodesInP <*> linksInP ) (traceShowId h <> replicate 10 100)
-    nodesInP = traverse (traverse (fmap unForces . traverse parse .constrained)) (nodesFlow g)
-    linksInP = traverse (traverse (fmap (fmap unForces  .getCompose ). traverse parse .lconstrained)) (fmap (\(i,_,_,j) -> (i,j)) $ links g)
+    nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip  (M.toList nodesIn) (reverse $ snd <$> shead g)
     l = reverse $ links g
     -- eqLink (i,h,t,l) =  ( F.toList $forces vars )<>  ( F.toList $ moments vars)
     eqLink (i,h,t,l) =  (L.take 2 $  F.toList $forces vars )<>  ( L.drop 2 $ F.toList $ moments vars)
       where
-        pos = zip ((\(i,j) -> (i , j)) <$> (traceShowId $  var i (M.fromList linksIn)) ) (var i (M.fromList (linksPosition g)))
+        pos = zip ((\(i,j) -> (i , j)) <$> var i linksIn ) (var i (M.fromList (linksPosition g)))
         vars = [nvarsEl False h ] <> pos <> [ nvarsEl True t ]
         nodeEq b (Support (Friction f)) ((fv@(V3 fvx fvy fvz),m),p@(_,rot)) = ((atrito ,m),p)
           where atrito

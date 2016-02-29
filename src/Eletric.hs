@@ -63,13 +63,8 @@ circuitContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( c
         genFlow _ Ground = 0
         nflow i e = genFlow (var i pm) e
 
-circuitEq l vh = loops <> nodes
-    where loops =  circuitPotential l v h
-          nodes =  circuitContinuity l v h
-          nlinks =length (links  l)
-          v = M.fromList $ zip (fmap (\(i,_,_,_) -> i) $ links l)  $ take nlinks vh
-          h = M.fromList $ zip ( fmap fst $ nodesFlow l) $ drop nlinks vh
 
+circuitEq = (\l v h -> circuitPotential l (runIdentity <$> v) (runIdentity <$> h) <> circuitContinuity l (runIdentity <$> v) (runIdentity <$> h))
 
 circuitElement v (Resistor i ) = v*i
 circuitElement _ (VoltageSource i ) = i

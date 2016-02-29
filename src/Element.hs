@@ -124,13 +124,6 @@ ktubo t  = perda*10/(1000*60)**1.85
               -- note : abs na vazão pois gera NaNs para valores negativos durante iterações
               perda = 10.65*(distanciaE t)/((c**1.85)*(d**4.87))
 
-
-
-jacobianEqNodeHeadGrid l vh = loops <> nodes
-    where loops =  jacobianNodeHeadEquation l v h
-          nodes =  jacobianContinuity  l v h
-          nlinks =length (links  l)
-          v = M.fromList $ zip (fmap (\(i,_,_,_) -> i) $ links l)  $ take nlinks vh
-          h = M.fromList $ zip ( fmap fst $ nodesFlow l) $ drop nlinks vh
-
+jacobianEqNodeHeadGrid :: (Show a , Ord a ,Floating a) => Grid Element a -> M.Map Int (LinkDomain Element a) -> M.Map Int (LinkDomain Element  a) -> [a]
+jacobianEqNodeHeadGrid = (\l v h -> jacobianNodeHeadEquation l (runIdentity <$> v) (runIdentity <$> h) <> jacobianContinuity l (runIdentity <$> v) (runIdentity <$> h))
 

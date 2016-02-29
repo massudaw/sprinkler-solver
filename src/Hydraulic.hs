@@ -39,15 +39,8 @@ data TeTipo
   | TeRunR
   deriving(Eq,Show)
 
-data Curva a = Poly [(a,a)]
+data Curva a = Poly [(a,a)] deriving(Eq,Show,Functor)
 
-instance Functor Curva  where
-  fmap f (Poly l ) = Poly $ fmap (\(i,j) -> (f i,f j)) l
-
-instance Eq (Curva  a) where
-  _ == _ = True
-instance Show (Curva  a) where
-  show _ = ""
 
 data SPKCoverage a = SPKCoverage
   { xdir :: a

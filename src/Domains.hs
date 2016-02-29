@@ -12,6 +12,7 @@ module Domains
   ,parse
   ,parseTup
   ,parseT
+  ,prepareModel
   ,justError
   ,PreCoord(..)
   ,Coord(..)
@@ -111,3 +112,13 @@ parseT  v = do
 
 justError e Nothing = error ("justError" <> e)
 justError _ (Just i) = i
+
+prepareModel l model vh = model l v h
+    where
+      v = M.fromList linksIn
+      h = M.fromList nodesIn
+      (nodesIn,linksIn) = fst $ runState ((,) <$> nodesInP <*> linksInP ) (vh  <> replicate 10 100)
+      nodesInP = traverse (traverse (traverse parse .constrained)) (nodesFlow l)
+      linksInP = traverse (traverse (traverse parse .lconstrained)) (fmap (\(i,_,_,j) -> (i,j)) $ links l)
+
+
