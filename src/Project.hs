@@ -26,6 +26,7 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
 import Mecha
+import System.Random
 
 import Control.Lens
 
@@ -36,6 +37,7 @@ path i h t  l = (i,h,t,  l)
 
 jd dir d = Joelho (Just d) ("Conexao","Joelho","90")  dir 100
 
+-- makeIter :: (Coord f (V3 Double),PreSys f ,Show (f Double),Functor f, Functor (NodeDomain f ) ,Functor (LinkDomain f), Floating a )=> Int -> Int -> Grid f Double -> Iteration f a
 makeIter i j g = initIter (realToFrac  <$>  upgradeGrid i j g)
 
 
@@ -85,9 +87,12 @@ joelho45L  = Joelho Nothing ("Conexao","Joelho","45") left45  100
 -- testResistor :: SR.Expr
 
 
+displaySolve (header,model) = do
+  T.writeFile (header <> "-temp.scad") $ openSCAD (drawIter  model )
+  callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
+
 displayModel (header,model) = do
-  let iter = makeIter 0 1 model
-  T.writeFile (header <> "-temp.scad") $openSCAD (drawGrid $ grid iter )
+  T.writeFile (header <> "-temp.scad") $openSCAD (drawGrid $ model )
   callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
 
 

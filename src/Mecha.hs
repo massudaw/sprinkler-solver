@@ -54,9 +54,16 @@ instance RBackend Mecha.Solid where
     where (V3 ax ay az) = unRot231 . SO3  $  distribute $ unSO3 s
 
 instance Target Force Mecha.Solid  where
-  renderNode  _ ni _ =   Mecha.color (0,1,0,1) $ Mecha.sphere 0.1 <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
-  renderLink  _  nis  ni  (Beam i )  =  (Mecha.color (0.2,0.2,1, 1 ) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (i*0.9999))
-    where d = 0.03
+  renderNode  _ ni (Support (Tag _ i@(V3 x y z))) =   Mecha.color (0,1,0,1) $ Mecha.sphere 1 <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
+  renderNode  _ ni _ =   Mecha.color (0,1,0,1) $ Mecha.sphere 1 <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
+  renderNodeSolve (Forces (V3 _ _ _,i@(V3 x  y z))) (Support (Tag _ _ )) =  Mecha.moveZ 2  (Mecha.scale (2,2,2) $   Mecha.color (0,1,0,1) $ Mecha.scale  (is,is,is) (arrow3d x) <> Mecha.scale  (js,js,js) (Mecha.rotateZ (pi/2) $arrow3d y)<> Mecha.scale  (ls,ls,ls) (Mecha.rotateY (pi/2) $arrow3d z))
+    where is = (x/norm i )
+          js = (y/norm i)
+          ls = (z/norm i)
+
+  renderLink _ nis  ni  (Beam i _ a )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.moveY (d/2) $Mecha.moveZ (d/2)  $ Mecha.moveX (i/2)$ Mecha.scale (st,st,st) (Mecha.text (show ni)))
+    where d = 0.03 -- 2* (sqrt$ a/pi)
+          st = 0.09
   renderLink  _  nis ni (BeamTurn _  ) = Mecha.sphere d
     where d = 0.03
   renderLink  _  nis ni (BTurn _  ) = Mecha.sphere d

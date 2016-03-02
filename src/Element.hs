@@ -42,7 +42,7 @@ instance Coord Element (V3 Double) where
   nextElement  = nextS
   thisElement l i = (\j-> (0,SO3 $ P.rotM $ fmap opi $ (V3 0 0 j))) $ this l i
     where
-      this l e  = justError "no el" $ M.lookup l  (M.fromList ( els $ first F.toList  e))
+      this l e  = justError ("no el" <> show (l,e)) $ M.lookup l  (M.fromList ( els $ first F.toList  e))
         where
           els (_,(_,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ))
             =  [(rl,1/4),(rr,-1/4),(b,0)]

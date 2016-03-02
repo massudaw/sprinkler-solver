@@ -37,6 +37,7 @@ library
   build-depends:        base >=4.7 && <4.9
                       , hmatrix
                       , hmatrix-gsl
+                      ,random
                       , mtk
                       , text
                       , containers

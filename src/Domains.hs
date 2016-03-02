@@ -13,6 +13,7 @@ module Domains
   ,parseTup
   ,parseT
   ,prepareModel
+  ,nodesSet
   ,justError
   ,PreCoord(..)
   ,Coord(..)
@@ -23,9 +24,11 @@ import Data.Set(Set)
 import Data.Functor.Compose
 import Data.Monoid
 import Rotation.SO3
+import qualified Data.Set as S
 import qualified Data.Map as M
 import Control.Monad.State
 import GHC.Stack
+import System.IO.Unsafe
 
 data Grid b a
   = Grid
@@ -40,14 +43,17 @@ class PreSys sys  where
   type NodeDomain sys  :: (* -> *)
   type LinkDomain sys  :: (* -> *)
   revElem :: Num a => sys  a -> sys a
-  initIter :: (Functor (LinkDomain sys),Functor (NodeDomain sys),Num a) => Grid sys a -> Iteration  sys a
+  initIter :: (Functor (LinkDomain sys),Traversable (NodeDomain sys),Fractional a) => Grid sys a -> Iteration  sys a
   initIter g = Iteration  (fmap Compose <$> varsL) (fmap Compose <$> varsN) g
     where
-      varsN = fmap (fmap (fmap conv . constrained )) $ nodesFlow g
-      conv (Just i) = Nothing
-      conv Nothing = (Just 100)
+      varsN = fst  $ runState (((traverse (traverse (traverse conv  . constrained )))) $ nodesFlow g) 1
+      conv (Just i) = return Nothing
+      conv Nothing = do
+        i <- get
+        put (i+0.1)
+        return (Just  i)
       convL (Just i) = Nothing
-      convL Nothing = (Just 400)
+      convL Nothing = (Just 2)
       varsL = fmap (fmap ((fmap convL . lconstrained ))) $ (fmap (\(i,_,_,l)-> (i,l)) $  links g)
   constrained :: Num a => sys a -> NodeDomain sys (Maybe a)
   lconstrained :: Num a => [sys a]-> LinkDomain sys (Maybe a)
@@ -63,6 +69,7 @@ data FIteration n l  b a
 class PreCoord a  where
   type Ang a
   trans :: (a,Ang a) -> (a,Ang a) -> (a,Ang a)
+  untrans :: (a,Ang a) -> (a,Ang a) -> (a,Ang a)
   dist :: a -> a -> Double
 
 class (PreSys sys ,PreCoord a) => Coord sys a where
@@ -121,4 +128,5 @@ prepareModel l model vh = model l v h
       nodesInP = traverse (traverse (traverse parse .constrained)) (nodesFlow l)
       linksInP = traverse (traverse (traverse parse .lconstrained)) (fmap (\(i,_,_,j) -> (i,j)) $ links l)
 
-
+nodesSet grid = fmap (\(i,n) -> (i,(var i nodeMapSet,n))) (nodesFlow grid)
+    where nodeMapSet = fmap S.fromList $ M.fromListWith mappend $ concat $ (\(l,h,t,_) -> [(h,[l ]),(t,[l ])]) <$> links grid

@@ -12,7 +12,12 @@ import Element
 import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
-
+bifurcate ramal  inp dm (tvga3 ,lvga24) = mdo
+    let te c dri dbi = node (Tee (TeeConfig (fst <$> c) (0.1*dbi) dbi dri (100)) Table )
+    lvga32 <- inp  tvga3 tvga2
+    lvga2 <- ramal tvga2 -- tubo dm 1.0 tvga2 =<< node (Open 0)
+    tvga2 <- te [lvga32,lvga2,lvga24] dm dm
+    return (tvga2,lvga32)
 
 gridInput  = [(ph (rteto "mezanino"), pregrid  bombamin )]
       where
@@ -26,9 +31,9 @@ gridInput  = [(ph (rteto "mezanino"), pregrid  bombamin )]
         db = 0.032
         ldist =  3.66
         dbp = 0.05
-        bl = 42.855
+        bl = 45.2020
         spl = 12.1/ldist
-        soff = 4
+        soff = 5
         bspl = spl/2
         sp = node (Sprinkler (Just (25,16.0))  (Just db) (SPKCoverage spl ldist 6 (SPKGoods 7 1)) (0.16*60*1.7) )
         te c dri dbi = node (Tee (TeeConfig (fst <$> c) (0.1*dbi) dbi dri (100)) Table )
@@ -45,23 +50,24 @@ gridInput  = [(ph (rteto "mezanino"), pregrid  bombamin )]
           lhid2 <- tubo dj 1 tehid hid2
           hid2 <- node (Open 0 )
           tehid <- te [tprinc,lhid2,mainl] dj dj
-          mainl <- link ((editDiametro dj <$> [tubod  62.5  dj,joelhoL,tubod  80.0  dj,joelhoR ] ) <> (editDiametro dm <$> [ tubod 3 dm , joelhoL ,tubod  26.76 dm,Turn (1/4) , joelhoR , tubod 1.5 dm ,joelhoL,Turn (-1/4),joelho])) tehid tvga3
-          vga3 <- node (Open 0)
-          lvga3 <- tubo  dm 1.0 tvga3 vga3
+          mainl <- link ((editDiametro dj <$> [tubod 2.0 dm ,joelhoL , tubod 1.0 dm , joelhoR  ] ) <> (editDiametro dm <$> [ tubod 3 dm  ,joelhoL ,Turn (1/4) , joelhoR , tubod 1.5 dm ,joelhoL,Turn (-1/4),joelho])) tehid tvga3
+          lvga3 <- tubo  dm 1.0 tvga3 =<< node (Open 0)
           tvga3 <- te [mainl,lvga3,lvga32] dm dm
-          lvga32 <- link (editDiametro dm <$> [tubod 111.43 dm]) tvga3 tvga2
-          vga2 <- node (Open 0)
-          lvga2 <- tubo dm 1.0 tvga2 vga2
-          tvga2 <- te [lvga32,lvga2,lvga] dm dm
+          (tvga2,lvga32) <- bifurcate (\tvga2  -> tubo dm 1.0 tvga2 =<< node (Open 0))  (link (editDiametro dm <$> [tubod bl dm])) dm (tvga3,lvga24)
+          lvga24 <- link (editDiametro dm <$> [tubod bl  dm]) tvga2 tvga4
+          lvga4 <- tubo dm 1.0 tvga4 =<< node (Open 0)
+          tvga4 <- te [lvga24,lvga4,lvga45] dm dm
+          lvga45 <- link (editDiametro dm <$> [tubod bl  dm]) tvga4 tvga5
+          lvga5 <- tubo dm 1.0 tvga5 =<< node (Open 0)
+          tvga5 <- te [lvga45,lvga5,lvga] dm dm
 
-          lvga <- link (editDiametro dm <$> [tubod 0.7 dm  , joelho, tubod 9.35 dm,Turn (1/4), joelhoR , tubod 11 dm ,joelhoL , Turn (-1/4) , Perda  (Just dm) ("Valvula","Governo","")100 ,tubod 0.8 dm, joelhoL , tubod 0.62 dm]) tvga2 tg1
-          (lg1,tg1) <- (foldl1 (>~>)[ramal (editDiametro dm <$> [tubod bl dm]) ,ramal (editDiametro dm <$> [tubod 0.65 dm]) ,ramal (editDiametro dm <$> [tubod bl dm]) ,ramal (editDiametro dm <$> [tubod 0.65 dm])]) (lvga ,t1)
+          lvga <- link (editDiametro dm <$> [tubod bl dm  , joelho, tubod 9.35 dm,Turn (1/4), joelhoR , tubod 11 dm ,joelhoL , Turn (-1/4) , Perda  (Just dm) ("Valvula","Governo","")100 ,tubod 0.8 dm, joelhoL , tubod 0.62 dm]) tvga5 t1
           tdr <- node (Open 0)
           ldr <- tubo dr 1 b1 tdr
-          (b1,t1) <- vga (lg1,ldr)
+          (b1,t1) <- vga (lvga ,ldr)
           return ()
         vga (lg1 ,ldr) = mdo
-          t1 <-  te [lg1,l52,lf] dr dr
+          t1 <- te [lg1,l52,lf] dr dr
           lf <- tubo dr bl t1 b1
           b1 <- te [lf,l5,ldr] dr dr
           let f = foldl1 (>~>) (replicate 22 (uncurry patch) <> [uncurry (spkt ldist soff 3), uncurry (spkt ldist soff 3) , uncurry (spkt ldist soff 3 ), uncurry (spkt 0.1 soff 3 )] )

@@ -4,6 +4,7 @@ module Grid where
 import qualified Data.List as L
 import Data.Functor.Compose
 import Domains
+import System.Random
 import Control.Arrow
 import Debug.Trace
 import Data.Maybe
