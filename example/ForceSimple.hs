@@ -31,6 +31,7 @@ solve (i,ex) = do
   putStrLn $ "Node Forces:" <>  show (printResidual iter forces)
   putStrLn $ "Link Forces:" <>  show (printResidual iter forces)
   displaySolve ("force-model" <> show i ,iter )
+  displayBended ("force-model-bend" <> show i ,iter )
   print (pressures iter)
   print (fmap (fst.snd)$  shead $ grid iter)
 

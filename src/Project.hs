@@ -2,6 +2,7 @@
 module Project where
 
 import Grid
+import Force (bendIter)
 import Element
 import Domains
 import Data.Functor.Compose
@@ -15,6 +16,7 @@ import Control.Monad
 import qualified Data.Text.IO as T
 import Position
 import Data.Maybe
+import qualified Language.Mecha as Mecha
 import Sprinkler
 import Tee
 import Element
@@ -86,10 +88,14 @@ joelho45L  = Joelho Nothing ("Conexao","Joelho","45") left45  100
 
 -- testResistor :: SR.Expr
 
+displayBended (header,model) = do
+  T.writeFile (header <> "-temp.scad") $ openSCAD (drawIter  model <> Mecha.color (1,0,0,0.2) (drawIter (bendIter model)))
+  callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
 
 displaySolve (header,model) = do
   T.writeFile (header <> "-temp.scad") $ openSCAD (drawIter  model )
   callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
+
 
 displayModel (header,model) = do
   T.writeFile (header <> "-temp.scad") $openSCAD (drawGrid $ model )

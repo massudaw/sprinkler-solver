@@ -114,12 +114,16 @@ linkForces g linkInPre nodesInPre = fmap (\(h,t,resh,rest,a) -> (norm resh , nor
 bendIter iter@(Iteration r i g) =  Iteration r i (g {shead = editNodes <$> (shead g), linksPosition = editLinks <$> linksPosition g})
     where
       lmap = M.fromList (fmap (\(i,h,t,l)-> (i,(h,t,l))) $ links (grid iter))
+      npmap = M.fromList (shead (grid iter))
       var2 i = fmap (negate . fromMaybe 0) . fst . var i
       nmap = unForces. getCompose <$> M.fromList (pressures iter)
       editNodes (i,(np,nr)) =  (i, (np ^+^ d,nr))
         where d = var2 i nmap
-      editLinks (i,l) = (i, fmap (\(p,r) -> (p ^+^ dh , if norm (dh ^-^dt )  < 1e-2 || norm p < 1e-2  then r else SO3 $ unSO3 r !*! transpose (bendingRatio  (dh ^-^dt) p  ))) l )
+      editLinks (i,l) = (i, fmap (\(p,r) -> (p ^+^ dh , if norm (dh ^-^dt )  < 1e-2   then r else SO3 $ unSO3 r !*! ratio )) l )
         where (h,t,le) = var i lmap
+              ratio = transpose (bendingRatio  (dh ^-^dt) (nhp ^-^ ntp))
+              (nhp,nha) = var h npmap
+              (ntp,nta) = var t npmap
               dh = var2 h nmap
               dt = var2 t nmap
 
@@ -168,6 +172,8 @@ instance Coord Force (V3 Double) where
       lengthE (Beam  c  m s ) = r3 (c,0,0)
       lengthE i = 0
       r3 (x,y,z) = V3 x y z
+
+skew231 (V3 x y z) = V3 (V3 0 z (-y)) (V3 (-z) 0 x) (V3 y (-x) 0)
 
 rot2V3  x y = identV3 !+! skewV3 v !+! ((*((1 - dot x  y )/norm v)) **^ (skewV3 v !*! skewV3 v))
   where
