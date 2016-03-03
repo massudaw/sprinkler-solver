@@ -2,7 +2,6 @@
 {-# LANGUAGE TupleSections,DeriveFunctor,DeriveFoldable #-}
 module Element where
 
-import Position hiding (rotM)
 import Hydraulic
 import qualified Position as P
 import Control.Lens ((^.))
@@ -18,13 +17,12 @@ import Linear.V3
 import Linear.Matrix
 import Linear.Vector
 import Control.Arrow
-import Rotation.SO3
 import qualified Data.Map as M
 import qualified Data.List as L
 import qualified Data.Foldable as F
 
 import Linear.V3
-import Rotation.SO3
+import Rotation.SO3 hiding (rotM)
 
 
 
@@ -40,12 +38,12 @@ instance PreSys Element  where
 
 instance Coord Element (V3 Double) where
   nextElement  = nextS
-  thisElement l i = (\j-> (0,SO3 $ P.rotM $ fmap opi $ (V3 0 0 j))) $ this l i
+  thisElement i = (\j-> (0,SO3 $ P.rotM $ fmap opi $ (V3 0 0 j))) <$> this  i
     where
-      this l e  = justError ("no el" <> show (l,e)) $ M.lookup l  (M.fromList ( els $ first F.toList  e))
+      this e  =  (M.fromList ( els $ first F.toList  e))
         where
           els (_,(_,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ))
-            =  [(rl,1/4),(rr,-1/4),(b,0)]
+            =  [(rl,1/4),(rr,3/4),(b,0)]
           els ([a,b],i)
             =  [(a,0),(b,1/2)]
           els ([a],i)
@@ -126,4 +124,19 @@ ktubo t  = perda*10/(1000*60)**1.85
 
 jacobianEqNodeHeadGrid :: (Show a , Ord a ,Floating a) => Grid Element a -> M.Map Int (LinkDomain Element a) -> M.Map Int (LinkDomain Element  a) -> [a]
 jacobianEqNodeHeadGrid = (\l v h -> jacobianNodeHeadEquation l (runIdentity <$> v) (runIdentity <$> h) <> jacobianContinuity l (runIdentity <$> v) (runIdentity <$> h))
+
+rel = [tubod dm 0.5 , Turn (1/4) ,joelhoR  , tubod dm 1.2 , joelhoL,Turn (-1/4) , tubod dm 0.5]
+  where
+      dm = 0.08
+      tubod  d l  = Tubo (Just d) l 100
+      joelhoR  = Joelho Nothing ("Conexao","Joelho","90") right90  100
+      joelho  = joelhoR
+      joelhoL  = Joelho Nothing ("Conexao","Joelho","90") left90  100
+      rightC d = d
+      right90  = rightC $ 1/4
+      leftC d = -d
+      left90  = leftC $ 1/4
+
+rori = (V3 1 0 (0::Double) , SO3 $rotM (V3 0 0 (-pi/2) :: V3 Double))
+
 

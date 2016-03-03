@@ -140,6 +140,7 @@ distanciaE :: (Show a,Ord a,Fractional a )=> Element a -> a
 distanciaE (Tubo _ d _ ) = d
 distanciaE (Joelho (Just dtubom) tipo _ c) =  justError (show ("joelho",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
 distanciaE (Perda   (Just dtubom)  tipo c) = justError (show ("perda",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
+distanciaE i = 0
 
 materialE :: Show a => Element  a -> a
 materialE (Tubo _ _ c) =  c

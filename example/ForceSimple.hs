@@ -109,37 +109,37 @@ example7 = fst $ runInput $ mdo
       adia = 1
       em = 1000
       aco l s = Beam l em s
-  link [aturn 5 10, aco (sqrt 125) atop,aturn (-5) 10] x0 x1
+  link [aco (10.0) abot, BTurn (0,1/2)] x0 x2
+  link [aturn (-5) (-10), aco (sqrt 125) atop,aturn (-5) 10] x1 x0
   x1 <- pin
-  link [BTurn (0,1/2),aco (10.0) abot] x2 x0
-  link [BTurn (0,1/4) ,aco 5 abat ,BTurn (0,-1/4)] x1 x2
+  link [BTurn (0,1/4) ,aco 5 abat ,BTurn (0,1/4)] x2 x1
   x2 <- aload 10
-  link [aturn (-3) (-10),aco  (sqrt 109) atop , aturn (3) (-10)] x1 x3
+  link [aturn (3) (10),aco  (sqrt 109) atop , aturn (-3) (10),BTurn (0,1/2)] x1 x3
   x3 <- pin
-  link [aco 10 abot ] x2 x4
+  link [aco 10 abot , BTurn (0,1/2)] x2 x4
   x4 <- aload 10
-  link [BTurn (0,-1/4) , aco (8) abat ,BTurn (0,1/4)] x4 x3
-  link [aturn (-5) 10,aco (sqrt 125) adia  ,aturn (-5) (-10)] x4 x1
-  link [aturn (1) (10),aco  (sqrt 101) atop , aturn (-1) (10)] x3 x5
+  link [BTurn (0,-1/4) , aco 8 abat ,BTurn (0,-1/4)] x3 x4
+  link [aturn (-5) (10),aco (sqrt 125) adia  ,aturn (5) (-10)] x1 x4
+  link [aturn 1 10,aco  (sqrt 101) atop , aturn (-1) (10),BTurn (0,1/2)] x3 x5
   x5  <- pin
-  link [BTurn (0,1/4) , aco 9 abat ,BTurn (0,-1/4)] x5 x6
+  link [BTurn (0,-1/4) , aco 9 abat ,BTurn (0,1/4)] x5 x6
   link [aturn (8) (-10), aco (sqrt 164) adia ,aturn (8) (10)] x6 x3
-  link [BTurn (0,-1/2),aco 10 abot ,BTurn (0,1/2)] x4 x6
+  link [aco 10 abot ,BTurn (0,1/2)] x4 x6
   x6 <- aload 16
-  link [aturn (1) (-10),aco  (sqrt 101) atop , aturn (-1) (-10)] x5 x7
+  link [aturn (1) (-10),aco  (sqrt 101) atop , aturn (-1) (-10),BTurn (0,1/2)] x7 x5
   x7 <- pin
-  link [BTurn (0,-1/4) , aco 8 abat ,BTurn (0,1/4)] x7 x8
-  link [aco 10 abot ] x6 x8
-  link [aturn (8) (10), aco (sqrt 164) adia ,aturn (8) (-10)] x6 x7
+  link [BTurn (0,1/4) , aco 8 abat ,BTurn (0,1/4)] x8 x7
+  link [aco 10 abot , BTurn (0,1/2)] x6 x8
+  link [aturn (8) (10), aco (sqrt 164) adia ,aturn (-8) (10)] x6 x7
   x8 <- aload 10
-  link [BTurn (0,1/2),aco (10) abot ] x8 x10
+  link [aco (10) abot , BTurn (0,1/2)] x8 x10
   link [aturn (-3) (10),aco  (sqrt 109) atop , aturn (-3) (-10)] x7 x9
   x9 <- pin
   link [aturn (-5) (-10), aco (sqrt 125) adia ,aturn (5) (-10)] x9 x8
-  link [BTurn (0,-1/4) , aco 5 abat  ,BTurn (0,1/4)] x9 x10
+  link [BTurn (0,-1/4) , aco 5 abat  ,BTurn (0,-1/4)] x9 x10
   x10 <- aload 10
-  link [aturn (-5) (10), aco (sqrt 125) atop,aturn (-5) (-10)] x9 x11
-  link [BTurn (0,1/2),aco (10) abot ,BTurn (0,-1/2)] x10 x11
+  link [aturn (-5) (10), aco (sqrt 125) atop,aturn (5) 10,BTurn (0,1/2)] x9 x11
+  link [aco (10) abot , BTurn (0,1/2)] x10 x11
   x11 <- roller
   return ()
 

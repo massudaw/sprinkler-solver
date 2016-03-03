@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses,FlexibleInstances,GeneralizedNewtypeDeriving,FlexibleContexts,TypeFamilies,DeriveFunctor,DeriveFoldable,DeriveTraversable#-}
 module Force where
-import Position hiding (rotM)
+import Position
 import qualified Position as P
 import Data.Maybe
 import Domains
@@ -13,7 +13,7 @@ import Linear.V2
 import Linear.Matrix
 import Linear.Vector
 import Control.Arrow
-import Rotation.SO3
+import Rotation.SO3 hiding (rotM)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.List as L
@@ -157,7 +157,7 @@ nextF l v@(p,_)  = fmap (\i -> (i,(0,SO3 $ rotM 0))) $ filter (/=l) (F.toList p 
 
 instance Coord Force (V3 Double) where
   nextElement  = nextS
-  thisElement l i = (\j-> (0,SO3 $ P.rotM $ fmap opi $ (V3 0 0 j))) $ thisF l i
+  thisElement  i = (\j-> (0,SO3 $ P.rotM $ fmap opi $ (V3 0 0 j))) <$> thisF  i
   elemTrans t = (lengthE t , angleE t)
     where
       angleE  = SO3 . P.rotM . (\i-> opi i ) . angE
@@ -173,7 +173,7 @@ rot2V3  x y = identV3 !+! skewV3 v !+! ((*((1 - dot x  y )/norm v)) **^ (skewV3 
   where
     v = cross x y
 
-thisF l e  = justError "no el" $ M.lookup l  (M.fromList ( els $ first F.toList  e))
+thisF  e  =   (M.fromList ( els $ first F.toList  e))
   where
     els ([a,b,c,d,e,f],i)
       =  [(a,0),(b,0),(c,0),(d,0),(e,0),(f,0)]
@@ -192,3 +192,7 @@ v1,v2:: V3 Double
 v1 = V3 1 2 0
 v2 = V3 1 2.1 1
 
+--- Test Link reflection
+
+rel = [(Beam 1.0 0 0 ),BTurn (1/4,-1/4),Beam 1 0 0,BTurn (1/9,0), Beam 2 0 0] :: [Force Double]
+rori = (V3 1 (-1) (1.2::Double) , SO3 $rotM (0 :: V3 Double))

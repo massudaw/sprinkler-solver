@@ -70,11 +70,11 @@ class PreCoord a  where
   type Ang a
   trans :: (a,Ang a) -> (a,Ang a) -> (a,Ang a)
   untrans :: (a,Ang a) -> (a,Ang a) -> (a,Ang a)
-  dist :: a -> a -> Double
+  dist :: (a,Ang a) -> (a,Ang a) -> (Double,Double)
 
 class (PreSys sys ,PreCoord a) => Coord sys a where
   nextElement :: Int -> (Set Int,(Int,sys Double)) -> [(Int,(a,Ang a))]
-  thisElement :: Int -> (Set Int,(Int,sys Double)) -> (a,Ang a)
+  thisElement :: (Set Int,(Int,sys Double)) -> M.Map Int (a,Ang a)
   nodeTrans :: sys Double -> [(Int,(a,Ang a))]
   elemTrans :: sys Double -> (a,Ang a)
 

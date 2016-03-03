@@ -5,6 +5,7 @@ module Main where
 import Data.Monoid
 import Hydraulic
 import Project
+import Domains
 import Sprinkler
 import Input
 import Element
@@ -75,24 +76,24 @@ gridInput  = [(ph (rteto "mezanino"), pregrid  bombamin )]
           ol <- node (Open 0)
           (_,(nil,nij))<- f  ((l5,l52),(or,ol))
           let rm = [tubod 1.1 dr,Turn 0.25 ,joelhoR  ,tubod 1.1 dr, joelhoL,Turn (-0.25) , tubod 1.1 dr ]
-          let brm = [tubod 1.1 dr,Turn 0.25 ,joelhoL , tubod 1.1 dr, joelhoR , Turn (-0.25) , tubod 1.1 dr ]
-          l5 <- link (editDiametro dr <$> brm )  nil b1
-          l52 <- link (editDiametro dr <$> rm ) t1 nij
+              brm = [tubod 1.1 dr,Turn (-0.25) ,joelhoR  ,tubod 1.1 dr, joelhoL,Turn (0.25) , tubod 1.1 dr ]
+          l5 <- link (editDiametro dr <$> rm )  b1 nil
+          l52 <- link (editDiametro dr <$> brm ) nij t1
           return (b1,t1)
         spkt = gridb sp
-        patch  = gridb (node $ Open 0)ldist soff 3
+        patch  = gridb (node $ Open 0) ldist soff 3
         gridb nod dt off num (lir,lil) ~(nir,nil)  = mdo
           nr <- te [lir,ix,cr] dr dbp
-          nl <- te [cl,ixl,lil] dr dbp
-          ix <- tubo   dbp (fromIntegral off*spl + bspl) nr ni
+          nl <- te [cl ,ixl,lil] dr dbp
+          ix <- tubo dbp (fromIntegral off*spl + bspl) nr ni
           ni <- nod
-          let f = foldr1 (>=>) ( [spka db ,spka db,spka db])
+          let f = foldl1 (>=>)  [spka db ,spka db,spka db]
               spka db oldn  = mdo
                 tubo db spl oldn  b
                 b <- nod
                 return b
           e <- f ni
-          ixl <- tubo    dbp (bl - (fromIntegral $ num+off)* spl - bspl) nl   e
+          ixl <- tubo    dbp (bl - (fromIntegral $ num+off)* spl - bspl) e nl
           cr<- tubo dr dt nr nir
           cl <- tubo dr dt nl nil
           return ((cr,cl),(nr,nl))
@@ -105,5 +106,5 @@ gridInput  = [(ph (rteto "mezanino"), pregrid  bombamin )]
             dm = dj
             tubod l d = Tubo (Just d) l 100
 
-main = mapConcurrently solveModel gridInput
+main = mapConcurrently (displayModel . ("mezanino",) . grid .  makeIter 0 1 . snd) gridInput
 
