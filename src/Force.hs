@@ -41,8 +41,8 @@ data Force a
   | Load2D a a
   | Load3D (V3 a) (V3 a)
   | Load
-  | Beam { length :: a, material  :: a  , section :: a }
-  | PlanBeam{ length :: a, material  :: a  , section :: a ,  inertiaMolus :: V3 a , tmodulus  :: a  }
+  | Bar { length :: a, material  :: a  , section :: a }
+  | Beam { length :: a, material  :: a  , section :: a ,  inertia :: V3 a , tmodulus  :: a  }
   | BeamTurn a
   | BTurn (a,a)
   deriving(Eq,Ord,Functor,Show)
@@ -120,35 +120,35 @@ s **^ c = fmap (fmap s) c
 
 moment l1 l2  b = transpose (rotor (V3 0 1 0) l1 l2) !*! force b !*! rotor (V3 0 1 0 ) l1 l2
 
-force (PlanBeam l e a (V3 ix iy iz) g ) = V3 (V3 (e*a/l)  0 0) (V3 0 (12*e*iz/l^3) 0 ) (V3 0 0 (12*e*iy/l^3))
-force (Beam l e a) = (V3 (V3 n 0 0) (V3 0 0 0 ) (V3 0 0 0))
+force (Beam l e a (V3 ix iy iz) g ) = V3 (V3 (e*a/l)  0 0) (V3 0 (12*e*iz/l^3) 0 ) (V3 0 0 (12*e*iy/l^3))
+force (Bar l e a) = (V3 (V3 n 0 0) (V3 0 0 0 ) (V3 0 0 0))
     where n = e* a/l
 
-bendingt (Beam _ _ _) = 0
-bendingt (PlanBeam l e a (V3 ix iy iz) g)
+bendingt (Bar _ _ _) = 0
+bendingt (Beam l e a (V3 ix iy iz) g)
   = V3
       (V3 0 0 0 )
       (V3 0 0 (6*e*iy/l^2)  )
       (V3 0 (-6*e*iz/l^2) 0 )
 
 
-bending (Beam _ _ _) = 0
-bending (PlanBeam l e a (V3 ix iy iz) g)
+bending (Bar _ _ _) = 0
+bending (Beam l e a (V3 ix iy iz) g)
   = V3
       (V3 0 0 0)
       (V3 0 0 (-6*e*iz/l^2))
       (V3 0 (6*e*iy/l^2) 0)
 
-crosstorsor (Beam _ _ _ ) = 0
-crosstorsor (PlanBeam l e a (V3 ix iy iz) g)
+crosstorsor (Bar _ _ _ ) = 0
+crosstorsor (Beam l e a (V3 ix iy iz) g)
   = V3
       (V3 (-g*ix/l)  0 0)
       (V3 0 (2*e*iy/l) 0 )
       (V3 0 0  (2*e*iz/l))
 
 
-torsor (Beam _ _ _ ) = 0
-torsor (PlanBeam l e a (V3 ix iy iz) g)
+torsor (Bar _ _ _ ) = 0
+torsor (Beam l e a (V3 ix iy iz) g)
   = V3
       (V3 (g*ix/l) 0 0)
       (V3 0 (4*e*iy/l) 0 )
@@ -200,8 +200,8 @@ eqLink nvars (i,h,t,l) =  (i,(h,t,( rtb !*  resh ,mesh),( rtb !* rest,mest),el))
         rtb = transpose rt
         fhl = rt !* fh
         ftl = rt !* ft
-        isBeam (Beam _ _ _) = True
-        isBeam (PlanBeam _ _ _ _ _) = True
+        isBeam (Bar _ _ _) = True
+        isBeam (Beam _ _ _ _ _) = True
         isBeam _ = False
         -- Energy Conservation
         bend = bending el
@@ -248,8 +248,8 @@ instance Coord Force (V3 Double) where
           angE (BeamTurn  r  ) = r3 (0,0,r)
           angE (BTurn  (r,c)  ) = r3 (0,r,c)
           angE  i = r3 (0,0,0)
-      lengthE (Beam  c  m s ) = r3 (c,0,0)
-      lengthE (PlanBeam  c  m s _ _ ) = r3 (c,0,0)
+      lengthE (Bar c  m s ) = r3 (c,0,0)
+      lengthE (Beam  c  m s _ _ ) = r3 (c,0,0)
       lengthE i = 0
       r3 (x,y,z) = V3 x y z
 
@@ -280,5 +280,5 @@ v2 = V3 1 2.1 1
 
 --- Test Link reflection
 
-rel = [(Beam 1.0 0 0 ),BTurn (1/4,-1/4),Beam 1 0 0,BTurn (1/9,0), Beam 2 0 0] :: [Force Double]
+rel = [(Bar 1.0 0 0 ),BTurn (1/4,-1/4),Bar 1 0 0,BTurn (1/9,0), Bar 2 0 0] :: [Force Double]
 rori = (V3 1 (-1) (1.2::Double) , SO3 $rotM (0 :: V3 Double))

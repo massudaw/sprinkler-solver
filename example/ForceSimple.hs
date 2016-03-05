@@ -37,21 +37,21 @@ solve (i,ex) = do
 {-
 example1 =  fst $ runInput $ mdo
    r1 <- node (Support Pin)
-   link [Beam 2,Load2D 400 300 , Beam 2,BeamTurn (60/360),Beam 2 ] r1 r2
+   link [Bar 2,Load2D 400 300 , Bar 2,BarTurn (60/360),Bar 2 ] r1 r2
    r2 <- node (Support Roller)
    return ()
 
 example2 =  fst $ runInput $ mdo
    r1 <- node (Support FixedSupport2D)
-   link [Beam 2,Load2D 0 1600,Beam 2] r1 r2
+   link [Bar 2,Load2D 0 1600,Bar 2] r1 r2
    r2 <- node (Support Pin)
-   link [Beam 1,Load2D 0 600,Beam 2] r2 r3
+   link [Bar 1,Load2D 0 600,Bar 2] r2 r3
    r3 <- node (Support Roller)
    return ()
 
 example3 = fst $ runInput $ mdo
   r1 <- node (Support (Friction 0.3))
-  link [BeamTurn (1/4) ,Beam 2,BeamTurn (-1/4),Beam 3, Load2D 0 500,Beam 3 , BeamTurn (1/4) , BeamTurn (-1/6) ,Load,BeamTurn (-1/12),BeamTurn (-1/4) ,Beam 2,BeamTurn (1/4) ] r1 r2
+  link [BarTurn (1/4) ,Bar 2,BarTurn (-1/4),Bar 3, Load2D 0 500,Bar 3 , BarTurn (1/4) , BarTurn (-1/6) ,Load,BarTurn (-1/12),BarTurn (-1/4) ,Bar 2,BarTurn (1/4) ] r1 r2
   r2 <- node (Support (Friction 0.3))
   return ()
 
@@ -63,11 +63,11 @@ example4  = fst $ runInput $ mdo
   x4 <- node (Support FixedSupport3D)
   let h = 2.5
       d = 4.0
-      col =  link [BTurn (0.25,0), Beam h ,BTurn (-0.25,0) ]
-      vg = [BTurn (0,-0.25),Beam (d/2),Load3D (V3 0 0(-500)) 0,Beam (d/2)]
-  link [BTurn (-0.35,0.25), Beam 2 ,BTurn (0.35,0), BTurn (0.5,0),Load3D (V3 0 0 500) 0  ,BTurn (-0.5,0)] x1 x4
-  link [BTurn (0.45,0.25), Beam 3 ,BTurn (-0.45,0) ] x4 x2
-  link [BTurn (0.15,-0.25), Beam 4 ,BTurn (-0.25,0) ] x4 x3
+      col =  link [BTurn (0.25,0), Bar h ,BTurn (-0.25,0) ]
+      vg = [BTurn (0,-0.25),Bar (d/2),Load3D (V3 0 0(-500)) 0,Bar (d/2)]
+  link [BTurn (-0.35,0.25), Bar 2 ,BTurn (0.35,0), BTurn (0.5,0),Load3D (V3 0 0 500) 0  ,BTurn (-0.5,0)] x1 x4
+  link [BTurn (0.45,0.25), Bar 3 ,BTurn (-0.45,0) ] x4 x2
+  link [BTurn (0.15,-0.25), Bar 4 ,BTurn (-0.25,0) ] x4 x3
 -}
 
 
@@ -101,13 +101,13 @@ aturn2 x y z =BTurn (-atan2 z x /(2*pi), atan2 y x / (2*pi))
 example9 = fst $ runInput $ mdo
   x1 <- node (Support (Tag (V3 Nothing Nothing 0 ) (V3 0 0 0) 0  0))
   x0 <- node (Support (Tag (V3 Nothing Nothing 0 )  0 0 0))
-  let b = Beam 50 1000 5
+  let b = Bar 50 1000 5
   link [aturn 4 3  , b ,aturn (-4) 3] x1 x0
   return ()
 
 example8 = fst $ runInput $ mdo
   x0 <- node (Support (Tag (V3 Nothing Nothing  0) (V3 0 0 Nothing ) (V3 0 0 0 ) (V3  0 0 0 ) ))
-  link [aturn 4 3, PlanBeam 5 100 125 250 250,aturn 4 (-3)] x0 x1
+  link [aturn 4 3, Beam 5 100 125 250 250,aturn 4 (-3)] x0 x1
   x1 <- node (Support (Tag (V3 Nothing  Nothing 0 ) (V3 0 0 Nothing ) (V3 0 (0) 0) 0))
   return ()
 
@@ -119,7 +119,7 @@ example7 = fst $ runInput $ mdo
     abat = 3
     adia = 1
     em = 1000
-    aco l s = Beam l em s
+    aco l s = Bar l em s
   link [aco 10 abot, BTurn (0,1/2)] x0 x2
   link [aturn (-5) (-10), aco (sqrt 125) atop,aturn (-5) 10] x1 x0
   x1 <- pin
@@ -154,7 +154,7 @@ example7 = fst $ runInput $ mdo
   x11 <- roller
   return ()
 
-aco l s = Beam l 100 s
+aco l s = Bar l 100 s
 
 
 
