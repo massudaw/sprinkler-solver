@@ -56,10 +56,11 @@ instance RBackend Mecha.Solid where
 instance Target Force Mecha.Solid  where
   renderNode  _ ni (Support (Tag _ _ _ _ )) =   Mecha.color (0,1,0,1) $ Mecha.sphere 1 <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
   renderNode  _ ni _ =   Mecha.color (0,1,0,1) $ Mecha.sphere 1 <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
-  renderNodeSolve (Forces (V3 _ _ _,_,i@(V3 x  y z),_)) (Support (Tag _ _ _ _ )) =  Mecha.moveZ 2  (Mecha.scale (2,2,2) $   Mecha.color (0,1,0,1) $ Mecha.scale  (is,is,is) (arrow3d x) <> Mecha.scale  (js,js,js) (Mecha.rotateZ (pi/2) $arrow3d y)<> Mecha.scale  (ls,ls,ls) (Mecha.rotateY (pi/2) $arrow3d z))
-    where is = (x/norm i )
-          js = (y/norm i)
-          ls = (z/norm i)
+  renderNodeSolve (Forces (V3 _ _ _,_,i@(V3 x  y z),m@(V3 mx my  mz))) (Support (Tag _ _ _ _ )) =  Mecha.moveZ 2  (Mecha.scale (2,2,2) $   Mecha.color (0,1,0,1) $ Mecha.scale  (is,is,is) (arrow3d x) <> Mecha.scale  (js,js,js) (Mecha.rotateZ (pi/2) $arrow3d y)<> Mecha.scale  (ls,ls,ls) (Mecha.rotateY (pi/2) $arrow3d z) <> Mecha.scale (mzs,mzs,mzs) (Mecha.marrow3d mz ))
+    where is = x/norm i
+          js = y/norm i
+          ls = z/norm i
+          mzs = mz/(norm m+ 0.1)
 
   renderLink _ nis  ni  (Bar i _ a )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.moveY (d/2) $Mecha.moveZ (d/2)  $ Mecha.moveX (i/2)$ Mecha.scale (st,st,st) (Mecha.text (show ni)))
     where d = 0.03 -- 2* (sqrt$ a/pi)
@@ -82,8 +83,11 @@ instance Target Force Mecha.Solid  where
   renderLink  _ nis ni (Load  ) =  Mecha.color (0,1,0,1) $  (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show (ni,nis))))
   renderLink  _ nis ni (Load2D  _ _ ) =  Mecha.color (0,1,0,1) $  (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show (ni,nis))))
 
+marrow3d ni = fp $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show $abs ni)) <> ( Mecha.rotateZ (-pi/6) $ (Mecha.difference (Mecha.torus  1 0.03) (Mecha.moveY (0.5) $ Mecha.moveX (-0.5) $ Mecha.cube 1))  <> (Mecha.moveY (0.5) $ Mecha.rotateZ pi $  Mecha.rotateY (pi/2) $ Mecha.cone 0.12 0  0.3))
+  where fp = if ni < 0 then Mecha.rotateZ pi else id
 
-arrow3d ni = (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
+arrow3d ni = fp $  ( Mecha.rotateZ pi$  Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show $abs ni)))
+  where fp = if ni < 0 then Mecha.rotateZ pi else id
 
 instance Target Element Mecha.Solid  where
   renderNode = renderElemMecha

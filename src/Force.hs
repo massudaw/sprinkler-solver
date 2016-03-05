@@ -67,8 +67,8 @@ instance PreSys Force where
   revElem i = i
   lconstrained = Compose . fmap (Forces . constr)
     where
-    constr (Load2D i a ) =(Just <$> V3 i a 0 ,0 ,Just <$> 0,0)
-    constr (Load3D v m  ) =(Just <$> v ,Just <$> 0, Just <$> m ,Just <$> 0 )
+    constr (Load2D i a ) = (Just <$> V3 i a 0 ,0 ,Just <$> 0,0)
+    constr (Load3D v m  ) = (Just <$> v ,Just <$> 0, Just <$> m ,Just <$> 0 )
     constr Load = (V3 Nothing (Just 0)  (Just 0) ,0,Just <$> 0,0)
     constr i  = (Just <$> 0,0,Just <$> 0,0)
   constrained (Support (Tag t a l m) ) = Forces (t,a,l,m)
@@ -91,8 +91,6 @@ momentForceEquations = (\l v h -> momentForce l  v  h )
 
 
 rotor :: Floating a => V3 a -> V3 a -> V3 a -> M3 a
-{-rotor  _  l1 l2 = (/norm l) **^ (V3 (V3 x21 y21 0 ) (V3 (-y21) x21 0) (V3 0 0 0))
-  where  l@(V3 x21 y21 z21)= (l2 ^-^ l1)-}
 rotor  l0@(V3 x0 y0 z0) l1 l2   = V3 tx ty  tz
   where
         tx@(V3 txx txy txz) = (1/l) *^ n
@@ -190,16 +188,18 @@ localToGlobal v  l = rot2V3 (normalize v) (normalize l)
 
 bendingRatio d l = localToGlobal l (l ^+^ d)
 
-eqLink nvars (i,h,t,l) =  (i,(h,t,( rtb !*  resh ,mesh),( rtb !* rest,mest),el))
+eqLink nvars (i,h,t,l) =  (i,(h,t,( rtb !*  resh ,rtb !* mesh),( rtb !* rest,rtb !* mest),el))
       where
         el = justError "no beam" $ L.find isBeam l
-        ((fh,mh,_,_),(ph,_)) = nvarsEl h
-        ((ft,mt,_,_),(pt,_)) = nvarsEl t
+        ((fh,mhp,_,_),(ph,_)) = nvarsEl h
+        ((ft,mtp,_,_),(pt,_)) = nvarsEl t
         pd = force el
         rt = rotor (V3 0 1 0) pt ph
         rtb = transpose rt
         fhl = rt !* fh
         ftl = rt !* ft
+        mh = rt !* mhp
+        mt = rt !* mtp
         isBeam (Bar _ _ _) = True
         isBeam (Beam _ _ _ _ _) = True
         isBeam _ = False
