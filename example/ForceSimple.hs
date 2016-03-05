@@ -17,7 +17,7 @@ import qualified Data.Foldable as F
 import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
-main = mapM solve $ zip [0..] [example7,example9,example10] -- [example1,example2,example3]
+main = mapM solve $ zip [0..] [example9] -- [example1,example2,example3]
 solve (i,ex) = do
 
   let ini = makeIter 0 1 ex
@@ -98,19 +98,22 @@ aload load = node (Support (Tag (V3 Nothing Nothing 0) 0 (V3 0 (-load ) 0) 0 ))
 aturn x y =BTurn (0, atan2 x y / (2*pi))
 aturn2 x y z =BTurn (-atan2 z x /(2*pi), atan2 y x / (2*pi))
 
+turn l x y = (l , atan2 x y /(2*pi))
+
 example9 = fst $ runInput $ mdo
-  x1 <- node (Support (Tag (V3 Nothing Nothing 0 ) 0 0 0))
-  x0 <- node (Support (Tag (V3 Nothing Nothing 0 ) 0 0 0))
+  x1 <- conn [turn l1 4 3] (Tag (V3 Nothing Nothing 0 ) 0 0 0)
+  x0 <- conn [turn l1 (-4) 3] (Tag (V3 Nothing Nothing 0 ) 0 0 0)
   let b = Bar 50 1000 5
-  link [aturn 4 3  , b ,aturn (-4) 3] x1 x0
+  l1 <- link [b] x1 x0
   return ()
+
+conn l c = node (Connection  ((\((i,_),a) -> (i,a)) <$> l ) c)
 
 example10 = fst $ runInput $ mdo
-  x0 <- node (Support (Tag (V3 0 0 0) (V3 0 0 0 ) (V3 Nothing Nothing 0 ) (V3  0 0 Nothing ) ))
-  link [ Beam 35 100 5 250 250] x0 x1
-  x1 <- node (Support (Tag (V3 Nothing  Nothing 0 ) (V3 0 0 Nothing ) (V3 0 (-10) 0) 0 ))
+  x0 <- node (Support (Tag (V3 0 0 0) (V3 0 0 0 ) (V3 Nothing Nothing Nothing ) (V3  Nothing Nothing Nothing ) ))
+  l1 <- link ([ BTurn (-0.1,0.1) ] <> replicate 5 (Beam 7 100 5 250 250)) x0 x1
+  x1 <- node (Support (Tag (V3 Nothing  Nothing Nothing ) (V3 0 0 0 ) (V3 (-10) (-10) (-10)) 0 ))
   return ()
-
 
 
 example8 = fst $ runInput $ mdo

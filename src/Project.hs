@@ -142,7 +142,9 @@ upgradeGrid ni li a = a {shead = M.toList nodesPos, linksPosition = M.toList lin
   where
     (nodesPos,linksPos) =  snd $ runState (do
                       modify (<> (M.singleton ni (0,SO3 $ rotM 0), mempty))
-                      locateGrid lmap nmap ni (0,SO3 $rotM 0 ) (Left $ var li lmap ))
+                      let niel = var ni nmap
+                          oi = var li $ thisElement niel
+                      locateGrid lmap nmap ni oi  (Left $ var li lmap ))
                         (mempty,mempty)
     lmap = M.fromList (fmap (\l@(li,_,_,_)-> (li,l))  $ links a)
     nmap = M.fromList (findNodesLinks a $ fmap (\n@(ni,_) -> (ni,n)) $ (nodesFlow a) )

@@ -36,10 +36,12 @@ data Support a
   | FixedSupport3D
   deriving(Eq,Ord,Functor,Show)
 
+tag (Support i) = i
+tag (Connection _ i) = i
+
 data Force a
   = Support  (Support a)
-  | Load2D a a
-  | Load3D (V3 a) (V3 a)
+  | Connection [(Int,a)] (Support a)
   | Load
   | Bar { length :: a, material  :: a  , section :: a }
   | Beam { length :: a, material  :: a  , section :: a ,  inertia :: V3 a , tmodulus  :: a  }
@@ -67,11 +69,10 @@ instance PreSys Force where
   revElem i = i
   lconstrained = Compose . fmap (Forces . constr)
     where
-    constr (Load2D i a ) = (Just <$> V3 i a 0 ,0 ,Just <$> 0,0)
-    constr (Load3D v m  ) = (Just <$> v ,Just <$> 0, Just <$> m ,Just <$> 0 )
     constr Load = (V3 Nothing (Just 0)  (Just 0) ,0,Just <$> 0,0)
     constr i  = (Just <$> 0,0,Just <$> 0,0)
   constrained (Support (Tag t a l m) ) = Forces (t,a,l,m)
+  constrained (Connection _ (Tag t a l m) ) = Forces (t,a,l,m)
   constrained a =  Forces . (\(a,b) -> (a,0,b,0) ) . constr $ a
     where
     constr (Support s ) =
@@ -152,8 +153,9 @@ torsor (Beam l e a (V3 ix iy iz) g)
       (V3 0 (4*e*iy/l) 0 )
       (V3 0 0  (4*e*iz/l))
 
-nodeForces lmap nvars (ix,(s,Support (Tag _ _ _  _)))
+nodeForces lmap nvars (ix,(s,el))
   = foldr1 (\(a,b) (c,d) -> (a ^+^ c , b ^+^d)) $   (\(h,t,resh,rest,a) -> if ix == h then resh else (if ix == t then rest else error "wrong index")) . flip var lmap <$> F.toList s
+  where (Tag _ _ _  _) = tag el
 
 linkForces g linkInPre nodesInPre
   = fmap (\(h,t,resh,rest,a) -> (norm resh , norm resh)) <$> M.toList lmap
@@ -229,8 +231,9 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
     nodesIn = unForces <$> nodesInPre
     nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip (M.toList nodesIn) (snd <$> shead g)
     l = reverse $ links g
-    nodeMerge (ix,(s,Support (Tag a aa fv mv ))) = catMaybes . zipWith3 (\i f j -> if isNothing i  || isNothing f then Just j else Nothing) (F.toList a <> F.toList aa) (F.toList fv <> F.toList mv )  .zipWith (+) (F.toList m <> F.toList ma) . fmap sum .  L.transpose $ (\(a,b) -> F.toList a <> F.toList b). (\(h,t,resh,rest,a) -> if ix == h then resh else (if ix == t then rest else error "wrong index")) . flip var lmap <$> F.toList s
+    nodeMerge (ix,(s,el)) = catMaybes . zipWith3 (\i f j -> if isNothing i  || isNothing f then Just j else Nothing) (F.toList a <> F.toList aa) (F.toList fv <> F.toList mv )  .zipWith (+) (F.toList m <> F.toList ma) . fmap sum .  L.transpose $ (\(a,b) -> F.toList a <> F.toList b). (\(h,t,resh,rest,a) -> if ix == h then resh else (if ix == t then rest else error "wrong index")) . flip var lmap <$> F.toList s
       where (_,_,m,ma) = var ix nodesIn
+            Tag a aa fv mv = tag el
     lmap = M.fromList $ eqLink nvars <$> l
 
 
@@ -259,6 +262,7 @@ rot2V3  x y = identV3 !+! skewV3 v !+! ((*((1 - dot x  y )/norm v)) **^ (skewV3 
   where
     v = cross x y
 
+thisF (_,(_,Connection i _ )) = M.fromList i
 thisF  e  =   (M.fromList ( els $ first F.toList  e))
   where
     els ([a,b,c,d,e,f],i)

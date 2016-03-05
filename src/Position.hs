@@ -28,8 +28,8 @@ class RBackend a where
 
 class RBackend a => Target sys a  where
   renderNode :: S.Set Int -> Int -> sys Double -> a
-  renderLink ::  (Int,Int) -> Int -> Int -> sys Double -> a
-  renderNodeSolve :: NodeDomain sys Double -> sys Double ->  a
+  renderLink :: (Int,Int) -> Int -> Int -> sys Double -> a
+  renderNodeSolve :: NodeDomain sys Double -> Int -> sys Double ->  a
   renderLinkSolve :: LinkDomain sys Double -> sys Double ->  a
 
 
@@ -166,7 +166,7 @@ drawIter iter = L.foldr1 (<>) $ nds <> lds
                 pos <- varM (fst i) gridMap
                 pres <- varM (fst i) (M.fromList (pressures it))
                 let nstate = mergeStates (constrained (snd i))  pres
-                return $ transformElement  pos $ (renderNode  S.empty (fst i) (snd i) <> renderNodeSolve nstate (snd i) )) (nodesFlow (grid it))
+                return $ transformElement  pos $ (renderNode  S.empty (fst i) (snd i) <> renderNodeSolve nstate (fst i) (snd i) )) (nodesFlow (grid it))
           where -- metrics = [maximum (snd <$> flows it), minimum (snd <$> flows it)]
                 gridMap = (M.fromList (shead $ grid it))
 
