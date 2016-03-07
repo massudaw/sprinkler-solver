@@ -51,7 +51,7 @@ solveIter iter@(Iteration fl f g) modeler =  Iteration outLinks outNodes (grid i
     -- nodesOutP :: ( PreSys c ,Traversable (NodeDomain c) , Traversable (LinkDomain c)  )=> Grid c Double -> State [Double] [(Int,Compose (NodeDomain c) Maybe Double)]
     nodesOutP g = traverse (traverse (fmap Compose . uarseT  .constrained) ) (nodesFlow g)
     -- linksOutP :: ( PreSys c ,Traversable (NodeDomain c) , Traversable (LinkDomain c) , Num a )=> Grid c Double -> State [Double] [(Int,Compose (LinkDomain c) Maybe Double )]
-    linksOutP g = traverse (traverse ( fmap Compose . traverse uarse .lconstrained) ) (fmap (\(i,_,_,p)-> (i,p)) $ links g)
+    linksOutP g = traverse (traverse ( fmap Compose . traverse uarse .lconstrained) ) (fmap (\(i,(_,_,p))-> (i,p)) $ links g)
     inNodes ,inLinks :: [Double]
     inNodes = (concat $ ( catMaybes . F.toList . getCompose ). snd <$> f )
     inLinks= (concat $ (catMaybes . F.toList . getCompose ) .  snd <$> fl )

@@ -29,6 +29,7 @@ class RBackend a where
 class RBackend a => Target sys a  where
   renderNode :: S.Set Int -> Int -> sys Double -> a
   renderLink :: (Int,Int) -> Int -> Int -> sys Double -> a
+  renderSurface :: [(Int,Int, [sys Double])] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
   renderNodeSolve :: NodeDomain sys Double -> Int -> sys Double ->  a
   renderLinkSolve :: LinkDomain sys Double -> sys Double ->  a
 
@@ -63,29 +64,30 @@ unrot = fmap upi. unRot231 . SO3 . distribute . unSO3 .snd
 
 locateGrid
   :: (SO3 Double ~ (Ang a) , Coord f a, Show (f Double),Show (Ang a), Show a,  Num a, Monad m) =>
-     M.Map Int (Int, Int, Int, [ f Double ])
-     -> M.Map Int (S.Set Int, (Int, f Double ))
+     M.Map Int (Int, Int, [ f Double ])
+     -> M.Map Int (S.Set Int, f Double )
      -> Int
      -> (a, Ang a)
+     -> Int
      -> Either
-          (Int, Int, Int, [f Double])
-          (S.Set Int, (Int, f Double))
+          (Int, Int, [f Double])
+          (S.Set Int, f Double)
      -> StateT (M.Map Int (a, Ang a), M.Map Int [(a, Ang a)]) m ()
-locateGrid lmap nmap l r (Right oe@(s,(e@(n,_)))) = do
+locateGrid lmap nmap l r n (Right oe@(s,e)) = do
   let
-      t =   tElement  l (s,e)
+      t =   tElement  l (s,(n,e))
       rnew = trans r t
   modify (<> (M.singleton n rnew,mempty))
   let trav ne@(i,coo)  =  do
         let pos = trans r coo
         (_,visitedLink) <- get
         -- when (isNothing $ M.lookup i visitedLink) $ do
-        locateGrid lmap nmap n  pos (Left $ var i lmap )
+        locateGrid lmap nmap n  pos i (Left $ var i lmap )
         --   return ()
-  mapM trav  (nextElement l (s,e))
+  mapM trav  (nextElement l (s,(n,e)))
   return ()
 
-locateGrid lmap nmap n r ll@(Left (l,h,t,e))
+locateGrid lmap nmap n r l ll@(Left (h,t,e))
   | n == h =  do
     i <- path t e
     modify (<> (mempty ,M.singleton l i))
@@ -112,7 +114,7 @@ locateGrid lmap nmap n r ll@(Left (l,h,t,e))
         let dis =  dist pos  (var h visitedNode)
         if  not $ M.member h visitedNode
           then do
-            locateGrid lmap nmap l pos (Right $ var h nmap)
+            locateGrid lmap nmap l pos h (Right $ var h nmap)
           else
             if   dis < (1e-2,1e-2)
              then return ()
@@ -134,52 +136,53 @@ varM i j = case M.lookup i j of
               Nothing ->  Nothing
               i -> i
 
-drawGrid iter = L.foldr1 (<>) $ nds <> lds
-  where nds = styleNodes iter
-        lds = styleLinks iter
-        styleNodes  it = catMaybes $ fmap (\i -> do
-                pos <- varM (fst i) gridMap
-                -- pres <- varM (fst i) (M.fromList (pressures it))
-                let pres = 0
-                return $ transformElement  pos $ renderNode S.empty (fst i ) (snd i) ) (nodesFlow it)
-          where -- metrics = [maximum (snd <$> flows it), minimum (snd <$> flows it)]
-                gridMap = (M.fromList (shead $ it))
+drawGrid iter = L.foldr1 (<>) $ styleNodes iter <> styleLinks iter <> styleSurfaces iter
+  where
+    styleNodes  it = catMaybes $ fmap (\i -> do
+            pos <- varM (fst i) gridMap
+            let pres = 0
+            return $ transformElement  pos $ renderNode S.empty (fst i ) (snd i) ) (nodesFlow it)
+      where
+        gridMap = (M.fromList (shead $ it))
 
-        --styleLinks :: Iteration Double -> [Mecha.Solid]
-        styleLinks it = concat $ catMaybes $  fmap (\(l,h,t,i)  -> do
-                    pos <- varM l  posMap
-                    return $ catMaybes $ zipWith3 (\m ix n ->  do
-                      let flow = 0
-                      return $ transformElement m $ renderLink  (h,t) ix  l n ) pos  [0..] i ) (links (it))
-          where -- [max,min]= [maximum (snd <$> flows it), minimum (snd <$> flows it)]
-                -- nf f =  abs f /(max - min)
-                posMap = M.fromList $ linksPosition (it)
-                -- flowMap  = M.fromList (flows it)
+    styleLinks it = concat $ catMaybes $  fmap (\(l,(h,t,i))  -> do
+                pos <- varM l  posMap
+                return $ catMaybes $ zipWith3 (\m ix n ->  do
+                  return $ transformElement m $ renderLink  (h,t) ix  l n ) pos  [0..] i ) (links (it))
+      where
+        posMap = M.fromList $ linksPosition (it)
+
+styleSurfaces it = catMaybes $  fmap (\(n,(h,i))  -> do
+                let paths = fmap (\l -> var l lEls) h
+                    nodes = fmap (\(h,t,_)->  [(h,var h npos),(t,var t npos)]) paths
+                return $ renderSurface paths (concat nodes)  i ) (surfaces it)
+      where
+        -- lEls :: M.Map Int (Int,Int,[sys Double])
+        lEls =  M.fromList $ links it
+        npos = M.fromList $ shead it
+
 
 mergeStates i x = fst $ runState( traverse parse i) (F.toList x)
 
--- styleNodes :: Iteration Double -> [Mecha.Solid]
-drawIter iter = L.foldr1 (<>) $ nds <> lds
-  where nds = styleNodes iter
-        lds = styleLinks iter
-        styleNodes  it = catMaybes $ fmap (\i -> do
-                pos <- varM (fst i) gridMap
-                pres <- varM (fst i) (M.fromList (pressures it))
-                let nstate = mergeStates (constrained (snd i))  pres
-                return $ transformElement  pos $ (renderNode  S.empty (fst i) (snd i) <> renderNodeSolve nstate (fst i) (snd i) )) (nodesFlow (grid it))
-          where -- metrics = [maximum (snd <$> flows it), minimum (snd <$> flows it)]
-                gridMap = (M.fromList (shead $ grid it))
+drawIter iter = L.foldr1 (<>) $ nds <> lds <> styleSurfaces (grid iter)
+  where
+    nds = styleNodes iter
+    lds = styleLinks iter
+    styleNodes  it = catMaybes $ fmap (\i -> do
+            pos <- varM (fst i) gridMap
+            pres <- varM (fst i) (M.fromList (pressures it))
+            let nstate = mergeStates (constrained (snd i))  pres
+            return $ transformElement  pos $ (renderNode  S.empty (fst i) (snd i) <> renderNodeSolve nstate (fst i) (snd i) )) (nodesFlow (grid it))
+      where
+        gridMap = (M.fromList (shead $ grid it))
 
-        --styleLinks :: Iteration Double -> [Mecha.Solid]
-        styleLinks it = concat $ catMaybes $  fmap (\(l,h,t,i)  -> do
-                    pos <- varM l  posMap
-                    return $ catMaybes $ zipWith3 (\m ix n ->  do
-                      let flow = 0
-                      return $ transformElement m $ renderLink  (h,t) ix  l n ) pos  [0..] i ) (links (grid it))
-          where -- [max,min]= [maximum (snd <$> flows it), minimum (snd <$> flows it)]
-                -- nf f =  abs f /(max - min)
-                posMap = M.fromList $ linksPosition (grid it)
-                -- flowMap  = M.fromList (flows it)
+    styleLinks it = concat $ catMaybes $  fmap (\(l,(h,t,i))  -> do
+                pos <- varM l  posMap
+                return $ catMaybes $ zipWith3 (\m ix n ->  do
+                  let flow = 0
+                  return $ transformElement m $ renderLink  (h,t) ix  l n ) pos  [0..] i ) (links (grid it))
+      where
+        posMap = M.fromList $ linksPosition (grid it)
 
 
 drawIterGraph  iter = L.foldr1 (<>) $ nds <> lds
@@ -191,7 +194,7 @@ drawIterGraph  iter = L.foldr1 (<>) $ nds <> lds
                 gridMap = (M.fromList (shead $ it))
 
         --styleLinks :: Iteration Double -> [Mecha.Solid]
-        styleLinks it = concat $ catMaybes $  fmap (\(l,h,t,i)  -> do
+        styleLinks it = concat $ catMaybes $  fmap (\(l,(h,t,i))  -> do
                     return $ catMaybes $ zipWith3 (\m ix n ->  do
                       return $ renderLink  (h,t) ix  l n ) [0..] [0..] i ) (links (it))
 

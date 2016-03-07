@@ -33,7 +33,8 @@ import System.IO.Unsafe
 data Grid b a
   = Grid
   { linksPosition :: [(Int,[(V3 a ,SO3 a)])]
-  , links :: [(Int,Int,Int,[b a])]
+  , links :: [(Int,(Int,Int,[b a]))]
+  , surfaces :: [(Int,([Int],b a))]
   , shead :: [(Int,(V3 a,SO3 a))]
   , nodesFlow :: [(Int,b a)]
   }deriving(Functor,Show)
@@ -54,7 +55,7 @@ class PreSys sys  where
         return (Just  i)
       convL (Just i) = Nothing
       convL Nothing = (Just 2)
-      varsL = fmap (fmap ((fmap convL . lconstrained ))) $ (fmap (\(i,_,_,l)-> (i,l)) $  links g)
+      varsL = fmap (fmap ((fmap convL . lconstrained ))) $ (fmap (\(i,(_,_,l))-> (i,l)) $  links g)
   constrained :: Num a => sys a -> NodeDomain sys (Maybe a)
   lconstrained :: Num a => [sys a]-> LinkDomain sys (Maybe a)
 
@@ -126,7 +127,7 @@ prepareModel l model vh = model l v h
       h = M.fromList nodesIn
       (nodesIn,linksIn) = fst $ runState ((,) <$> nodesInP <*> linksInP ) (vh  <> replicate 10 100)
       nodesInP = traverse (traverse (traverse parse .constrained)) (nodesFlow l)
-      linksInP = traverse (traverse (traverse parse .lconstrained)) (fmap (\(i,_,_,j) -> (i,j)) $ links l)
+      linksInP = traverse (traverse (traverse parse .lconstrained)) (fmap (\(i,(_,_,j)) -> (i,j)) $ links l)
 
 nodesSet grid = fmap (\(i,n) -> (i,(var i nodeMapSet,n))) (nodesFlow grid)
-    where nodeMapSet = fmap S.fromList $ M.fromListWith mappend $ concat $ (\(l,h,t,_) -> [(h,[l ]),(t,[l ])]) <$> links grid
+    where nodeMapSet = fmap S.fromList $ M.fromListWith mappend $ concat $ (\(l,(h,t,_)) -> [(h,[l ]),(t,[l ])]) <$> links grid

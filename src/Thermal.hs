@@ -46,7 +46,7 @@ thermalPotential :: (Show a,Ord a,Floating a) => Grid Thermal a -> M.Map Int a -
 thermalPotential grid  vm nh =  term <$> l
   where
     l = links grid
-    term (l,h,t,e) =   sum (thermalElement (var l vm) <$> e) - lookNode h   +   lookNode t
+    term (l,(h,t,e)) =   sum (thermalElement (var l vm) <$> e) - lookNode h   +   lookNode t
     lookNode h = justError "cant find node "  $ (join $ fmap (\i -> if isAmbient i then (\(Ambient i) -> Just i) $ i else Nothing) $ varM h (M.fromList $ nodesFlow grid)) <|> varM h nh
       where
         varM h = M.lookup h
@@ -57,9 +57,9 @@ thermalContinuity :: (Show a,Ord a,Floating a )=> Grid Thermal a -> M.Map Int a 
 thermalContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( correct i $ links g))  - nflow i e) $ filter (not . isAmbient . snd) $ nodesFlow g
   where
         -- pipeFlow
-        flipped i=  sumn . filter (\(_,h,t,_) -> h == i )
-        correct i= suma . filter (\(_,h,t,_) -> t == i )
-        suma =  fmap (\(li,_,_,_) -> var li v )
+        flipped i=  sumn . filter (\(_,(h,t,_)) -> h == i )
+        correct i= suma . filter (\(_,(h,t,_)) -> t == i )
+        suma =  fmap (\(li,(_,_,_)) -> var li v )
         sumn =  fmap negate . suma
         -- nodeFlow
         genFlow _ ThermalNode  = 0

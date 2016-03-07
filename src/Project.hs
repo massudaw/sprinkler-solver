@@ -143,26 +143,26 @@ upgradeGrid ni li a = a {shead = M.toList nodesPos, linksPosition = M.toList lin
     (nodesPos,linksPos) =  snd $ runState (do
                       modify (<> (M.singleton ni (0,SO3 $ rotM 0), mempty))
                       let niel = var ni nmap
-                          oi = var li $ thisElement niel
-                      locateGrid lmap nmap ni oi  (Left $ var li lmap ))
+                          oi = var li $ thisElement (fmap (ni,)niel)
+                      locateGrid lmap nmap ni oi  li (Left $ var li lmap ))
                         (mempty,mempty)
-    lmap = M.fromList (fmap (\l@(li,_,_,_)-> (li,l))  $ links a)
-    nmap = M.fromList (findNodesLinks a $ fmap (\n@(ni,_) -> (ni,n)) $ (nodesFlow a) )
+    lmap = M.fromList (links a)
+    nmap = M.fromList (findNodesLinks a $   (nodesFlow a) )
 
-recurse render r@(Right l@(ni,h,t,e)) = do
+recurse render ni r@(Right l@(h,t,e)) = do
   lift $ modify (<> (S.empty,S.singleton ni))
   i <- fst <$> lift  get
   linkmap <- fst <$> ask
   let nexts = S.toList $ S.difference (S.fromList [h,t]) i
-  ti <- mapM (recurse render . Left . flip var linkmap) nexts
-  return $ render r  : concat ti
-recurse render r@(Left n@(ni,lks,e)) = do
+  ti <- mapM (\i -> recurse render i . Left . flip var linkmap $ i ) nexts
+  return $ render ni r  : concat ti
+recurse render ni r@(Left n@((lks,e))) = do
   lift $ modify (<>(S.singleton ni,S.empty))
   s <- snd <$> lift  get
   nodemap <- snd <$> ask
   let nexts = S.toList $ S.difference lks  s
-  ti <- mapM (recurse render . Right . flip var nodemap) nexts
-  return $ render r : concat ti
+  ti <- mapM (\i -> recurse render i . Right . flip var nodemap $ i ) nexts
+  return $ render ni r : concat ti
 
 sf2 = show -- formatFloatN 2
 sf3 = show -- formatFloatN 3
@@ -173,7 +173,7 @@ reportIter header i iter@(Iteration f h a)  = do
     let name = regionFile $ regionInfo header
     writeFile (name <> ".csv")  $(headerCalculo <> "\n\n" <> "Relatório dos Nós" <> "\n\n" <>( L.intercalate "\n"    $ (L.intercalate ","  nodeHeader :) (evalState (runReaderT (do
            nodemap  <- fst <$> ask
-           recurse (either nmap lmap) (Left $ fromJustE "no node" $ M.lookup i nodemap )) (M.fromList $ fmap (\(i,(j,k))-> (i,(i,j,k))) $ findNodesLinks a (nodesFlow a) ,M.fromList $ fmap (\l@(i,h,t,e)-> (i,l))$ links a )) (S.empty,S.empty))) <>
+           recurse (\ni -> either (nmap ni) (lmap ni)) i (Left $ fromJustE "no node" $ M.lookup i nodemap )) (M.fromList $  findNodesLinks a (nodesFlow a) ,M.fromList $ links a )) (S.empty,S.empty))) <>
             "\n\n" <> "Relatório dos Links" <> "\n\n" <> L.intercalate "," linkHeader <>"\n" <> (L.intercalate "\n" $ lsmap <$> (links a)))
   where
     residual = printResidual iter jacobianEqNodeHeadGrid
@@ -188,7 +188,7 @@ reportIter header i iter@(Iteration f h a)  = do
     residuos = "Dados Solução\n\n" <> resnh <> "\n"  <>resc
     vazao = fromJustE "no flow for node 1 " $ join $ M.lookup 1 fm
     bomba :: Element Double
-    bomba@(Bomba (pn,vn)   _) = fromJustE "no pump"$ join $ L.find isBomba . (\(_,_,_,l) -> l)<$> L.find (\(_,_,_,l) -> L.any isBomba l ) (links a )
+    bomba@(Bomba (pn,vn)   _) = fromJustE "no pump"$ join $ L.find isBomba . (\(_,(_,_,l)) -> l)<$> L.find (\(_,(_,_,l)) -> L.any isBomba l ) (links a )
     pressao = abs $ pipeElement vazao bomba
     sprinklers =  fmap (\(i,e) -> (i,fromJustE "no sprinkler" $ join $ M.lookup i  hm ,e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
     areaSprinkler =  sum $ fmap coverageArea ((\(_,_,i) -> areaCobertura i)<$> sprinklers)
@@ -205,13 +205,13 @@ reportIter header i iter@(Iteration f h a)  = do
             ,"Reservatório\n" <> "Volume," <> sf2 (vazao * tempo) <> ",L\n" <> "Tempo de Duração," <> sf2 tempo<> ",min"
             ,"Sprinkler\nTipo,ESFR\n"  {-<> "Diâmetro,25,mm\n" <> "Area,9,m²\n" <> -}<> "K," <> sf2 ksp <> ",L/min/(kpa^(-1/2))\n"<> "Vazão Mínima," <> sf2 (ksp*sqrt 350) <>  ",L/min\n" <> "Pressão Mínima,350,kpa\n" <> "Area Projeto;" <> sf3 areaSprinkler <>  ";m²\n" <> "Quantidade Bicos," <> show (L.length sprinklers) <> ",un" ] <>  "\nId,Pressão(kpa),Vazão(L/min)\n" <> spkReport <>  "\n\n" <>residuos
 
-    nmap = (\n@(ni,s,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 2 $ maybe 0 id $p ni , formatFloatN 2 $h  ni,"",""] ++  expandNode (p ni) e )
+    nmap = (\ni n@(s,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 2 $ maybe 0 id $p ni , formatFloatN 2 $h  ni,"",""] ++  expandNode (p ni) e )
         where p ni =  join $ varM ni hm
               h ni =  fst ( (fromJustE $"no position pressure for node " <> show ni) (varM ni  pm)) ^. _z
-    lmap = (\n@(ni,h,t,e) ->  L.intercalate "," ["T-"<> show h <>  "-" <> show t ,"","",formatFloatN 2 $  maybe 0 id (abs <$> p ni) ,formatFloatN 2  $ abs (pr h - pr t),"Trecho"])
+    lmap = (\ni n@(h,t,e) ->  L.intercalate "," ["T-"<> show h <>  "-" <> show t ,"","",formatFloatN 2 $  maybe 0 id (abs <$> p ni) ,formatFloatN 2  $ abs (pr h - pr t),"Trecho"])
         where pr ni =  maybe 0 id (join $ varM ni hm)
               p ni =  join $ varM ni fm
-    lsmap n@(ni,h,t,e) = L.intercalate "\n" $ fmap (L.intercalate ",") $ (mainlink:) $ expandLink (lname <>  "-") (p ni) <$>  zip [0..] (addTee (h,ni) <> e <> addTee (t ,ni))
+    lsmap n@(ni,(h,t,e)) = L.intercalate "\n" $ fmap (L.intercalate ",") $ (mainlink:) $ expandLink (lname <>  "-") (p ni) <$>  zip [0..] (addTee (h,ni) <> e <> addTee (t ,ni))
         where p ni =  join $ varM ni fm
               mainlink = [lname  , "", show $ fromMaybe 0 (join $ varM h hm ) - fromMaybe 0 (join $ varM t hm),"", ""]
               lname = "T-"<> show h <>  "-" <> show t
@@ -261,4 +261,4 @@ expandGrid a = runState (recurseNode  [] (lookNode (fst $ head sortedHeads))) (S
 -}
 
 findNodesLinks grid = fmap (\(i,n) -> (i,(var i nodeMapSet,n)))
-    where nodeMapSet = fmap S.fromList $ M.fromListWith mappend $ concat $ (\(l,h,t,_) -> [(h,[l ]),(t,[l ])]) <$> links grid
+    where nodeMapSet = fmap S.fromList $ M.fromListWith mappend $ concat $ (\(l,(h,t,_)) -> [(h,[l ]),(t,[l ])]) <$> links grid

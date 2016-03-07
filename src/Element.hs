@@ -78,18 +78,18 @@ pipeElement v (Turn _)   = 0
 
 signedFlow :: (Show a,Floating a )=> Grid Element a -> M.Map Int a ->M.Map Int (M.Map Int a)
 signedFlow g v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromList $ ( ( sumn $ flipped i $ links g) ++   ((suma $ correct i $ links g))) ) (nodesFlow g)
-  where flipped i=  filter (\(_,h,t,_) -> h == i )
-        correct i= filter (\(_,h,t,_) -> t == i )
-        suma =  fmap (\(li,_,_,_) -> (li,var li v ))
-        sumn =  fmap (\(li,_,_,_) ->  (li,negate $ var li v))
+  where flipped i=  filter (\(_,(h,t,_)) -> h == i )
+        correct i= filter (\(_,(h,t,_)) -> t == i )
+        suma =  fmap (\(li,_) -> (li,var li v ))
+        sumn =  fmap (\(li,_) ->  (li,negate $ var li v))
 
 jacobianContinuity :: (Show a,Ord a,Floating a )=> Grid Element a -> M.Map Int a -> M.Map Int a -> [a]
 jacobianContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( correct i $ links g))  - nflow i e) $ filter (not . isReservoir . snd) $ nodesFlow g
   where
         -- pipeFlow
-        flipped i=  sumn . filter (\(_,h,t,_) -> h == i )
-        correct i= suma . filter (\(_,h,t,_) -> t == i )
-        suma =  fmap (\(li,_,_,_) -> var li v )
+        flipped i=  sumn . filter (\(_,(h,t,_)) -> h == i )
+        correct i= suma . filter (\(_,(h,t,_)) -> t == i )
+        suma =  fmap (\(li,_) -> var li v )
         sumn =  fmap negate . suma
         -- nodeFlow
         nflow i e = genFlow (var i pm) e
@@ -109,7 +109,7 @@ jacobianNodeHeadEquation grid  vm nh =  term <$> l
     sflow = signedFlow grid vm
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,h,t,e) =   sum (pipeElement (var l vm) <$> e) - ( varn h nh  + (varr3 h nhs ^. _z) *9.78235  )  +  addTee (h,l) + addTee (t,l) + ( ((varr3 t nhs ^. _z) *9.81 ) + varn t nh )
+    term (l,(h,t,e)) =   sum (pipeElement (var l vm) <$> e) - ( varn h nh  + (varr3 h nhs ^. _z) *9.78235  )  +  addTee (h,l) + addTee (t,l) + ( ((varr3 t nhs ^. _z) *9.81 ) + varn t nh )
       where
          nhs = fmap fst (M.fromList $shead grid)
 

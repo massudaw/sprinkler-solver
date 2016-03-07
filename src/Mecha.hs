@@ -2,14 +2,19 @@
 module Mecha (openSCAD) where
 
 import Data.Distributive
+import Debug.Trace
 import Numeric
+import Plane
 import Hydraulic
 import Force
 import Position
 import Rotation.SO3
+import Data.Maybe
 import Linear.V3
 import Element
+import qualified Data.Foldable as F
 
+import qualified Data.Map as M
 import qualified Language.Mecha.Types as Mecha
 import qualified Language.Mecha.Solid as Mecha
 import Language.Mecha.Export
@@ -70,8 +75,11 @@ instance Target Force Mecha.Solid  where
           mys = my/norm m
           mxs = mx/norm m
 
-  renderLink _ nis  ni  (Bar i _ a )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.moveY (d/2) $Mecha.moveZ (d/2)  $ Mecha.moveX (i/2)$ Mecha.scale (st,st,st) (Mecha.text (show ni)))
+  renderLink _ nis  ni  (Link i   )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.moveY (d/2) $Mecha.moveZ (d/2)  $ Mecha.moveX (i/2)$ Mecha.scale (st,st,st) (Mecha.text (show ni)))
     where d = 0.03 -- 2* (sqrt$ a/pi)
+          st = 0.09
+  renderLink _ nis  ni  (Bar i _ a )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.moveY (d/2) $Mecha.moveZ (d/2)  $ Mecha.moveX (i/2)$ Mecha.scale (st,st,st) (Mecha.text (show ni)))
+    where d = 2* (sqrt$ a/pi)
           st = 0.09
   renderLink _ nis  ni  (Beam i _ a _ _ )  =  Mecha.color (0.2,0.2,1, 1 ) $(   (Mecha.moveX (i/2) $ Mecha.scale (i,sqrt a , sqrt a) (Mecha.cube 1)  ) )<> ( Mecha.moveY (d/2) $Mecha.moveZ (d/2)  $ Mecha.moveX (i/2)$ Mecha.scale (st,st,st) (Mecha.text (show ni)))
     where d = 0.03 -- 2* (sqrt$ a/pi)
@@ -81,6 +89,11 @@ instance Target Force Mecha.Solid  where
   renderLink  _  nis ni (BTurn _  ) = Mecha.sphere d
     where d = 0.03
   renderLink  _ nis ni (Load  ) =  Mecha.color (0,1,0,1) $  (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show (ni,nis))))
+  renderSurface ls nds _ = Mecha.extrude (Mecha.polygon (F.toList <$> npos) [paths])  0.5
+      where nls = M.fromList $ zip (fst <$> nds) [0..]
+            npos = (fst . snd <$> nds)
+            paths = fmap (\n -> fromJust $M.lookup n nls) $ path $ (\(h,t,l)-> (h,t)) <$> ls
+
 
 marrow3d ni
   | abs ni <1e-9 = Nothing

@@ -34,6 +34,7 @@ library
     ,Lint
     ,Equation
     ,Graphviz
+    ,Plane
   build-depends:        base >=4.7 && <4.9
                       , hmatrix
                       , hmatrix-gsl
@@ -43,6 +44,7 @@ library
                       , containers
                       , distributive
                       , ad 
+                      , semigroups
                       , comonad 
                       , reflection 
                       , mtl

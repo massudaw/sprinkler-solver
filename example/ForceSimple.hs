@@ -3,6 +3,7 @@
 module Main where
 
 import Debug.Trace
+import Plane
 import Data.Monoid
 import Control.Applicative
 import Linear.V3
@@ -17,7 +18,7 @@ import qualified Data.Foldable as F
 import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
-main = mapM solve $ zip [0..] [example9] -- [example1,example2,example3]
+main = mapM solve $ zip [0..] [exampleSurf] -- [example1,example2,example3]
 solve (i,ex) = do
 
   let ini = makeIter 0 1 ex
@@ -25,6 +26,7 @@ solve (i,ex) = do
   let iter = solveIter ( makeIter 0 1 ex) momentForceEquations
       posres = printResidual iter momentForceEquations
 
+--   displayModel ("force-model-bend" <> show i ,grid $ ini )
   putStrLn $ "Jacobian: " <> show (printJacobian (realToFrac <$> ini) momentForceEquations)
   putStrLn $ "Pre Resídual: " <>  show preres
   putStrLn $ "Pos Resídual: " <>  show posres
@@ -167,5 +169,19 @@ example7 = fst $ runInput $ mdo
 
 aco l s = Bar l 100 s
 
+exampleSurf = fst $ runInput $ mdo
+  let em = 100
+      a =  5
+      ba = 10
+  x1 <- conn [turn l1 0 1 ,turn l4 1 0] (Tag 0 0  (V3 Nothing Nothing 0 ) 0)
+  l1 <- link [Link (2*a )  ] x1 x2
+  x2 <- conn [turn l1 0 1 ,turn l2 1 0] (Tag (V3 Nothing 0 0) 0 (V3 0 Nothing 0 ) 0)
+  l2 <- link [Link (a) ] x2 x3
+  x3 <- conn [turn l2 0 1, turn l3 1 0]  (Tag (V3 Nothing Nothing  0) 0 (V3 10 10 0 ) 0)
+  l3 <- link [Link (2*a) ] x3 x4
+  x4 <- conn [turn l3 0 1,turn l4 1 0]  (Tag (V3 0 Nothing 0)  0 (V3 Nothing 0 0 ) 0 )
+  l4 <- link [Link (a)  ] x4 x1
+  surface (Quad4 (ematQ 96 (1/3)) 1) [l1,l2,l3,l4]
+  return ()
 
 

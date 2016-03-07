@@ -16,7 +16,7 @@ import Hydraulic
 --lintLinks :: (Show a,Ord a) => Grid a -> [String]
 lintLinks grid = mapM_ checkLinks (links grid)
   where
-        checkLinks c@(n,h,t,elems) = do
+        checkLinks c@(n,(h,t,elems)) = do
              F.foldl' (\i j -> do
                    idia <- i
                    case j of
@@ -30,7 +30,7 @@ nodeConnective grid = do
   let   nds =  (fst <$> nodesFlow grid )<>  (fst <$> shead grid)
         hasNodes = filter (not .(`S.member` S.fromList nds).fst) (M.toList $ nodeUsage)
         nodeMap = M.fromList (zip  nds (repeat []))
-        nodeUsage = foldr (\(l,h,t,_)-> M.insertWith mappend h [l] .M.insertWith mappend  t [l] ) M.empty (links grid)
+        nodeUsage = foldr (\(l,(h,t,_))-> M.insertWith mappend h [l] .M.insertWith mappend  t [l] ) M.empty (links grid)
         orphanNodes = filter ((<1) . length  . snd ) (M.toList nodeUsage)
   mapM_ (\i -> tell $ ["No node for links" ++ show i ]) hasNodes
   mapM_ (\i -> tell $ ["OrphanNode " <> show i]) orphanNodes
