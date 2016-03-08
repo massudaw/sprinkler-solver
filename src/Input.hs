@@ -1,5 +1,5 @@
 {-# LANGUAGE RecursiveDo  #-}
-module Input ((>~>),link,node, surface,runInput) where
+module Input ((>~>),link,node, surface,polyhedra,runInput) where
 
 import Sprinkler
 import Hydraulic
@@ -7,54 +7,63 @@ import Domains
 import Data.Functor.Identity
 import Element
 import Grid
+import Control.Lens
 
 import Data.Monoid
 import Control.Monad.Trans.State
 
 import Control.Monad.Fix
 
+type ElemState = (Int,Int,Int,Int)
+type InputM sys e = State (Grid sys e , ElemState)
 
--- getUniqueL :: Constr  Int
-
-getUniqueL
-  :: State (a1, (a, Int,Int))  Int
-getUniqueL = do
-  modify (\(i,(l,j,k)) -> (i,(l,j + 1,k)))
-  lk .snd <$> get
-
--- getUniqueN :: Constr  Int
-getUniqueN
-  :: State (a1,(Int, a,Int))  Int
+getUniqueS,getUniqueV,getUniqueL ,getUniqueN  :: InputM sys  e Int
 getUniqueN = do
-  modify (\(i,(j,l,k)) -> (i,(j + 1,l,k)))
+  modify (over (_2._1) (+ 1))
   nd . snd <$> get
 
-getUniqueS
-  :: State (a1,(Int, a,Int))  Int
+getUniqueL = do
+  modify (over (_2._2) (+ 1))
+  lk .snd <$> get
+
 getUniqueS = do
-  modify (\(i,(j,l,k)) -> (i,(j ,l,k + 1)))
+  modify (over (_2._3) (+ 1))
   sf . snd <$> get
 
-nd (i,_,_) = i
-lk (_,i,_) = i
-sf (_,_,i) = i
+getUniqueV = do
+  modify (over (_2._4) (+ 1))
+  vo . snd <$> get
+
+
+nd (i,_,_,_) = i
+lk (_,i,_,_) = i
+sf (_,_,i,_) = i
+vo (_,_,_,i) = i
 
 node  e = do
   un <-  getUniqueN
-  modify (\(Grid lp l s np n,i) -> (Grid lp l s np ((un,e): n) ,i))
+  modify (\(g,i) -> (g {nodesFlow = (un,e): nodesFlow g} ,i))
   return (un,e)
 
 link e  (h,_) (t,_) = do
   un <-  getUniqueL
-  modify (\(Grid lp l s np n,i) -> (Grid lp   ((un,(h,t,e)): l) s np n ,i))
+  modify (\(g,i) -> (g {links = (un,(h,t,e)): links g} ,i))
   return (un,e)
 
+surface :: sys e -> [((Bool,Int),[sys e])] -> InputM sys e (Int,sys e)
 surface e  ls  = do
   un <-  getUniqueS
-  modify (\(Grid lp l s np n,i) -> (Grid lp  l ((un,(fst <$> ls,e)): s) np n ,i))
+  modify (\(g,i) -> (g {surfaces= (un,(fst <$> ls,e)): surfaces g } ,i))
   return (un,e)
 
-runInput t = snd $ runState t (Grid [] [] [] [] [] ,(-1,0,0))
+polyhedra :: sys e -> [(Int,sys e)] -> InputM sys e (Int,sys e)
+polyhedra e  ls  = do
+  un <-  getUniqueS
+  modify (\(g,i) -> (g {volumes = (un,(fst <$> ls,e)): volumes g } ,i))
+  return (un,e)
+
+runInput t = snd $ runState t (Grid [] [] [] [] [] [] ,(-1,0,0,0))
+
 {-
 unroll :: (Ord a,Fractional a,Show a) => [Element a] -> State (Grid Element a,(Int,Int,Int)) ()
 unroll l = do

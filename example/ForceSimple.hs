@@ -6,6 +6,7 @@ import Debug.Trace
 import Plane
 import Data.Monoid
 import Control.Applicative
+import Control.Arrow
 import Linear.V3
 import Equation
 import Domains
@@ -18,7 +19,7 @@ import qualified Data.Foldable as F
 import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
-main = mapM solve $ zip [0..] [exampleSurf] -- [example1,example2,example3]
+main = mapM solve $ zip [0..] [exampleVolume] -- [example1,example2,example3]
 solve (i,ex) = do
 
   let ini = makeIter 0 1 ex
@@ -100,7 +101,8 @@ aload load = node (Support (Tag (V3 Nothing Nothing 0) 0 (V3 0 (-load ) 0) 0 ))
 aturn x y =BTurn (0, atan2 x y / (2*pi))
 aturn2 x y z =BTurn (-atan2 z x /(2*pi), atan2 y x / (2*pi))
 
-turn l x y = (l , atan2 x y /(2*pi))
+turn l x y = (l , (0,0,atan2 x y /(2*pi)))
+rise l x y =(l, (0,atan2 x y / (2*pi),0))
 
 example9 = fst $ runInput $ mdo
   x1 <- conn [turn l1 4 3] (Tag (V3 Nothing Nothing 0 ) 0 0 0)
@@ -169,6 +171,9 @@ example7 = fst $ runInput $ mdo
 
 aco l s = Bar l 100 s
 
+cw = first (True,)
+ccw  = first (False ,)
+
 exampleSurf = fst $ runInput $ mdo
   let em = 100
       a =  5
@@ -181,7 +186,46 @@ exampleSurf = fst $ runInput $ mdo
   l3 <- link [Link (2*a) ] x3 x4
   x4 <- conn [turn l3 0 1,turn l4 1 0]  (Tag (V3 0 Nothing 0)  0 (V3 Nothing 0 0 ) 0 )
   l4 <- link [Link (a)  ] x4 x1
-  surface (Quad4 (ematQ 96 (1/3)) 1) [l1,l2,l3,l4]
+  surface (Quad4 (ematQ 96 (1/3)) 1) [cw l1,cw l2,cw l3,cw l4]
+  return ()
+
+
+exampleVolume = fst $ runInput $ mdo
+  let -- em = 100
+      a = 10
+      ba = 10
+      em=480
+      v=1/3
+      sf = FaceLoop
+      free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 (-1) ) 0
+      free= Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 0 ) 0
+  x1 <- conn [turn l1 0 1 ,turn l4 1 0,rise l5  (-1) 0  ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
+  l1 <- link [Link a ] x1 x2
+  x2 <- conn [turn l1 0 1 ,turn l2 1 0,rise l6 (-1) 0 ] (Tag (V3 Nothing 0 Nothing ) 0 (V3 0 Nothing 0 ) 0)
+  l2 <- link [Link a ] x2 x3
+  x3 <- conn [turn l2 0 1, (l3 ,(0, 0,1/4)),rise l7 (-1) 0 ]  (Tag (V3 Nothing Nothing Nothing)  (V3 0 0 0  )(V3 0 0  0 ) 0)
+  l3 <- link [Link a ] x3 x4
+  x4 <- conn [(l3 ,(0,0,-1/4)),turn l4 (0) 1,(l8 ,(-1/4,0, 0))]  (Tag  (V3 0 Nothing 0)  0 (V3  Nothing 0 Nothing ) 0 )
+  l4 <- link [Link (a)  ] x4 x1
+  l5 <- link [Link (a)  ] x1 x5
+  l6 <- link [Link (a)  ] x2 x6
+  l7 <- link [Link (a)  ] x3 x7
+  l8 <- link [Link (a)  ] x4 x8
+  x5 <- conn [turn l9 0 (-1),rise l5  0 (-1) ,turn l12 1 0]  free
+  l9 <- link [Link (a)  ] x6 x5
+  x6 <- conn [turn l10 0 1,turn l9 (-1) 0,rise l6  0 1 ]  free2
+  l10 <- link [Link (a)  ] x7  x6
+  x7 <- conn [turn l11 (1) 0,turn l10   0 (1)  ,rise l7  (-1)  0 ]  free
+  l11 <- link [Link (a)  ] x8  x7
+  x8 <- conn [turn l12 0 (-1) ,(l8, (-1/4,0,0)) ,turn l11  (1) 0 ]  free
+  l12 <- link [Link (a)  ] x5 x8
+  s1 <- surface sf [cw l1,cw l2,cw l3,cw l4]
+  s2 <- surface sf [cw l9,cw l10,cw l11,cw l12]
+  s3 <- surface sf [cw l1,cw l6 , cw l9,ccw l5]
+  s4 <- surface sf [cw l2,cw l7 , cw l10,ccw l6]
+  s5 <- surface sf [cw l3,cw l8 , cw l11,ccw l7]
+  s6 <- surface sf [cw l4,cw l5 , cw l12,ccw l8]
+  polyhedra (Tetra8 (ematT em v)) [s1,s2,s3,s4,s5,s6]
   return ()
 
 

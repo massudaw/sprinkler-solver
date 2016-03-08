@@ -89,7 +89,7 @@ joelho45L  = Joelho Nothing ("Conexao","Joelho","45") left45  100
 -- testResistor :: SR.Expr
 
 displayBended (header,model) = do
-  T.writeFile (header <> "-temp.scad") $ openSCAD (drawIter  model <> Mecha.color (1,0,0,0.2) (drawIter (bendIter model)))
+  T.writeFile (header <> "-temp.scad") $ openSCAD (Mecha.color (1,0,0,0.2) (drawIter  model )<>  (drawIter (bendIter model)))
   callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
 
 displaySolve (header,model) = do
@@ -143,8 +143,12 @@ upgradeGrid ni li a = a {shead = M.toList nodesPos, linksPosition = M.toList lin
     (nodesPos,linksPos) =  snd $ runState (do
                       modify (<> (M.singleton ni (0,SO3 $ rotM 0), mempty))
                       let niel = var ni nmap
-                          oi = var li $ thisElement (fmap (ni,)niel)
-                      locateGrid lmap nmap ni oi  li (Left $ var li lmap ))
+                          nels = thisElement (fmap (ni,)niel)
+                          oi = var li nels
+                      locateGrid lmap nmap ni oi  li (Left $ var li lmap )
+                      mapM (\(inx,ie) -> locateGrid lmap nmap ni ie inx (Left $ var li lmap) ) (filter ((/=li).fst) $ M.toList nels)
+                      )
+
                         (mempty,mempty)
     lmap = M.fromList (links a)
     nmap = M.fromList (findNodesLinks a $   (nodesFlow a) )

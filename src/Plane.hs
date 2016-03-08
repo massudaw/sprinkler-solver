@@ -1,7 +1,9 @@
 {-# LANGUAGE ScopedTypeVariables,FlexibleInstances,FlexibleContexts #-}
 module Plane where
 
+import Data.Monoid
 import Linear.V2
+import Domains
 import Numeric.AD
 import Control.Lens
 import Data.Distributive
@@ -40,8 +42,8 @@ instance Show1 ZipList where
   showsPrec1 = showsPrec
 
 
-hexa8stiffness :: (Show a,Floating a) => [V3 a] -> a -> Compose V2 V3 (Compose V2 V3 a) ->  Compose ZipList V3 ( Compose ZipList V3 a)
-hexa8stiffness  ncoor h emat
+hexa8stiffness :: (Show a,Floating a) => [V3 a] -> Compose V2 V3 (Compose V2 V3 a) ->  Compose ZipList V3 ( Compose ZipList V3 a)
+hexa8stiffness  ncoor  emat
   = foldr1 (!+!) $ map loop  ([[i,j,k] | i<- [0..rule] , j<- [0..rule], k<- [0..rule]])
     where
       rule = 2
@@ -49,7 +51,7 @@ hexa8stiffness  ncoor h emat
         where
           -- be :: [Compose [] V2 a]
           be = Compose . ZipList <$> Compose (V2 (V3 ((\x -> (V3 x 0 0 ))  <$> dnx) ( (\y -> V3 0 y 0 ) <$> dny) ( (\z -> V3 0  0 z ) <$> dnz)) (V3 (zipWith (\y x -> V3 y x 0 ) dny  dnx) (zipWith (\z y -> V3 0 z y  ) dnz  dny) (zipWith (\z x  -> V3  z 0  x ) dnz  dnx)))
-          c = jdet * h* w
+          c = jdet *  w
           (q,w) = sqrule (V3 rule rule rule) (V3 i j z )
           (jdet,V3 dnx dny dnz) = hexa8isopshape ncoor q
 
@@ -100,7 +102,7 @@ quad4isopshapesimple coords v@(V2 xi eta) = (jdet,(/jdet) **^ dnxy)
     jdet = det22 mj
     dnxy = distribute mj !*! distribute dj
 
-{-
+
 quad4isopshape coords (V2 xi eta) = (jdet, V2 (dnx ^/ jdet) (dny  ^/ jdet ))
   where
     -- nf =  [(1-xi)*(1-eta), (1+xi)*(1-eta) ,(1+xi)*(1+eta) ,(1-xi)*(1+eta)] ^/ 4
@@ -115,7 +117,7 @@ quad4isopshape coords (V2 xi eta) = (jdet, V2 (dnx ^/ jdet) (dny  ^/ jdet ))
     jdet = (j11 * j22) - (j12 * j21)
     dnx = (j22 *^ dnxi) ^-^  (j12 *^ dneta)
     dny = (j11 *^ dneta) ^-^  (j21 *^ dnxi)
--}
+
 
 sqrule rule point = (fst <$> l , product $ snd <$> l)
     where
@@ -156,10 +158,12 @@ test = do
     emat = ematQ em nu
 
 path :: [(Int,Int)] -> [Int]
-path m = go (M.fromList m) (head m)
+path im = go (M.fromList im) (head im)
   where
     go m (i,h)
       | M.null m = []
-      | otherwise = h: go (M.delete h m) (h,fromJust $M.lookup h m)
+      | otherwise = h: go (M.delete h m) (h,justError ("no tail element of " <> show (i,h) <> show im )$M.lookup h m)
 
+ematT em v =(/(em /((1+v)*(1-2*v))))**^ (m (m (1-v) v v 0 0 0) (m (1-v) v v 0 0 0) (m v v (1-v)  0 0 0) (m 0 0  0 (1/2 - v) 0  0) (m 0 0 0 0 (1/2 -v) 0) (m 0 0 0 0 0 (1/2 -v)))
+  where m x y z a b c = Compose  $ V2 (V3 x y z ) (V3 a b c)
 

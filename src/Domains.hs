@@ -34,7 +34,8 @@ data Grid b a
   = Grid
   { linksPosition :: [(Int,[(V3 a ,SO3 a)])]
   , links :: [(Int,(Int,Int,[b a]))]
-  , surfaces :: [(Int,([Int],b a))]
+  , surfaces :: [(Int,([(Bool,Int)],b a))]
+  , volumes :: [(Int,([Int],b a))]
   , shead :: [(Int,(V3 a,SO3 a))]
   , nodesFlow :: [(Int,b a)]
   }deriving(Functor,Show)

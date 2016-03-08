@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses,FlexibleInstances,GeneralizedNewtypeDeriving,FlexibleContexts,TypeFamilies,DeriveFunctor,DeriveFoldable,DeriveTraversable#-}
+{-# LANGUAGE TupleSections,MultiParamTypeClasses,FlexibleInstances,GeneralizedNewtypeDeriving,FlexibleContexts,TypeFamilies,DeriveFunctor,DeriveFoldable,DeriveTraversable#-}
 module Force where
 
 import Utils
@@ -53,8 +53,10 @@ tag (Connection _ i) = i
 
 data Force a
   = Support  (Support a)
-  | Connection [(Int,a)] (Support a)
+  | Connection [(Int,(a,a,a))] (Support a)
+  | FaceLoop
   | Quad4 { em :: M3 a, thickness :: a }
+  | Tetra8 { emt :: Compose V2 V3 (Compose V2 V3 a)}
   | Load
   | Link {length :: a}
   | Bar { length :: a, material  :: a  , section :: a }
@@ -199,10 +201,21 @@ localToGlobal v  l = rot2V3 (normalize v) (normalize l)
 
 bendingRatio d l = localToGlobal l (l ^+^ d)
 
+volumeLink nvars npos lmap smap (ls,Tetra8 e  ) = zip p (getZipList $ getCompose $ kres !* Compose (ZipList vars))
+  where kres = hexa8stiffness coords   e
+        sfs = (flip var smap) <$> ls
+        lks = fmap (fmap (flip var lmap  )). fst <$>  sfs
+        res =  fmap (\(b,(h,t,e))-> if b then (h,t) else (t,h)) <$> lks
+        p = L.nub $ concat $ path <$> res
+        coords =  fmap (\i->  fst $ var i npos) p
+        vars =  fmap (\i-> (\(v,_,_,_) -> v )$ var i nvars ) p
+
+
+surfaceLink _  _ _ (_,FaceLoop) = []
 surfaceLink nvars npos lmap (ls,Quad4 e h ) = zip p (getZipList $ getCompose $ kres !* Compose (ZipList vars))
   where kres = quad4stiffness coords h  e
-        lks = flip var lmap <$>  ls
-        res =  (\(h,t,e)-> (h,t)) <$> lks
+        lks = fmap (flip var lmap  ) <$>  ls
+        res =  (\(b,(h,t,e))-> if b then (h,t) else (t,h)) <$> lks
         p = reverse $ path res
         coords =  fmap (\i-> (\(V3 x y _) -> V2 x y)$ fst $ var i npos) p
         vars =  fmap (\i-> (\(V3 x y _,_,_,_) -> V2 x y)$ var i nvars ) p
@@ -250,13 +263,15 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
     nodesIn = unForces <$> nodesInPre
     nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip (M.toList nodesIn) (snd <$> shead g)
     l = reverse $ links g
-    nodeMerge (ix,(s,el)) = catMaybes . zipWith3 (\i f j -> if isNothing i  || isNothing f then Just j else Nothing) (F.toList a <> F.toList aa) (F.toList fv <> F.toList mv )  .zipWith (+) (F.toList m <> F.toList ma) . fmap sum .  traceShowId . L.transpose $ (linkEls <> sEls)
+    nodeMerge (ix,(s,el)) = catMaybes . zipWith3 (\i f j -> if isNothing i  || isNothing f then Just j else Nothing) (F.toList a <> F.toList aa) (F.toList fv <> F.toList mv )  .zipWith (+) (F.toList m <> F.toList ma) . fmap sum .  L.transpose $ (linkEls <> sEls <> vEls)
       where (_,_,m,ma) = var ix nodesIn
             Tag a aa fv mv = tag el
             linkEls = (\(a,b) -> F.toList a <> F.toList b). (\(h,t,resh,rest,a) -> if ix == h then resh else (if ix == t then rest else error "wrong index")) . flip var lmap <$> F.toList s
             sEls = maybeToList ((<> replicate 4 0) . F.toList <$>  M.lookup ix smap)
+            vEls = maybeToList ((<> replicate 3 0) . F.toList <$>  M.lookup ix cmap)
     lmap = M.fromList $ eqLink nvars <$> l
     smap = M.fromList $ concat $ surfaceLink nodesIn (M.fromList $ shead g) (M.fromList l) . snd <$>  surfaces g
+    cmap = M.fromList $ concat $ volumeLink nodesIn (M.fromList $ shead g) (M.fromList l) (M.fromList (surfaces g)). snd <$>  volumes g
 
 
 
@@ -265,7 +280,7 @@ nextF l v@(p,_)  = fmap (\i -> (i,(0,SO3 $ rotM 0))) $ filter (/=l) (F.toList p 
 
 instance Coord Force (V3 Double) where
   nextElement  = nextS
-  thisElement  i = (\j-> (0,SO3 . P.rotM $ (V3 0 0 (opi j)))) <$> thisF  i
+  thisElement  i = (\(u,m,j)-> (0,SO3 . P.rotM $ (V3 (opi u) (opi m) (opi j)))) <$> thisF  i
   elemTrans t = (lengthE t , angleE t)
     where
       angleE  = SO3 . P.rotM . opi . angE
@@ -286,7 +301,7 @@ rot2V3  x y = identV3 !+! skewV3 v !+! ((*((1 - dot x  y )/norm v)) **^ (skewV3 
     v = cross x y
 
 thisF (_,(_,Connection i _ )) = M.fromList i
-thisF  e  =   (M.fromList ( els $ first F.toList  e))
+thisF  e  =   (M.fromList ( fmap (fmap (0,0,)) $ els $ first F.toList  e))
   where
     els ([a,b,c,d,e,f],i)
       =  [(a,0),(b,0),(c,0),(d,0),(e,0),(f,0)]

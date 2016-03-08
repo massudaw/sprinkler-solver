@@ -29,7 +29,8 @@ class RBackend a where
 class RBackend a => Target sys a  where
   renderNode :: S.Set Int -> Int -> sys Double -> a
   renderLink :: (Int,Int) -> Int -> Int -> sys Double -> a
-  renderSurface :: [(Int,Int, [sys Double])] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
+  renderSurface :: [(Bool,(Int,Int, [sys Double]))] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
+  renderVolume :: [[(Bool,(Int,Int, [sys Double]))]] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
   renderNodeSolve :: NodeDomain sys Double -> Int -> sys Double ->  a
   renderLinkSolve :: LinkDomain sys Double -> sys Double ->  a
 
@@ -39,11 +40,12 @@ about (ix,iy,iz) = transform (aboutX (ix @@ turn)) . transform (aboutZ (iz @@ tu
 
 subSp (i,b) (j,c) = (i ^-^ j, SO3 $   distribute (unSO3 c) !*! (unSO3  b )  )
 
-nextS :: Coord f (V3 Double) => Int -> (S.Set Int,(Int,f Double)) -> [(Int,(V3 Double,SO3 Double))]
+nextS :: (Show (f Double),Coord f (V3 Double)) => Int -> (S.Set Int,(Int,f Double)) -> [(Int,(V3 Double,SO3 Double))]
 nextS l v@(p,_)  = fmap (\i -> (i,subSp (0,SO3 $ rotM (V3 0 0 pi)) $ subSp  (tElement i v) (tElement l v))) $ filter (/=l) (F.toList p )
 
 
-tElement l = justError ("no el " <> show l) . M.lookup l . thisElement
+-- tElement :: Show (f Double) => Int -> f Double -> TCoord (f Double)
+tElement l e = justError ("no element " <> show (l,e) ) . M.lookup l . thisElement $ e
 
 instance PreCoord (V3 Double) where
   type Ang (V3 Double) = SO3 Double
@@ -120,7 +122,7 @@ locateGrid lmap nmap n r l ll@(Left (h,t,e))
              then return ()
              else do
                 let warnPos =  "link (" <> show l <> ") non exact union node (" <> show h <> ") " <> show dt <> " /= " <>  show (fst $ var h visitedNode) <> " distance = " <> show (fst dis)
-                    warnAngle =  "link (" <> show l <> ") non exact angle node (" <> show h <> ") " <> show a <> " /= " <>  show (snd $ var h visitedNode)<> " distance = " <> show (dis)
+                    warnAngle =  "link (" <> show l <> ") non exact angle node (" <> show h <> ") " <> show a <> " /= " <>  show (snd $ var h visitedNode)<> " distance = " <> show (snd dis)
                 traceShow warnPos $ traceShow warnAngle (return ())
 
 r2p = p3 . unr3
@@ -136,7 +138,7 @@ varM i j = case M.lookup i j of
               Nothing ->  Nothing
               i -> i
 
-drawGrid iter = L.foldr1 (<>) $ styleNodes iter <> styleLinks iter <> styleSurfaces iter
+drawGrid iter = L.foldr1 (<>) $ styleNodes iter <> styleLinks iter <> {- styleSurfaces iter <> -}styleVolume iter
   where
     styleNodes  it = catMaybes $ fmap (\i -> do
             pos <- varM (fst i) gridMap
@@ -153,18 +155,28 @@ drawGrid iter = L.foldr1 (<>) $ styleNodes iter <> styleLinks iter <> styleSurfa
         posMap = M.fromList $ linksPosition (it)
 
 styleSurfaces it = catMaybes $  fmap (\(n,(h,i))  -> do
-                let paths = fmap (\l -> var l lEls) h
-                    nodes = fmap (\(h,t,_)->  [(h,var h npos),(t,var t npos)]) paths
+                let paths = fmap (fmap (\l -> var l lEls)) h
+                    nodes = fmap (\(h,t,_)->  [(h,var h npos),(t,var t npos)]) (snd <$>paths)
                 return $ renderSurface paths (concat nodes)  i ) (surfaces it)
       where
-        -- lEls :: M.Map Int (Int,Int,[sys Double])
         lEls =  M.fromList $ links it
         npos = M.fromList $ shead it
+
+styleVolume it = catMaybes $  fmap (\(n,(h,i))  -> do
+                let surfs = fmap (\i -> fst $ var i lSurfs) h
+                    paths = fmap (fmap (\l -> var l lEls)) <$> surfs
+                    nodes = fmap (\(h,t,_)->  [(h,var h npos),(t,var t npos)]) $ (snd <$> concat paths)
+                return $ renderVolume paths (concat nodes)  i ) (volumes it)
+      where
+        lEls =  M.fromList $ links it
+        lSurfs =  M.fromList $ surfaces it
+        npos = M.fromList $ shead it
+
 
 
 mergeStates i x = fst $ runState( traverse parse i) (F.toList x)
 
-drawIter iter = L.foldr1 (<>) $ nds <> lds <> styleSurfaces (grid iter)
+drawIter iter = L.foldr1 (<>) $ nds <> lds <> styleSurfaces (grid iter) <> styleVolume (grid iter)
   where
     nds = styleNodes iter
     lds = styleLinks iter
