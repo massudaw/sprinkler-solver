@@ -76,7 +76,7 @@ class PreCoord a  where
 
 class (PreSys sys ,PreCoord a) => Coord sys a where
   nextElement :: Int -> (Set Int,(Int,sys Double)) -> [(Int,(a,Ang a))]
-  thisElement :: (Set Int,(Int,sys Double)) -> M.Map Int (a,Ang a)
+  thisElement :: (Set Int,(Int,sys Double)) -> M.Map Int (Int,(a,Ang a))
   nodeTrans :: sys Double -> [(Int,(a,Ang a))]
   elemTrans :: sys Double -> (a,Ang a)
 
@@ -131,4 +131,4 @@ prepareModel l model vh = model l v h
       linksInP = traverse (traverse (traverse parse .lconstrained)) (fmap (\(i,(_,_,j)) -> (i,j)) $ links l)
 
 nodesSet grid = fmap (\(i,n) -> (i,(var i nodeMapSet,n))) (nodesFlow grid)
-    where nodeMapSet = fmap S.fromList $ M.fromListWith mappend $ concat $ (\(l,(h,t,_)) -> [(h,[l ]),(t,[l ])]) <$> links grid
+    where nodeMapSet =  M.fromListWith mappend $ concat $ (\(l,(h,t,_)) -> [(h,[l ]),(t,[l ])]) <$> links grid

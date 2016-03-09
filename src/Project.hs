@@ -2,6 +2,7 @@
 module Project where
 
 import Grid
+import Control.Applicative.Lift
 import Force (bendIter)
 import Element
 import Domains
@@ -40,7 +41,7 @@ path i h t  l = (i,h,t,  l)
 jd dir d = Joelho (Just d) ("Conexao","Joelho","90")  dir 100
 
 -- makeIter :: (Coord f (V3 Double),PreSys f ,Show (f Double),Functor f, Functor (NodeDomain f ) ,Functor (LinkDomain f), Floating a )=> Int -> Int -> Grid f Double -> Iteration f a
-makeIter i j g = initIter (realToFrac  <$>  upgradeGrid i j g)
+makeIter i j g = initIter (realToFrac  <$>  fst (upgradeGrid i j g))
 
 
 data ProjectHeader
@@ -137,16 +138,17 @@ data CyclePoint a b
 
 
 
-upgradeGrid :: (Show (f Double) , Coord f (V3 Double)) => Int -> Int -> Grid f Double -> Grid  f Double
-upgradeGrid ni li a = a {shead = M.toList nodesPos, linksPosition = M.toList linksPos}
+upgradeGrid :: (Show (f Double) , Coord f (V3 Double)) => Int -> Int -> Grid f Double -> (Grid  f Double,Errors [(Int,Int,String,Double)] () )
+upgradeGrid ni li a = (a {shead = M.toList nodesPos, linksPosition = M.toList linksPos},err)
   where
-    (nodesPos,linksPos) =  snd $ runState (do
+    (err,(nodesPos,linksPos)) =  runState (do
                       modify (<> (M.singleton ni (0,SO3 $ rotM 0), mempty))
                       let niel = var ni nmap
-                          nels = thisElement (fmap (ni,)niel)
+                          nels = fmap snd $ thisElement (fmap (ni,)niel)
                           oi = var li nels
-                      locateGrid lmap nmap ni oi  li (Left $ var li lmap )
-                      mapM (\(inx,ie) -> locateGrid lmap nmap ni ie inx (Left $ var li lmap) ) (filter ((/=li).fst) $ M.toList nels)
+                      i <- locateGrid lmap nmap ni oi  li (Left $ var li lmap )
+                      j <- mapM (\(inx,ie) -> locateGrid lmap nmap ni ie inx (Left $ var inx lmap) ) (filter ((/=li).fst) $ M.toList nels)
+                      return $ (\_ _ -> ()) <$> i <*> (foldr (liftA2 (\ _ _ -> ()) ) (pure ()) j)
                       )
 
                         (mempty,mempty)

@@ -12,6 +12,7 @@ import Equation
 import Domains
 import Grid
 import Project
+import Position
 import Force
 import Input
 import qualified Data.Foldable as F
@@ -19,15 +20,19 @@ import qualified Data.Foldable as F
 import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
-main = mapM solve $ zip [0..] [exampleVolume] -- [example1,example2,example3]
-solve (i,ex) = do
 
+main = mapM solve$ zip [0..] [exampleVolume]
+
+solve (i,ex) = do
+  let (g,e) = upgradeGrid 0 1 ex
+
+  putStrLn (unlines $ fmap show $ showErr e)
   let ini = makeIter 0 1 ex
       preres = printResidual ini momentForceEquations
   let iter = solveIter ( makeIter 0 1 ex) momentForceEquations
       posres = printResidual iter momentForceEquations
+  displayModel ("force-model-bend" <> show i ,g)
 
---   displayModel ("force-model-bend" <> show i ,grid $ ini )
   putStrLn $ "Jacobian: " <> show (printJacobian (realToFrac <$> ini) momentForceEquations)
   putStrLn $ "Pre Resídual: " <>  show preres
   putStrLn $ "Pos Resídual: " <>  show posres
@@ -36,6 +41,7 @@ solve (i,ex) = do
   putStrLn $ "Link Forces:" <>  show (printResidual iter forces)
   displayBended ("force-model-bend" <> show i ,iter )
   print (pressures iter)
+
 
 {-
 example1 =  fst $ runInput $ mdo
@@ -191,34 +197,34 @@ exampleSurf = fst $ runInput $ mdo
 
 
 exampleVolume = fst $ runInput $ mdo
-  let -- em = 100
-      a = 10
-      ba = 10
-      em=480
-      v=1/3
-      sf = FaceLoop
-      free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 (-1) ) 0
-      free= Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 0 ) 0
-  x1 <- conn [turn l1 0 1 ,turn l4 1 0,rise l5  (-1) 0  ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
+  let
+    a = 10
+    ba = 10
+    em=480
+    v=1/3
+    sf = FaceLoop
+    free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 (-1) ) 0
+    free= Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 0 ) 0
+  x1 <- conn [turn l1 0 1 ,turn l4 (-1) 0,rise l5  (-1) 0  ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
   l1 <- link [Link a ] x1 x2
-  x2 <- conn [turn l1 0 1 ,turn l2 1 0,rise l6 (-1) 0 ] (Tag (V3 Nothing 0 Nothing ) 0 (V3 0 Nothing 0 ) 0)
+  x2 <- conn [turn l1 0 (-1) ,turn l2 (1) 0,rise l6 (-1) 0 ] (Tag (V3 Nothing 0 Nothing ) 0 (V3 0 Nothing 0 ) 0)
   l2 <- link [Link a ] x2 x3
-  x3 <- conn [turn l2 0 1, (l3 ,(0, 0,1/4)),rise l7 (-1) 0 ]  (Tag (V3 Nothing Nothing Nothing)  (V3 0 0 0  )(V3 0 0  0 ) 0)
+  x3 <- conn [turn l2 0 (-1), turn l3 (1) 0 ,rise l7 (-1) 0 ]  (Tag (V3 Nothing Nothing Nothing)  (V3 0 0 0  )(V3 0 0  0 ) 0)
   l3 <- link [Link a ] x3 x4
-  x4 <- conn [(l3 ,(0,0,-1/4)),turn l4 (0) 1,(l8 ,(-1/4,0, 0))]  (Tag  (V3 0 Nothing 0)  0 (V3  Nothing 0 Nothing ) 0 )
-  l4 <- link [Link (a)  ] x4 x1
-  l5 <- link [Link (a)  ] x1 x5
-  l6 <- link [Link (a)  ] x2 x6
-  l7 <- link [Link (a)  ] x3 x7
-  l8 <- link [Link (a)  ] x4 x8
-  x5 <- conn [turn l9 0 (-1),rise l5  0 (-1) ,turn l12 1 0]  free
-  l9 <- link [Link (a)  ] x6 x5
-  x6 <- conn [turn l10 0 1,turn l9 (-1) 0,rise l6  0 1 ]  free2
-  l10 <- link [Link (a)  ] x7  x6
-  x7 <- conn [turn l11 (1) 0,turn l10   0 (1)  ,rise l7  (-1)  0 ]  free
-  l11 <- link [Link (a)  ] x8  x7
-  x8 <- conn [turn l12 0 (-1) ,(l8, (-1/4,0,0)) ,turn l11  (1) 0 ]  free
-  l12 <- link [Link (a)  ] x5 x8
+  x4 <- conn [turn l3 0 (-1) ,turn l4 (1) 0,rise l8 (-1) 0 ]  (Tag  (V3 0 Nothing 0)  0 (V3  Nothing 0 Nothing ) 0 )
+  l4 <- link [Link a ] x4 x1
+  l5 <- link [Link a ] x1 x5
+  l6 <- link [Link a ] x2 x6
+  l7 <- link [Link a ] x3 x7
+  l8 <- link [Link a ] x4 x8
+  x5 <- conn [turn l9 0 (-1),rise l5 1 0  ,turn l12 (-1) 0 ]  free2
+  l9 <- link [Link a ] x6 x5
+  x6 <- conn [turn l10 (1)0 ,rise l6 1  0 , turn l9 0 (-1)  ]  free2
+  l10 <- link [Link a ] x7  x6
+  x7 <- conn [turn l11   (1) 0  ,rise l7  1 0,turn l10  0 (-1)    ]  free
+  l11 <- link [Link a ] x8  x7
+  x8 <- conn [turn l12  (1) 0 ,rise l8 1 0,turn l11  0 (-1) ]  free
+  l12 <- link [Link a ] x5 x8
   s1 <- surface sf [cw l1,cw l2,cw l3,cw l4]
   s2 <- surface sf [cw l9,cw l10,cw l11,cw l12]
   s3 <- surface sf [cw l1,cw l6 , cw l9,ccw l5]

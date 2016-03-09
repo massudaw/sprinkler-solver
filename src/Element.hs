@@ -38,12 +38,12 @@ instance PreSys Element  where
 
 instance Coord Element (V3 Double) where
   nextElement  = nextS
-  thisElement i = (\j-> (0,SO3 $ P.rotM $ fmap opi $ (V3 0 0 j))) <$> this  i
+  thisElement i = (2,). (\j-> (0,SO3 $ P.rotM $ fmap opi $ (V3 0 0 j))) <$> this  i
     where
       this e  =  (M.fromList ( els $ first F.toList  e))
         where
           els (_,(_,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ))
-            =  [(rl,1/4),(rr,3/4),(b,0)]
+            =  [(rl,1/4),(rr,-1/4),(b,0)]
           els ([a,b],i)
             =  [(a,0),(b,1/2)]
           els ([a],i)

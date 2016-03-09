@@ -2,6 +2,8 @@
 module Position where
 
 import Control.Monad
+import Data.Functor.Constant
+import Control.Applicative.Lift
 import Domains
 import Grid
 import Debug.Trace
@@ -35,22 +37,31 @@ class RBackend a => Target sys a  where
   renderLinkSolve :: LinkDomain sys Double -> sys Double ->  a
 
 
+showErr (Other (Constant i)) = i
+showErr i  = []
 
 about (ix,iy,iz) = transform (aboutX (ix @@ turn)) . transform (aboutZ (iz @@ turn))  . transform (aboutY (iy @@ turn))
 
 subSp (i,b) (j,c) = (i ^-^ j, SO3 $   distribute (unSO3 c) !*! (unSO3  b )  )
 
 nextS :: (Show (f Double),Coord f (V3 Double)) => Int -> (S.Set Int,(Int,f Double)) -> [(Int,(V3 Double,SO3 Double))]
-nextS l v@(p,_)  = fmap (\i -> (i,subSp (0,SO3 $ rotM (V3 0 0 pi)) $ subSp  (tElement i v) (tElement l v))) $ filter (/=l) (F.toList p )
+nextS l v@(p,_)  = fmap (\i -> (i,  nElement i v )) $ filter (/=l) (F.toList p )
+
+nextE :: (Show (f Double),Coord f (V3 Double)) => Int -> (S.Set Int,(Int,f Double)) -> [(Int,(V3 Double,SO3 Double))]
+nextE l v@(p,_)  = fmap (\i -> (i,subSp (0,SO3 $ rotM (V3 0 0 pi)) $ subSp  (tElement i v) (tElement l v))) $ filter (/=l) (F.toList p )
 
 
 -- tElement :: Show (f Double) => Int -> f Double -> TCoord (f Double)
-tElement l e = justError ("no element " <> show (l,e) ) . M.lookup l . thisElement $ e
+tElement l e = snd . justError (" no element " <> show l <> " in " <> show e  ) . M.lookup l . thisElement $ e
+nElement l e = case  justError (" no element " <> show (l,e) ) . M.lookup l . thisElement $ e of
+            (0,v) -> subSp (0,SO3$ rotM (V3 pi 0 0)) v
+            (1,v) -> subSp (0,SO3$ rotM (V3 0 pi 0)) v
+            (2,v) -> subSp (0,SO3$ rotM (V3 0 0 pi )) v
 
+angDist i j = unRot231 $ SO3 $ distribute $ (distribute $ unSO3 i) !*! ( unSO3 j)
 instance PreCoord (V3 Double) where
   type Ang (V3 Double) = SO3 Double
   dist (i,ir) (j,jr) = (distance (r2p i) (r2p j) ,norm $ angDist ir jr)
-    where angDist i j = unRot231 $ SO3 $ distribute $ (distribute $ unSO3 i) !*! ( unSO3 j)
   trans (l,i) (lo,a) = ( l + unSO3 i !* lo  , SO3 $ unSO3 i !*!  unSO3 a )
   untrans (l,i) (lo,a) = ( l ^-^  unSO3 i !* lo  , SO3 $ unSO3 i !*! distribute (unSO3 a )  )
 
@@ -62,7 +73,7 @@ rotD (V3 ix iy iz) = distribute (rotX (V1 ix)) !*! (distribute (rotZ (V1  iz))  
 opi i = i * 2 *pi
 upi i = i/(2 *pi)
 
-unrot = fmap upi. unRot231 . SO3 . distribute . unSO3 .snd
+unrot = unRot231 . SO3 . distribute . unSO3
 
 locateGrid
   :: (SO3 Double ~ (Ang a) , Coord f a, Show (f Double),Show (Ang a), Show a,  Num a, Monad m) =>
@@ -74,56 +85,57 @@ locateGrid
      -> Either
           (Int, Int, [f Double])
           (S.Set Int, f Double)
-     -> StateT (M.Map Int (a, Ang a), M.Map Int [(a, Ang a)]) m ()
+     -> StateT (M.Map Int (a, Ang a), M.Map Int [(a, Ang a)]) m (Errors [(Int,Int,String,Double)] ())
 locateGrid lmap nmap l r n (Right oe@(s,e)) = do
   let
       t =   tElement  l (s,(n,e))
       rnew = trans r t
   modify (<> (M.singleton n rnew,mempty))
   let trav ne@(i,coo)  =  do
-        let pos = trans r coo
+        let pos = trans rnew coo
         (_,visitedLink) <- get
         -- when (isNothing $ M.lookup i visitedLink) $ do
         locateGrid lmap nmap n  pos i (Left $ var i lmap )
         --   return ()
-  mapM trav  (nextElement l (s,(n,e)))
-  return ()
+  l <- mapM trav  (nextElement l (s,(n,e)))
+  return (foldl (liftA2 (\ _ _-> ())) (pure ()) l )
 
-locateGrid lmap nmap n r l ll@(Left (h,t,e))
-  | n == h =  do
-    i <- path t e
+locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
+  | n == hn =  do
+    (i,err) <- path tn e
     modify (<> (mempty ,M.singleton l i))
-  | n == t = do
+    return err
+  | n == tn = do
     -- i <- revpath h e
-    modify (<> (mempty ,mempty )) -- M.singleton l i))
+    -- modify (<> (mempty ,mempty )) -- M.singleton l i))
+    return (pure ())
   | otherwise = error $ "wrong back element " <> show n  <> " " <> show ll
   where
-    {-revpath h e = do
-        let
-            (pr,rr) =  traceShow "rev" r
-            sn = scanr transElemr   r e -- (pr , SO3 $ ( distribute $ unSO3 rr )) e
-            (psn,rsn) = head sn
-            nxt  = (psn,SO3 $ distribute $ unSO3 rsn )
-        nextNode  (head sn ) h
-        return (init sn)-}
-    path  h e = do
+    path  nn e = do
         let
             sn =  scanl transEleml r  e
-        nextNode  (last sn) h
-        return (init sn)
-    nextNode  pos@(dt ,a) h = do
+        err <- nextNode  (last sn) nn
+        return (init sn,err)
+    nextNode  pos@(dt ,a) nn  = do
         (visitedNode,_) <- get
-        let dis =  dist pos  (var h visitedNode)
-        if  not $ M.member h visitedNode
+        if  not $ M.member nn  visitedNode
           then do
-            locateGrid lmap nmap l pos h (Right $ var h nmap)
-          else
-            if   dis < (1e-2,1e-2)
-             then return ()
-             else do
-                let warnPos =  "link (" <> show l <> ") non exact union node (" <> show h <> ") " <> show dt <> " /= " <>  show (fst $ var h visitedNode) <> " distance = " <> show (fst dis)
-                    warnAngle =  "link (" <> show l <> ") non exact angle node (" <> show h <> ") " <> show a <> " /= " <>  show (snd $ var h visitedNode)<> " distance = " <> show (snd dis)
-                traceShow warnPos $ traceShow warnAngle (return ())
+            locateGrid lmap nmap l pos nn  (Right $ var nn nmap)
+          else do
+            let
+              nnode = var nn  nmap
+              el  = tElement l ((nn,) <$> nnode)
+              npos = var nn visitedNode
+              pos2 = pos -- trans pos el
+              (pdis,adis) = dist pos2  (untrans npos el)
+            p <- if pdis < 1e-2
+             then return (pure ())
+             else return (failure [(l ,nn,show (fst pos2 )<> " /= " <>  show (fst npos) , pdis)])
+            a <- if  adis < 1e-2
+             then return (pure ())
+             else return (failure [(l, nn,  show (unrot (snd pos),unrot (snd pos2)) <> " /= " <>  show (unrot $ snd npos) <> "  " <> show (angDist (snd pos2) (snd npos)), adis)])
+            return $ (\ _ _ -> ()) <$> p <*>  a
+
 
 r2p = p3 . unr3
 

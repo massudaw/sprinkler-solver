@@ -275,12 +275,10 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
 
 
 
-nextF :: Coord f (V3 Double) => Int -> (S.Set Int,(Int,f Double)) -> [(Int,(V3 Double,SO3 Double))]
-nextF l v@(p,_)  = fmap (\i -> (i,(0,SO3 $ rotM 0))) $ filter (/=l) (F.toList p )
 
 instance Coord Force (V3 Double) where
   nextElement  = nextS
-  thisElement  i = (\(u,m,j)-> (0,SO3 . P.rotM $ (V3 (opi u) (opi m) (opi j)))) <$> thisF  i
+  thisElement  i = (\(u,m,j)-> (if u /= 0 then 0 else if m /= 0 then 1 else if j/= 0 then 2 else 2,(0,SO3 . P.rotM $ (V3 (opi u) (opi m) (opi j))))) <$> thisF  i
   elemTrans t = (lengthE t , angleE t)
     where
       angleE  = SO3 . P.rotM . opi . angE
