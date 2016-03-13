@@ -1,5 +1,5 @@
 
-{-# LANGUAGE RecursiveDo,TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
+{-# LANGUAGE FlexibleInstances,RecursiveDo,TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
 module Main where
 
 import Debug.Trace
@@ -21,17 +21,16 @@ import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
 
-main = mapM solve$ zip [0..] [exampleVolume]
+main = mapM solve$ zip [0..] [tetragon,example7]
 
 solve (i,ex) = do
   let (g,e) = upgradeGrid 0 1 ex
-
-  putStrLn (unlines $ fmap show $ showErr e)
+  putStrLn (unlines $ either (fmap show) (fmap show) $ showErr e)
   let ini = makeIter 0 1 ex
       preres = printResidual ini momentForceEquations
   let iter = solveIter ( makeIter 0 1 ex) momentForceEquations
       posres = printResidual iter momentForceEquations
-  displayModel ("force-model-bend" <> show i ,g)
+--  displayModel ("force-model-bend" <> show i ,g)
 
   putStrLn $ "Jacobian: " <> show (printJacobian (realToFrac <$> ini) momentForceEquations)
   putStrLn $ "Pre Resídual: " <>  show preres
@@ -92,7 +91,7 @@ example5 = fst $ runInput $ mdo
 
 
 example6 = fst $ runInput $ mdo
-  x1 <- node (Support (Tag (V3 Nothing (-0.4) 0) 0 (V3 0 Nothing 0 ) 0 ) )
+  x1 <- node (Support (Tag (V3 Nothing (-0.4) 0) 0 (V3 0 Nothing 0 ) 0 ))
   x2 <- node (Support (Tag (V3 0 0.5 0 ) 0 (V3 Nothing Nothing 0) 0 ))
   x3 <- node (Support (Tag (V3 Nothing Nothing 0) 0 (V3 2 1 0) 0 ))
   link [aco 10 1,BTurn (0,1/2)] x1 x2
@@ -198,32 +197,32 @@ exampleSurf = fst $ runInput $ mdo
 
 exampleVolume = fst $ runInput $ mdo
   let
-    a = 10
-    ba = 10
-    em=480
+    a = 4
+    l =  5
+    em=4
     v=1/3
     sf = FaceLoop
-    free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 (-1) ) 0
+    free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 (10) 0 0 ) 0
     free= Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 0 ) 0
-  x1 <- conn [turn l1 0 1 ,turn l4 (-1) 0,rise l5  (-1) 0  ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
+  x1 <- conn [turn l1 0 1 ,{-turn l4 (-1) 0,-}rise l5  (-1) 0  ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
   l1 <- link [Link a ] x1 x2
-  x2 <- conn [turn l1 0 (-1) ,turn l2 (1) 0,rise l6 (-1) 0 ] (Tag (V3 Nothing 0 Nothing ) 0 (V3 0 Nothing 0 ) 0)
+  x2 <- conn [turn l1 0 (-1) ,turn l2 (1) 0,rise l6 (-1) 0 ] (Tag (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
   l2 <- link [Link a ] x2 x3
-  x3 <- conn [turn l2 0 (-1), turn l3 (1) 0 ,rise l7 (-1) 0 ]  (Tag (V3 Nothing Nothing Nothing)  (V3 0 0 0  )(V3 0 0  0 ) 0)
+  x3 <- conn [turn l2 0 (-1), turn l3 (1) 0 ,rise l7 (-1) 0 ]  (Tag (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
   l3 <- link [Link a ] x3 x4
-  x4 <- conn [turn l3 0 (-1) ,turn l4 (1) 0,rise l8 (-1) 0 ]  (Tag  (V3 0 Nothing 0)  0 (V3  Nothing 0 Nothing ) 0 )
+  x4 <- conn [turn l3 0 (-1) ,turn l4 (1) 0,rise l8 (-1) 0 ]  (Tag  (V3 0 0 0)  0 (V3  Nothing Nothing Nothing ) 0 )
   l4 <- link [Link a ] x4 x1
-  l5 <- link [Link a ] x1 x5
-  l6 <- link [Link a ] x2 x6
-  l7 <- link [Link a ] x3 x7
-  l8 <- link [Link a ] x4 x8
-  x5 <- conn [turn l9 0 (-1),rise l5 1 0  ,turn l12 (-1) 0 ]  free2
+  l5 <- link [Link l ] x1 x5
+  l6 <- link [Link l ] x2 x6
+  l7 <- link [Link l ] x3 x7
+  l8 <- link [Link l ] x4 x8
+  x5 <- conn [turn l9 0 (-1),rise l5 1 0  ,turn l12 (-1) 0 ]  free
   l9 <- link [Link a ] x6 x5
-  x6 <- conn [turn l10 (1)0 ,rise l6 1  0 , turn l9 0 (-1)  ]  free2
+  x6 <- conn [turn l10 (1)0 ,rise l6 1  0 , turn l9 0 (-1)  ]  free
   l10 <- link [Link a ] x7  x6
-  x7 <- conn [turn l11   (1) 0  ,rise l7  1 0,turn l10  0 (-1)    ]  free
+  x7 <- conn [turn l11   (1) 0  ,rise l7  1 0,turn l10  0 (-1)    ]  free2
   l11 <- link [Link a ] x8  x7
-  x8 <- conn [turn l12  (1) 0 ,rise l8 1 0,turn l11  0 (-1) ]  free
+  x8 <- conn [turn l12  (1) 0 ,rise l8 1 0,turn l11  0 (-1) ]  free2
   l12 <- link [Link a ] x5 x8
   s1 <- surface sf [cw l1,cw l2,cw l3,cw l4]
   s2 <- surface sf [cw l9,cw l10,cw l11,cw l12]
@@ -232,6 +231,34 @@ exampleVolume = fst $ runInput $ mdo
   s5 <- surface sf [cw l3,cw l8 , cw l11,ccw l7]
   s6 <- surface sf [cw l4,cw l5 , cw l12,ccw l8]
   polyhedra (Tetra8 (ematT em v)) [s1,s2,s3,s4,s5,s6]
+  return ()
+
+merge (i,(a,b,c)) (k,(l,m,n)) = (i,(a+l,m+b,c+n))
+
+tetragon = fst $ runInput $ mdo
+  let
+    a = 4
+    em=400
+    v=1/3
+    d = (sqrt $ 2*a*a)
+    sf = FaceLoop
+    free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 10 100 10) 0
+    free= Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 0 ) 0
+  x1 <- conn [turn l1 0 1 ,rise l5  (-1) 1  ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
+  l1 <- link [Link a ] x1 x2
+  x2 <- conn [turn l1  0 1  ,turn l2 (-1) 0,rise l6 (-1) 0 ] (Tag (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
+  l2 <- link [Link a  ] x2 x3
+  x3 <- conn [turn l2 1 0, turn l3 (1) (1) ,(l7,(0,-1/4,1/8))]  (Tag (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
+  l3 <- link [Link d] x3 x1
+  l5 <- link [Link d] x1 x6
+  l6 <- link [Link a] x2 x6
+  l7 <- link [Link d] x3 x6
+  x6 <- conn [(l7,(0,1/4,-1/8))]  free2
+  s1 <- surface sf [cw l1,cw l2,cw l3]
+  s3 <- surface sf [cw l1,cw l6 , ccw l5]
+  s4 <- surface sf [cw l2,cw l7 , ccw l6]
+  s6 <- surface sf [ccw l7,cw l3 , cw l5]
+  polyhedra (Tetra4 (ematT em v)) [s1,s3,s4,s6]
   return ()
 
 

@@ -5,6 +5,7 @@ module Element where
 import Hydraulic
 import qualified Position as P
 import Control.Lens ((^.))
+import Debug.Trace
 import Tee hiding (ktubo)
 import Data.Monoid
 import Data.Functor.Identity
@@ -32,18 +33,19 @@ instance PreSys Element  where
   revElem (Joelho i j b k) = Joelho i j (-b) k
   revElem (Turn i ) = Turn i
   revElem i = i
-  constrained (Reservatorio i) = Identity (Just i)
+  constrained (Reservatorio i) = Identity (Just 0)
   constrained i = Identity $ Nothing
   lconstrained i = Identity $ Nothing
 
 instance Coord Element (V3 Double) where
   nextElement  = nextS
-  thisElement i = (2,). (\j-> (0,SO3 $ P.rotM $ fmap opi $ (V3 0 0 j))) <$> this  i
+  thisElement l i = (2,). (\j-> (0,SO3 $ P.rotM $ fmap opi $ (V3 0 0 j))) <$> this  (F.toList l,i)
     where
       this e  =  (M.fromList ( els $ first F.toList  e))
         where
-          els (_,(_,Tee (TeeConfig [rl,b,rr] _ _ _ _) _ ))
-            =  [(rl,1/4),(rr,-1/4),(b,0)]
+          els (_,(Tee (TeeConfig [rl,b,rr] _ ang  _ _ _) _ ))
+            =  [(rl,1/2 - t ),(rr,-t),(b,0)]
+              where t = ang/pi/2
           els ([a,b],i)
             =  [(a,0),(b,1/2)]
           els ([a],i)
@@ -60,6 +62,7 @@ instance Coord Element (V3 Double) where
 
       lengthE :: Num a => Element a -> V3 a
       lengthE (Tubo _ c _ ) = r3 (c,0,0)
+      lengthE (OpenTubo _ c _ ) = r3 (c,0,0)
       lengthE i = 0
       r3 (x,y,z) = V3 x y z
 
@@ -71,6 +74,7 @@ pipeElement v (Bomba  ((pn,vn)) (Poly l ) ) = negate $ (*pn) $ (/100)  $foldr1 (
             polyTerm (p,c) =   c*(100*v/vn)**p
 -- pipeElement v e@(Resistive k p)  = k*v**p
 pipeElement v e@(Tubo _ _ _)  = (ktubo e)*v**1.85
+pipeElement v e@(OpenTubo _ _ _)  = (ktubo e)*v**2
 pipeElement v e@(Joelho _ _ _ _)  = (ktubo e)*v**1.85
 pipeElement v e@(Perda __ _ _)  = (ktubo e)*v**1.85
 pipeElement v (Turn _)   = 0
@@ -98,8 +102,8 @@ jacobianContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( 
         genFlow idf (Sprinkler (Just (_,k)) _ _ _) = k*sqrt(abs idf)
         genFlow _ (Reservatorio _  ) = errorWithStackTrace "reservatorio doesn't preserve flow"
 
-varn h = maybe 0 id .  M.lookup h
-varr3 h = maybe (V3 0 0  0)  id .  M.lookup h
+varn h = justError " no press" .  M.lookup h
+varr3 h = justError "no el " .  M.lookup h
 
 -- Generic Solver | Node + Head Method
 jacobianNodeHeadEquation :: (Show a,Ord a,Floating a) => Grid Element a -> M.Map Int a ->M.Map Int a -> [a]
@@ -109,9 +113,19 @@ jacobianNodeHeadEquation grid  vm nh =  term <$> l
     sflow = signedFlow grid vm
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,(h,t,e)) =   sum (pipeElement (var l vm) <$> e) - ( varn h nh  + (varr3 h nhs ^. _z) *9.78235  )  +  addTee (h,l) + addTee (t,l) + ( ((varr3 t nhs ^. _z) *9.81 ) + varn t nh )
+    term (l,(h,t,e)) =   (sum (pipeElement (var l vm) <$> e) ) + (varr3 t nhs ^. _z - varr3 h nhs ^. _z)*9.78235  + traceShowId ( varn t nh - varn h nh )  +  addTee (h,l) + addTee (t,l)
       where
          nhs = fmap fst (M.fromList $shead grid)
+
+manning t  = perda*10/(1000*60)**1.85
+        where
+              d = case diametroE t of
+                       Just d -> d
+                       i -> errorWithStackTrace $ "elemento sem diametro " <>  show t
+              c = materialE t
+              -- note : abs na vazão pois gera NaNs para valores negativos durante iterações
+              perda = 4.66*(distanciaE t)*c/(d**(16/3))
+
 
 ktubo t  = perda*10/(1000*60)**1.85
         where

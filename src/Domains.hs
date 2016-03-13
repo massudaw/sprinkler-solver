@@ -75,8 +75,8 @@ class PreCoord a  where
   dist :: (a,Ang a) -> (a,Ang a) -> (Double,Double)
 
 class (PreSys sys ,PreCoord a) => Coord sys a where
-  nextElement :: Int -> (Set Int,(Int,sys Double)) -> [(Int,(a,Ang a))]
-  thisElement :: (Set Int,(Int,sys Double)) -> M.Map Int (Int,(a,Ang a))
+  nextElement :: Int -> (Set Int,sys Double) -> [(Int,(a,Ang a))]
+  thisElement :: Set Int -> sys Double -> M.Map Int (Int,(a,Ang a))
   nodeTrans :: sys Double -> [(Int,(a,Ang a))]
   elemTrans :: sys Double -> (a,Ang a)
 

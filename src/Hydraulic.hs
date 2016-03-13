@@ -60,6 +60,7 @@ data TeeConfig a
   = TeeConfig
   { teeConfig :: [Int] -- Left Run Branch Right Run
   , teeRadius :: a
+  , teeAngle :: a
   , teeDiameterBranch :: a
   , teeDiameterRun :: a
   , teeMaterial :: a
@@ -71,6 +72,11 @@ data TeeConfigType = Table | Formula deriving (Eq,Ord,Show)
 
 data Element a
   = Tubo
+  { diametro :: Maybe a
+  , comprimento :: a
+  , atrito :: a
+  }
+  | OpenTubo
   { diametro :: Maybe a
   , comprimento :: a
   , atrito :: a
@@ -132,18 +138,21 @@ data Element a
 
 diametroE :: Element a -> Maybe a
 diametroE (Tubo d _ _ ) = d
+diametroE (OpenTubo d _ _ ) = d
 diametroE (Joelho d _ _ _) = d
 diametroE (Perda d _  _) = d
 diametroE i = Nothing
 
 distanciaE :: (Show a,Ord a,Fractional a )=> Element a -> a
 distanciaE (Tubo _ d _ ) = d
+distanciaE (OpenTubo _ d _ ) = d
 distanciaE (Joelho (Just dtubom) tipo _ c) =  justError (show ("joelho",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
 distanciaE (Perda   (Just dtubom)  tipo c) = justError (show ("perda",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
 distanciaE i = 0
 
 materialE :: Show a => Element  a -> a
 materialE (Tubo _ _ c) =  c
+materialE (OpenTubo _ _ c) =  c
 materialE (Joelho _ _ _ c) = c
 materialE (Perda _  _ c) = c
 materialE i = error $ "No Material Defined" ++ show i

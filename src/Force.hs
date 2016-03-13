@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections,MultiParamTypeClasses,FlexibleInstances,GeneralizedNewtypeDeriving,FlexibleContexts,TypeFamilies,DeriveFunctor,DeriveFoldable,DeriveTraversable#-}
+{-# LANGUAGE TupleSections,MultiParamTypeClasses,FlexibleInstances,GeneralizedNewtypeDeriving,FlexibleContexts,TypeFamilies,DeriveFunctor,DeriveFoldable,DeriveTraversable #-}
 module Force where
 
 import Utils
@@ -57,6 +57,7 @@ data Force a
   | FaceLoop
   | Quad4 { em :: M3 a, thickness :: a }
   | Tetra8 { emt :: Compose V2 V3 (Compose V2 V3 a)}
+  | Tetra4 { emt :: Compose V2 V3 (Compose V2 V3 a)}
   | Load
   | Link {length :: a}
   | Bar { length :: a, material  :: a  , section :: a }
@@ -181,15 +182,19 @@ bendIter iter@(Iteration r i g)
     where
       lmap = M.fromList (links (grid iter))
       npmap = M.fromList (shead (grid iter))
-      var2 i = fmap (negate . fromMaybe 0) . (\(i,_,_,_) -> i). var i
+      var2 i = fmap (fromMaybe 0) . (\(i,_,_,_) -> i). var i
       nmap = unForces. getCompose <$> M.fromList (pressures iter)
       editNodes (i,(np,nr)) =  (i, (np ^+^ d,nr))
         where
           d = var2 i nmap
-      editLinks (i,l) = (i, (\(p,r) -> (p ^+^ dh , if norm (dh ^-^dt )  < 1e-2   then r else SO3 $ unSO3 r !*! transpose ratio )) <$> l )
+      editLinks (i,l) = (i, (\(p,r) -> (p ^+^ dh , if norm (dh ^-^dt )  < 1e-3   then r else traceShow (a r,d,e r ) $ SO3 $ transpose ratio !*! unSO3 r  )) <$> l )
         where
+
           (h,t,le) = var i lmap
-          ratio = bendingRatio  (dh ^-^dt) (nhp ^-^ ntp)
+          a r = unRot231 (SO3 $ transpose $ unSO3 r)
+          d = unRot231 (SO3 $  ratio)
+          e r = unRot231 (SO3 $ transpose $ unSO3 r !*! transpose ratio)
+          ratio = bendingRatio  (dt ^-^ dh) (ntp ^-^ nhp)
           (nhp,_) = var h npmap
           (ntp,_) = var t npmap
           dh = var2 h nmap
@@ -201,6 +206,14 @@ localToGlobal v  l = rot2V3 (normalize v) (normalize l)
 
 bendingRatio d l = localToGlobal l (l ^+^ d)
 
+volumeLink nvars npos lmap smap (ls,Tetra4 e  ) = zip p (getZipList$ getCompose $ (( kres) !* Compose (ZipList vars)))
+  where kres = tetrastiffness coords   e
+        sfs = (flip var smap) <$> ls
+        lks = fmap (fmap (flip var lmap  )). fst <$>  sfs
+        res =  fmap (\(b,(h,t,e))-> if b then (h,t) else (t,h)) <$> lks
+        p = L.nub $ concat $ path <$> res
+        coords =  fmap (\i->  fst $ var i npos) p
+        vars =  fmap (\i-> (\(v,_,_,_) -> v )$ var i nvars ) p
 volumeLink nvars npos lmap smap (ls,Tetra8 e  ) = zip p (getZipList $ getCompose $ kres !* Compose (ZipList vars))
   where kres = hexa8stiffness coords   e
         sfs = (flip var smap) <$> ls
@@ -213,40 +226,41 @@ volumeLink nvars npos lmap smap (ls,Tetra8 e  ) = zip p (getZipList $ getCompose
 
 surfaceLink _  _ _ (_,FaceLoop) = []
 surfaceLink nvars npos lmap (ls,Quad4 e h ) = zip p (getZipList $ getCompose $ kres !* Compose (ZipList vars))
-  where kres = quad4stiffness coords h  e
-        lks = fmap (flip var lmap  ) <$>  ls
-        res =  (\(b,(h,t,e))-> if b then (h,t) else (t,h)) <$> lks
-        p = reverse $ path res
-        coords =  fmap (\i-> (\(V3 x y _) -> V2 x y)$ fst $ var i npos) p
-        vars =  fmap (\i-> (\(V3 x y _,_,_,_) -> V2 x y)$ var i nvars ) p
+  where
+    kres = quad4stiffness coords h  e
+    lks = fmap (flip var lmap  ) <$>  ls
+    res =  (\(b,(h,t,e))-> if b then (h,t) else (t,h)) <$> lks
+    p = reverse $ path res
+    coords =  fmap (\i-> (\(V3 x y _) -> V2 x y)$ fst $ var i npos) p
+    vars =  fmap (\i-> (\(V3 x y _,_,_,_) -> V2 x y)$ var i nvars ) p
 
 eqLink nvars (i,(h,t,[el@(Link l)])) = (i,(h,t,(pure 0,pure 0) , (pure 0 ,pure 0), el))
 eqLink nvars (i,(h,t,l)) =  (i,(h,t,( rtb !*  resh ,rtb !* mesh),( rtb !* rest,rtb !* mest),el))
-      where
-        el = justError "no beam" $ L.find isBeam l
-        ((fh,mhp,_,_),(ph,_)) = nvarsEl h
-        ((ft,mtp,_,_),(pt,_)) = nvarsEl t
-        pd = force el
-        rt = rotor (V3 0 1 0) pt ph
-        rtb = transpose rt
-        fhl = rt !* fh
-        ftl = rt !* ft
-        mh = rt !* mhp
-        mt = rt !* mtp
-        isBeam (Bar _ _ _) = True
-        isBeam (Link  _) = True
-        isBeam (Beam _ _ _ _ _) = True
-        isBeam _ = False
-        -- Energy Conservation
-        bend = bending el
-        bendt = transpose $bending el
-        btor = torsor el
-        ctor = crosstorsor el
-        resh = (pd !* (fhl ^-^  ftl))  ^+^ (bend  !* (mh ^+^ mt))
-        mesh  = ((btor !* mh ^+^ ctor !* mt) ) ^+^ (bendt !* (fhl ^-^ ftl))
-        rest = (pd !* (ftl ^-^  fhl)) ^-^ (bend !* (mt ^+^ mh))
-        mest  = (btor !* mt ^+^ ctor !* mh) ^+^ (bendt !* (fhl ^-^ ftl))
-        nvarsEl h =  var h nvars
+  where
+    el = justError "no beam" $ L.find isBeam l
+    ((fh,mhp,_,_),(ph,_)) = nvarsEl h
+    ((ft,mtp,_,_),(pt,_)) = nvarsEl t
+    pd = force el
+    rt = rotor (V3 0 1 0) pt ph
+    rtb = transpose rt
+    fhl = rt !* fh
+    ftl = rt !* ft
+    mh = rt !* mhp
+    mt = rt !* mtp
+    isBeam (Bar _ _ _) = True
+    isBeam (Link  _) = True
+    isBeam (Beam _ _ _ _ _) = True
+    isBeam _ = False
+    -- Energy Conservation
+    bend = bending el
+    bendt = transpose $bending el
+    btor = torsor el
+    ctor = crosstorsor el
+    resh = (pd !* (fhl ^-^  ftl))  ^+^ (bend  !* (mh ^+^ mt))
+    mesh  = ((btor !* mh ^+^ ctor !* mt) ) ^+^ (bendt !* (fhl ^-^ ftl))
+    rest = (pd !* (ftl ^-^  fhl)) ^-^ (bend !* (mt ^+^ mh))
+    mest  = (btor !* mt ^+^ ctor !* mh) ^+^ (bendt !* (fhl ^-^ ftl))
+    nvarsEl h =  var h nvars
 
 forces  g linkInPre nodesInPre =  Compose . fmap (\(a,b) -> Compose (V2 a b))  $nodeForces lmap nvars <$> nodesSet g
   where
@@ -259,7 +273,6 @@ forces  g linkInPre nodesInPre =  Compose . fmap (\(a,b) -> Compose (V2 a b))  $
 -- momentForce :: Floating a => Grid Force a -> M.Map Int ([(V3 a,V3 a)]) -> M.Map Int (V3 a ,V3 a)  -> [a]
 momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
   where
-    -- linksIn = fmap unForces . getCompose <$> linksInPre
     nodesIn = unForces <$> nodesInPre
     nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip (M.toList nodesIn) (snd <$> shead g)
     l = reverse $ links g
@@ -278,7 +291,7 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
 
 instance Coord Force (V3 Double) where
   nextElement  = nextS
-  thisElement  i = (\(u,m,j)-> (if u /= 0 then 0 else if m /= 0 then 1 else if j/= 0 then 2 else 2,(0,SO3 . P.rotM $ (V3 (opi u) (opi m) (opi j))))) <$> thisF  i
+  thisElement l i = (\(u,m,j)-> (if u /= 0 then 0 else if m /= 0 then 1 else if j/= 0 then 2 else 2,(0,SO3 . P.rotM $ (V3 (opi u) (opi m) (opi j))))) <$> thisF l i
   elemTrans t = (lengthE t , angleE t)
     where
       angleE  = SO3 . P.rotM . opi . angE
@@ -298,8 +311,8 @@ rot2V3  x y = identV3 !+! skewV3 v !+! ((*((1 - dot x  y )/norm v)) **^ (skewV3 
   where
     v = cross x y
 
-thisF (_,(_,Connection i _ )) = M.fromList i
-thisF  e  =   (M.fromList ( fmap (fmap (0,0,)) $ els $ first F.toList  e))
+thisF l (Connection i _ ) = M.fromList i
+thisF l e = M.fromList (fmap (fmap (0,0,)) . els . (F.toList l,) $ e)
   where
     els ([a,b,c,d,e,f],i)
       =  [(a,0),(b,0),(c,0),(d,0),(e,0),(f,0)]

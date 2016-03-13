@@ -35,7 +35,7 @@ import Diagrams.TwoD.Text (Text)
 
 
 renderElem s n (Open i) =  regPoly 6 0.1
-renderElem s n (Tee (TeeConfig tc@[rl,b,rr] _ _ _ _) _ ) = regPoly 3 0.1
+renderElem s n (Tee (TeeConfig tc@[rl,b,rr] _ _ _ _ _) _ ) = regPoly 3 0.1
 renderElem s n (Sprinkler (Just (d,k))  _ _ _) = regPoly 5 0.1
 renderElem  _ _ _ = regPoly 4 0.1
 

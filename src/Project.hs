@@ -90,7 +90,7 @@ joelho45L  = Joelho Nothing ("Conexao","Joelho","45") left45  100
 -- testResistor :: SR.Expr
 
 displayBended (header,model) = do
-  T.writeFile (header <> "-temp.scad") $ openSCAD (Mecha.color (1,0,0,0.2) (drawIter  model )<>  (drawIter (bendIter model)))
+  T.writeFile (header <> "-temp.scad") $ openSCAD (Mecha.color (1,0,0,0.2) (drawIter  model) <>  drawIter (bendIter model))
   callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
 
 displaySolve (header,model) = do
@@ -107,6 +107,7 @@ solveModel (header ,model) = do
   let
        iter = solveIter (makeIter 0 1 model ) jacobianEqNodeHeadGrid
        fname  = regionFile $ regionInfo header
+  print iter
   reportIter header 0 iter
   print $ "renderReport" <> (fname <> ".csv")
   let sofficec = "soffice --convert-to xls --infilter=csv:\"Text - txt - csv (StarCalc)\":59/44,34,0,1,,1033,true,true  " <> fname <> ".csv"
@@ -138,20 +139,18 @@ data CyclePoint a b
 
 
 
-upgradeGrid :: (Show (f Double) , Coord f (V3 Double)) => Int -> Int -> Grid f Double -> (Grid  f Double,Errors [(Int,Int,String,Double)] () )
+upgradeGrid :: (Show (f Double) , Coord f (V3 Double)) => Int -> Int -> Grid f Double -> (Grid  f Double,Errors [(Int,Int,String,Double)] [(Int,Int,(V3 Double ,SO3 Double))])
 upgradeGrid ni li a = (a {shead = M.toList nodesPos, linksPosition = M.toList linksPos},err)
   where
     (err,(nodesPos,linksPos)) =  runState (do
-                      modify (<> (M.singleton ni (0,SO3 $ rotM 0), mempty))
-                      let niel = var ni nmap
-                          nels = fmap snd $ thisElement (fmap (ni,)niel)
-                          oi = var li nels
-                      i <- locateGrid lmap nmap ni oi  li (Left $ var li lmap )
-                      j <- mapM (\(inx,ie) -> locateGrid lmap nmap ni ie inx (Left $ var inx lmap) ) (filter ((/=li).fst) $ M.toList nels)
-                      return $ (\_ _ -> ()) <$> i <*> (foldr (liftA2 (\ _ _ -> ()) ) (pure ()) j)
-                      )
-
-                        (mempty,mempty)
+          modify (<> (M.singleton ni (0,SO3 $ rotM 0), mempty))
+          let
+            niel = var ni nmap
+            nels = fmap snd $ thisElement (fst niel) (snd niel)
+            oi = var li nels
+          i <- locateGrid lmap nmap ni oi  li (Left $ var li lmap )
+          j <- mapM (\(inx,ie) -> locateGrid lmap nmap ni ie inx (Left $ var inx lmap) ) (filter ((/=li).fst) $ M.toList nels)
+          return $ mappend <$> i <*> (foldr (liftA2 mappend ) (pure []) j))  (mempty,mempty)
     lmap = M.fromList (links a)
     nmap = M.fromList (findNodesLinks a $   (nodesFlow a) )
 
@@ -193,9 +192,14 @@ reportIter header i iter@(Iteration f h a)  = do
     resnh = res "Resíduo Continuity" (L.drop (length (flows iter)) residual)
     residuos = "Dados Solução\n\n" <> resnh <> "\n"  <>resc
     vazao = fromJustE "no flow for node 1 " $ join $ M.lookup 1 fm
-    bomba :: Element Double
-    bomba@(Bomba (pn,vn)   _) = fromJustE "no pump"$ join $ L.find isBomba . (\(_,(_,_,l)) -> l)<$> L.find (\(_,(_,_,l)) -> L.any isBomba l ) (links a )
-    pressao = abs $ pipeElement vazao bomba
+    display (i,l ) = i <> "\n" <> L.intercalate "\n" (L.intercalate "," <$> l)
+    bomba :: Maybe (String ,[[String]])
+    bomba = fmap result $  join $ (\(i,(_,_,l)) -> (i,) <$> L.find isBomba l)<$> L.find (\(_,(_,_,l)) -> L.any isBomba l ) (links a)
+      where result (ix,bomba@(Bomba (pn,vn) _ )) = ("Bomba", [["Pressão Nominal",  sf2 pn , "kpa"] ,["Vazão Nominal", sf2 vn , "L/min"] ,["Potência", sf2 185 ,"cv"], ["Vazão Operação",sf2 vazao , "L/min"] ,["Pressão Operação", sf2 pressao , "kpa"]])
+              where
+                pressao = abs $ pipeElement vazao bomba
+                vazao = fromJustE "no flow for node 1 " $ join $ M.lookup ix fm
+
     sprinklers =  fmap (\(i,e) -> (i,fromJustE "no sprinkler" $ join $ M.lookup i  hm ,e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
     areaSprinkler =  sum $ fmap coverageArea ((\(_,_,i) -> areaCobertura i)<$> sprinklers)
     (_,_,Sprinkler (Just (dsp,ksp))  _ _ _) = head sprinklers
@@ -207,36 +211,42 @@ reportIter header i iter@(Iteration f h a)  = do
     projectHeader =  L.intercalate "\n" ["Projeto," <> projectName header   ,"Proprietário," <> projectOwner header , "Endereço," <> endereco header, formation ainfo <> "," <> authorName ainfo , "Crea," <> creaNumber ainfo , "Empresa," <>   empresa ainfo , "Região Cálculo," <> regionName (regionInfo header)]
         where ainfo = authorInfo header
     headerCalculo = projectHeader <> "\n\n" <> "Dados do projeto" <> "\n\n" <> L.intercalate "\n\n"
-            ["Bomba\n" <> "Pressão Nominal," <> sf2 pn <> ",kpa\n" <> "Vazão Nominal," <> sf2 vn <> ",L/min\n" <> "Potência,185,cv\n" <> "Vazão Operação," <> sf2 vazao <> ",L/min\n" <>  "Pressão Operação," <> sf2 pressao <> ",kpa,"
-            ,"Reservatório\n" <> "Volume," <> sf2 (vazao * tempo) <> ",L\n" <> "Tempo de Duração," <> sf2 tempo<> ",min"
-            ,"Sprinkler\nTipo,ESFR\n"  {-<> "Diâmetro,25,mm\n" <> "Area,9,m²\n" <> -}<> "K," <> sf2 ksp <> ",L/min/(kpa^(-1/2))\n"<> "Vazão Mínima," <> sf2 (ksp*sqrt 350) <>  ",L/min\n" <> "Pressão Mínima,350,kpa\n" <> "Area Projeto;" <> sf3 areaSprinkler <>  ";m²\n" <> "Quantidade Bicos," <> show (L.length sprinklers) <> ",un" ] <>  "\nId,Pressão(kpa),Vazão(L/min)\n" <> spkReport <>  "\n\n" <>residuos
+            (maybeToList (display <$>bomba )<> [
+            "Reservatório\n" <> "Volume," <> sf2 (vazao * tempo) <> ",L\n" <> "Tempo de Duração," <> sf2 tempo<> ",min"
+            {-,"Sprinkler\nTipo,ESFR\n"  {-<> "Diâmetro,25,mm\n" <> "Area,9,m²\n" <> -}<> "K," <> sf2 ksp <> ",L/min/(kpa^(-1/2))\n"<> "Vazão Mínima," <> sf2 (ksp*sqrt 350) <>  ",L/min\n" <> "Pressão Mínima,350,kpa\n" <> "Area Projeto;" <> sf3 areaSprinkler <>  ";m²\n" <> "Quantidade Bicos," <> show (L.length sprinklers) <> ",un" -} ]) <>  "\nId,Pressão(kpa),Vazão(L/min)\n" <> spkReport <>  "\n\n" <>residuos
 
-    nmap = (\ni n@(s,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 2 $ maybe 0 id $p ni , formatFloatN 2 $h  ni,"",""] ++  expandNode (p ni) e )
+    nmap = (\ni n@(s,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 4 $ maybe 0 id $p ni , formatFloatN 4 $h  ni,"",""] ++  expandNode (p ni) e )
         where p ni =  join $ varM ni hm
               h ni =  fst ( (fromJustE $"no position pressure for node " <> show ni) (varM ni  pm)) ^. _z
     lmap = (\ni n@(h,t,e) ->  L.intercalate "," ["T-"<> show h <>  "-" <> show t ,"","",formatFloatN 2 $  maybe 0 id (abs <$> p ni) ,formatFloatN 2  $ abs (pr h - pr t),"Trecho"])
         where pr ni =  maybe 0 id (join $ varM ni hm)
               p ni =  join $ varM ni fm
-    lsmap n@(ni,(h,t,e)) = L.intercalate "\n" $ fmap (L.intercalate ",") $ (mainlink:) $ expandLink (lname <>  "-") (p ni) <$>  zip [0..] (addTee (h,ni) <> e <> addTee (t ,ni))
+    lsmap n@(ni,(h,t,e)) = L.intercalate "\n" $ fmap (L.intercalate ",") $ (mainlink:) $ zipWith3 (expandLink (lname <>  "-") (p ni) ) [0..] dgrav els
         where p ni =  join $ varM ni fm
-              mainlink = [lname  , "", show $ fromMaybe 0 (join $ varM h hm ) - fromMaybe 0 (join $ varM t hm),"", ""]
+              mainlink = [lname  , "", sf2 $ gravp  ,show $ negate $ fromMaybe 0 (join $ varM h hm ) - fromMaybe 0 (join $ varM t hm) + gravDelta (var h pm ) (var t pm) ,"", ""]
+                where gravp =gravDelta (var h pm ) (var t pm)
               lname = "T-"<> show h <>  "-" <> show t
+              grav =  (if isJust (M.lookup (h,ni) nodeLosses) then(var h pm :)else id ) (var ni lpos  <> [var t pm,var t pm])
+              dgrav = zipWith gravDelta grav (drop 1 grav)
+              gravDelta i j = (i ^. _1._z  - j ^. _1._z)* 9.81
+              els = addTee (h,ni) <> e <> addTee (t ,ni)
     fm = runIdentity . getCompose <$> M.fromList f
     hm = runIdentity . getCompose <$> M.fromList h
     pm = M.fromList (shead a )
+    lpos = M.fromList (linksPosition a )
     nodeHeader = ["ID","Pressão Dinâmica (kpa)","Altura (m)","Vazão (L/min)","Perda (kpa)","Elemento"]
     expandNode (Just p) (Sprinkler (Just (d,k)) (dl) f a ) = ["Sprinkler"]
     expandNode _ (Reservatorio  _ )  = ["Reservatorio"]
-    expandNode _ (Tee (TeeConfig i r db dr c) _ )  = ["Tê"]
+    expandNode _ (Tee (TeeConfig i r _ db dr c) _ )  = ["Tê"]
     expandNode _ (Open 0 )  = ["Tampa"]
     expandNode _ (Open i )  = ["Hidrante"]
     expandNode _ i = []
-    linkHeader = ["SubTrecho","Diametro (m)","Perda (kpa)","Elemento","Comprimento (m)"]
-    expandLink st (Just f) (i,t@(Tubo (Just d ) dl  _)) = [st <> show i ,  sf3 d , sf2$   Element.ktubo t*(abs f)**1.85,"Tubo " , sf3 dl ]
-    expandLink st (Just f) (i,t@(Turn   _)) = [st <> show i ,  "" , "","Turn" , "" ]
-    expandLink st (Just f) (i,b@(Bomba (d,_)  dl  )) = [st <> show i, "", sf2 $ pipeElement f b,"Bomba"]
-    expandLink st (Just f) (i,j@(Joelho (Just d)  (_,_,c)  _ _ ) ) = [st <> show i , sf3 d, sf2 $Element.ktubo j*(abs f)**1.85,"Joelho " <> c]
-    expandLink st (Just f) (i,j@(Perda (Just d)  (s,m,c)   _ ) ) = [st <> show i , sf3 d, sf2 $Tee.ktubo j (abs f/1000/60),s <> m <> c]
+    linkHeader = ["SubTrecho","Diametro (m)","Gravidade(kpa)", "Atrito(kpa)","Elemento","Comprimento (m)"]
+    expandLink st (Just f) i dg t@(Tubo (Just d ) dl  _) = [st <> show i ,  sf3 d , sf2 dg ,sf2$   Element.ktubo t*(abs f)**1.85,"Tubo " , sf3 dl ]
+    expandLink st (Just f) i dg t@(Turn   _) = [st <> show i ,   "" ,sf2 dg , "","Turn" , "" ]
+    expandLink st (Just f) i dg b@(Bomba (d,_)  dl  ) = [st <> show i, "",sf2 dg , sf2 $ pipeElement f b,"Bomba"]
+    expandLink st (Just f) i dg j@(Joelho (Just d)  (_,_,c)  _ _ )  = [st <> show i , sf3 d,sf2 dg , sf2 $Element.ktubo j*(abs f)**1.85,"Joelho " <> c]
+    expandLink st (Just f) i dg j@(Perda (Just d)  (s,m,c)   _ )  = [st <> show i , sf3 d,sf2 dg , sf2 $Tee.ktubo j (abs f/1000/60),s <> m <> c]
 
 
 
