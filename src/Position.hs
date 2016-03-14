@@ -26,6 +26,7 @@ class RBackend a where
   type TCoord a
   transformElement  ::  (TCoord a,Ang (TCoord a)) -> a -> a
   errorItem :: a
+  statements :: [a ] -> a
 
 class RBackend a => Target sys a  where
   renderNode :: S.Set Int -> Int -> sys Double -> a
@@ -158,7 +159,7 @@ varM i j = case M.lookup i j of
               Nothing ->  Nothing
               i -> i
 
-drawGrid iter = L.foldr1 (<>) $ styleNodes iter <> styleLinks iter <> {- styleSurfaces iter <> -}styleVolume iter
+drawGrid iter = statements  $ styleNodes iter <> styleLinks iter <> {- styleSurfaces iter <> -}styleVolume iter
   where
     styleNodes  it = catMaybes $ fmap (\i -> do
             pos <- varM (fst i) gridMap
@@ -196,7 +197,7 @@ styleVolume it = catMaybes $  fmap (\(n,(h,i))  -> do
 
 mergeStates i x = fst $ runState( traverse parse i) (F.toList x)
 
-drawIter iter = L.foldr1 (<>) $ nds <> lds <> styleSurfaces (grid iter) <> styleVolume (grid iter)
+drawIter iter = statements $ nds <> lds <> styleSurfaces (grid iter) <> styleVolume (grid iter)
   where
     nds = styleNodes iter
     lds = styleLinks iter
@@ -217,7 +218,7 @@ drawIter iter = L.foldr1 (<>) $ nds <> lds <> styleSurfaces (grid iter) <> style
         posMap = M.fromList $ linksPosition (grid it)
 
 
-drawIterGraph  iter = L.foldr1 (<>) $ nds <> lds
+drawIterGraph  iter = statements $ nds <> lds
   where nds = styleNodes iter
         lds = styleLinks iter
         styleNodes  it = catMaybes $ fmap (\i -> do

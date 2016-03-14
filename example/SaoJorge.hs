@@ -14,7 +14,7 @@ import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
 bifurcate ramal  inp dm (tvga3 ,lvga24) = mdo
-    let te c dri dbi = node (Tee (TeeConfig (fst <$> c) (0.1*dbi) dbi dri (100)) Table )
+    let te c dri dbi = node (Tee (TeeConfig (fst <$> c) (0.1*dbi) (pi/2)dbi dri (100)) Table )
     lvga32 <- inp  tvga3 tvga2
     lvga2 <- ramal tvga2 -- tubo dm 1.0 tvga2 =<< node (Open 0)
     tvga2 <- te [lvga32,lvga2,lvga24] dm dm
@@ -37,7 +37,7 @@ gridInput  = [(ph (rteto "mezanino"), pregrid  bombamin )]
         soff = 5
         bspl = spl/2
         sp = node (Sprinkler (Just (25,16.0))  (Just db) (SPKCoverage spl ldist 6 (SPKGoods 7 1)) (0.16*60*1.7) )
-        te c dri dbi = node (Tee (TeeConfig (fst <$> c) (0.1*dbi) dbi dri (100)) Table )
+        te c dri dbi = node (Tee (TeeConfig (fst <$> c) (0.1*dbi)(pi/2) dbi dri (100)) Table )
         tubo d l = link [Tubo (Just d) l 100]
         ramal tb (lback ,nnext) = mdo
           vga2 <- node (Open 0)

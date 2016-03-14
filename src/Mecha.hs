@@ -60,6 +60,7 @@ instance RBackend Mecha.Solid where
   errorItem = Mecha.torus 0.2 0.1
   transformElement (r@(V3 mx my mz),s)=  Mecha.affine (F.toList $ fmap F.toList v)
     where v = (\(V3 x y z ) -> V4 x y z (V4 0 0 0 1)) $ liftA2 (\(V3 x y z) m -> V4 x  y z m ) (unSO3 s) r
+  statements = Mecha.Statements
 
 fromOnly i = maybe i (i <>)
 
