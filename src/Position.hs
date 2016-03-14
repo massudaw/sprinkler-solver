@@ -184,11 +184,13 @@ styleSurfaces it = catMaybes $  fmap (\(n,(h,i))  -> do
         npos = M.fromList $ shead it
 
 styleVolume it = catMaybes $  fmap (\(n,(h,i))  -> do
-                let surfs = fmap (\i -> fst $ var i lSurfs) h
+                let surfs = fmap (\(d,i) -> if d then fst $ var i lSurfs else fmap (first flip ) $ fst $ var i lSurfs ) h
                     paths = fmap (fmap (\l -> var l lEls)) <$> surfs
                     nodes = fmap (\(h,t,_)->  [(h,var h npos),(t,var t npos)]) $ (snd <$> concat paths)
                 return $ renderVolume paths (concat nodes)  i ) (volumes it)
       where
+        flip True = False
+        flip False = True
         lEls =  M.fromList $ links it
         lSurfs =  M.fromList $ surfaces it
         npos = M.fromList $ shead it

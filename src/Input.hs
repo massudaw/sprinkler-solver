@@ -56,7 +56,7 @@ surface e  ls  = do
   modify (\(g,i) -> (g {surfaces= (un,(fst <$> ls,e)): surfaces g } ,i))
   return (un,e)
 
-polyhedra :: sys e -> [(Int,sys e)] -> InputM sys e (Int,sys e)
+polyhedra :: sys e -> [((Bool,Int),sys e)] -> InputM sys e (Int,sys e)
 polyhedra e  ls  = do
   un <-  getUniqueS
   modify (\(g,i) -> (g {volumes = (un,(fst <$> ls,e)): volumes g } ,i))

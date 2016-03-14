@@ -187,7 +187,7 @@ bendIter iter@(Iteration r i g)
       editNodes (i,(np,nr)) =  (i, (np ^+^ d,nr))
         where
           d = var2 i nmap
-      editLinks (i,l) = (i, (\(p,r) -> (p ^+^ dh , if norm (dh ^-^dt )  < 1e-3   then r else  traceShow (i,h,t,delta dh dt nhp ntp (unSO3 r) ,fmap (*(180/pi)) $unRot $ SO3 $transpose $ transpose ratio !*! unSO3 r) $  SO3 $ transpose ratio !*! unSO3 r  )) <$> l )
+      editLinks (i,l) = (i, (\(p,r) -> (p ^+^ dh , if norm (dh ^-^dt )  < 1e-3   then r else    SO3 $ transpose ratio !*! unSO3 r  )) <$> l )
         where
 
           (h,t,le) = var i lmap
@@ -207,18 +207,23 @@ localToGlobal v  l = rot2V3 (normalize v) (normalize l)
 
 bendingRatio d l = localToGlobal l (l ^+^ d)
 
-volumeLink nvars npos lmap smap (ls,Tetra4 e  ) = zip p (getZipList$ getCompose $ (( kres) !* Compose (ZipList vars)))
+volumeLink nvars npos lmap smap (ls,Tetra4 e  ) =  zip p (getZipList$ getCompose $ (( kres) !* Compose (ZipList vars)))
   where kres = tetrastiffness coords   e
-        sfs = (flip var smap) <$> ls
-        lks = fmap (fmap (flip var lmap  )). fst <$>  sfs
+        sfs = (\(l,i)-> if l then fst $ var i smap else first neg <$>  (fst $ var i smap) ) <$> ls
+        neg True = False
+        neg False = True
+        lks = fmap (fmap (flip var lmap  )) <$>  sfs
         res =  fmap (\(b,(h,t,e))-> if b then (h,t) else (t,h)) <$> lks
         p = L.nub $ concat $ path <$> res
         coords =  fmap (\i->  fst $ var i npos) p
         vars =  fmap (\i-> (\(v,_,_,_) -> v )$ var i nvars ) p
 volumeLink nvars npos lmap smap (ls,Hexa8 e  ) = zip p (getZipList $ getCompose $ kres !* Compose (ZipList vars))
   where kres = hexa8stiffness coords   e
-        sfs = (flip var smap) <$> ls
-        lks = fmap (fmap (flip var lmap  )). fst <$>  sfs
+        sfs = (\(l,i)-> if l then fst $ var i smap else first neg <$>  (fst $ var i smap) ) <$> ls
+        neg True = False
+        neg False = True
+        -- sfs = (flip var smap) <$> ls
+        lks = fmap (fmap (flip var lmap  )) <$>  sfs
         res =  fmap (\(b,(h,t,e))-> if b then (h,t) else (t,h)) <$> lks
         p = L.nub $ concat $ path <$> res
         coords =  fmap (\i->  fst $ var i npos) p
@@ -277,7 +282,7 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
     nodesIn = unForces <$> nodesInPre
     nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip (M.toList nodesIn) (snd <$> shead g)
     l = reverse $ links g
-    nodeMerge (ix,(s,el)) = catMaybes . zipWith3 (\i f j -> if isNothing i  || isNothing f then Just j else Nothing) (F.toList a <> F.toList aa) (F.toList fv <> F.toList mv )  .zipWith (+) (F.toList m <> F.toList ma) . fmap sum .  L.transpose $ (linkEls <> sEls <> vEls)
+    nodeMerge (ix,(s,el)) = catMaybes . zipWith3 (\i f j -> if isNothing i  || isNothing f then Just j else Nothing) (F.toList a <> F.toList aa) (F.toList fv <> F.toList mv )  .zipWith (+) (F.toList m <> F.toList ma) . fmap sum .  L.transpose $ (linkEls <> sEls <>  vEls)
       where (_,_,m,ma) = var ix nodesIn
             Tag a aa fv mv = tag el
             linkEls = (\(a,b) -> F.toList a <> F.toList b). (\(h,t,resh,rest,a) -> if ix == h then resh else (if ix == t then rest else error "wrong index")) . flip var lmap <$> F.toList s
@@ -285,7 +290,7 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
             vEls = maybeToList ((<> replicate 3 0) . F.toList <$>  M.lookup ix cmap)
     lmap = M.fromList $ eqLink nvars <$> l
     smap = M.fromList $ concat $ surfaceLink nodesIn (M.fromList $ shead g) (M.fromList l) . snd <$>  surfaces g
-    cmap = M.fromList $ concat $ volumeLink nodesIn (M.fromList $ shead g) (M.fromList l) (M.fromList (surfaces g)). snd <$>  volumes g
+    cmap = M.fromListWith (liftA2 (+) ) $ concat $ volumeLink nodesIn (M.fromList $ shead g) (M.fromList l) (M.fromList (surfaces g)). snd <$>  volumes g
 
 
 
