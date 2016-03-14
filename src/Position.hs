@@ -58,7 +58,7 @@ nElement l (i,e) = case  justError (" no element " <> show (l,e) ) . M.lookup l 
             (1,v) -> subSp (0,SO3$ rotM (V3 0 pi 0)) v
             (2,v) -> subSp (0,SO3$ rotM (V3 0 0 pi )) v
 
-angDist i j = unRot231 $ SO3 $ distribute $ (distribute $ unSO3 i) !*! ( unSO3 j)
+angDist i j = unRot $ SO3 $ distribute $ (distribute $ unSO3 i) !*! ( unSO3 j)
 instance PreCoord (V3 Double) where
   type Ang (V3 Double) = SO3 Double
   dist (i,ir) (j,jr) = (distance (r2p i) (r2p j) ,norm $ angDist ir jr)
@@ -66,14 +66,15 @@ instance PreCoord (V3 Double) where
   untrans (l,i) (lo,a) = ( l ^-^  unSO3 i !* lo  , SO3 $ unSO3 i !*! distribute (unSO3 a )  )
 
 
-rot (V3 ix iy iz) = rotY (V1 iy) !*! rotZ (V1  iz)  !*! rotX (V1  ix)
+rot (V3 ix iy iz) = rotZ (V1 iz) !*! rotY (V1  iy)  !*! rotX (V1  ix)
 
-rotD (V3 ix iy iz) = distribute (rotX (V1 ix)) !*! (distribute (rotZ (V1  iz))  !*! distribute (rotY (V1  iy)))
+rotD (V3 ix iy iz) = distribute (rotZ (V1 iz)) !*! (distribute (rotY (V1  iy))  !*! distribute (rotX (V1  ix)))
+unRot = unRot123
 
 opi i = i * 2 *pi
 upi i = i/(2 *pi)
 
-unrot = unRot231 . SO3 . distribute . unSO3
+unrot = unRot . SO3 . distribute . unSO3
 
 locateGrid
   :: (SO3 Double ~ (Ang a) , a ~ V3 Double, Coord f a, Show (f Double),Show (Ang a), Show a,  Num a, Monad m) =>
@@ -241,6 +242,6 @@ reflectPath el  ori = (compareS res ori , zipWith compareS fpath (bpath) ,zip fp
     fpath  = scanl transEleml ori el
     bpath = scanr transElemr end el
     compareS res ori = dist res ori < (1e-9 , 1e-9)
-    ang res = (unRot231 . SO3  . distribute . unSO3) res
+    ang res = (unRot . SO3  . distribute . unSO3) res
 
 

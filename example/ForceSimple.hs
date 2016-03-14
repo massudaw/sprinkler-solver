@@ -21,7 +21,7 @@ import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
 
-main = mapM solve$ zip [0..] [tetragon,example7]
+main = mapM solve$ zip [0..] [tetragon,example7,exampleSurf,hexahedron8]
 
 solve (i,ex) = do
   let (g,e) = upgradeGrid 0 1 ex
@@ -30,7 +30,7 @@ solve (i,ex) = do
       preres = printResidual ini momentForceEquations
   let iter = solveIter ( makeIter 0 1 ex) momentForceEquations
       posres = printResidual iter momentForceEquations
---  displayModel ("force-model-bend" <> show i ,g)
+  displayModel ("force-model" <> show i ,g)
 
   putStrLn $ "Jacobian: " <> show (printJacobian (realToFrac <$> ini) momentForceEquations)
   putStrLn $ "Pre Resídual: " <>  show preres
@@ -195,11 +195,11 @@ exampleSurf = fst $ runInput $ mdo
   return ()
 
 
-exampleVolume = fst $ runInput $ mdo
+hexahedron8 = fst $ runInput $ mdo
   let
     a = 4
-    l =  5
-    em=4
+    l =  4
+    em=480
     v=1/3
     sf = FaceLoop
     free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 (10) 0 0 ) 0
@@ -208,7 +208,7 @@ exampleVolume = fst $ runInput $ mdo
   l1 <- link [Link a ] x1 x2
   x2 <- conn [turn l1 0 (-1) ,turn l2 (1) 0,rise l6 (-1) 0 ] (Tag (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
   l2 <- link [Link a ] x2 x3
-  x3 <- conn [turn l2 0 (-1), turn l3 (1) 0 ,rise l7 (-1) 0 ]  (Tag (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
+  x3 <- conn [turn l2 1 0 , turn l3 0 (1)  ,rise l7 (-1) 0 ]  (Tag (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
   l3 <- link [Link a ] x3 x4
   x4 <- conn [turn l3 0 (-1) ,turn l4 (1) 0,rise l8 (-1) 0 ]  (Tag  (V3 0 0 0)  0 (V3  Nothing Nothing Nothing ) 0 )
   l4 <- link [Link a ] x4 x1
@@ -218,19 +218,19 @@ exampleVolume = fst $ runInput $ mdo
   l8 <- link [Link l ] x4 x8
   x5 <- conn [turn l9 0 (-1),rise l5 1 0  ,turn l12 (-1) 0 ]  free
   l9 <- link [Link a ] x6 x5
-  x6 <- conn [turn l10 (1)0 ,rise l6 1  0 , turn l9 0 (-1)  ]  free
-  l10 <- link [Link a ] x7  x6
-  x7 <- conn [turn l11   (1) 0  ,rise l7  1 0,turn l10  0 (-1)    ]  free2
+  x6 <- conn [turn l10 (1) 0 ,rise l6 1  0 , turn l9 0 (-1)  ]  free
+  l10 <- link [Link a ] x6  x7
+  x7 <- conn [turn l11   0 (1)   ,rise l7  1 0,turn l10  (1) 0     ]  free2
   l11 <- link [Link a ] x8  x7
-  x8 <- conn [turn l12  (1) 0 ,rise l8 1 0,turn l11  0 (-1) ]  free2
-  l12 <- link [Link a ] x5 x8
+  x8 <- conn [turn l12  1 0 ,rise l8 1 0,turn l11  0 (-1) ]  free2
+  l12 <- link [Link a ] x8 x5
   s1 <- surface sf [cw l1,cw l2,cw l3,cw l4]
-  s2 <- surface sf [cw l9,cw l10,cw l11,cw l12]
+  s2 <- surface sf [cw l9,ccw l10,cw l11,ccw l12]
   s3 <- surface sf [cw l1,cw l6 , cw l9,ccw l5]
-  s4 <- surface sf [cw l2,cw l7 , cw l10,ccw l6]
+  s4 <- surface sf [cw l2,cw l7 , ccw l10,ccw l6]
   s5 <- surface sf [cw l3,cw l8 , cw l11,ccw l7]
-  s6 <- surface sf [cw l4,cw l5 , cw l12,ccw l8]
-  polyhedra (Tetra8 (ematT em v)) [s1,s2,s3,s4,s5,s6]
+  s6 <- surface sf [cw l4,cw l5 , ccw l12,ccw l8]
+  polyhedra (Hexa8 (ematT em v)) [s1,s2,s3,s4,s5,s6]
   return ()
 
 merge (i,(a,b,c)) (k,(l,m,n)) = (i,(a+l,m+b,c+n))

@@ -90,7 +90,7 @@ joelho45L  = Joelho Nothing ("Conexao","Joelho","45") left45  100
 -- testResistor :: SR.Expr
 
 displayBended (header,model) = do
-  T.writeFile (header <> "-temp.scad") $ openSCAD (Mecha.color (1,0,0,0.2) (drawIter  model) <>  drawIter (bendIter model))
+  T.writeFile (header <> "-temp.scad") $ openSCAD ({- Mecha.color (1,0,0,0.2) (drawIter  model) <>  -} drawIter (bendIter model))
   callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
 
 displaySolve (header,model) = do

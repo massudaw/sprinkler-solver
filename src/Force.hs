@@ -56,7 +56,7 @@ data Force a
   | Connection [(Int,(a,a,a))] (Support a)
   | FaceLoop
   | Quad4 { em :: M3 a, thickness :: a }
-  | Tetra8 { emt :: Compose V2 V3 (Compose V2 V3 a)}
+  | Hexa8 { emt :: Compose V2 V3 (Compose V2 V3 a)}
   | Tetra4 { emt :: Compose V2 V3 (Compose V2 V3 a)}
   | Load
   | Link {length :: a}
@@ -187,19 +187,20 @@ bendIter iter@(Iteration r i g)
       editNodes (i,(np,nr)) =  (i, (np ^+^ d,nr))
         where
           d = var2 i nmap
-      editLinks (i,l) = (i, (\(p,r) -> (p ^+^ dh , if norm (dh ^-^dt )  < 1e-3   then r else traceShow (a r,d,e r ) $ SO3 $ transpose ratio !*! unSO3 r  )) <$> l )
+      editLinks (i,l) = (i, (\(p,r) -> (p ^+^ dh , if norm (dh ^-^dt )  < 1e-3   then r else  traceShow (i,h,t,delta dh dt nhp ntp (unSO3 r) ,fmap (*(180/pi)) $unRot $ SO3 $transpose $ transpose ratio !*! unSO3 r) $  SO3 $ transpose ratio !*! unSO3 r  )) <$> l )
         where
 
           (h,t,le) = var i lmap
-          a r = unRot231 (SO3 $ transpose $ unSO3 r)
-          d = unRot231 (SO3 $  ratio)
-          e r = unRot231 (SO3 $ transpose $ unSO3 r !*! transpose ratio)
           ratio = bendingRatio  (dt ^-^ dh) (ntp ^-^ nhp)
           (nhp,_) = var h npmap
           (ntp,_) = var t npmap
           dh = var2 h nmap
           dt = var2 t nmap
 
+delta di df  ni nf  r = ((((transpose b  !*! r ) !* (V3 (norm bl) 0 0)) ^+^ (ni ^+^ di)) ^-^ (nf ^+^ df), bl )
+  where
+    b = bendingRatio (df ^-^ di) (nf ^-^ ni)
+    bl = (nf ^+^ df) ^-^ (ni ^+^ di)
 
 localToGlobal v  l = rot2V3 (normalize v) (normalize l)
     where normalize l = (1/norm l) *^ l
@@ -214,7 +215,7 @@ volumeLink nvars npos lmap smap (ls,Tetra4 e  ) = zip p (getZipList$ getCompose 
         p = L.nub $ concat $ path <$> res
         coords =  fmap (\i->  fst $ var i npos) p
         vars =  fmap (\i-> (\(v,_,_,_) -> v )$ var i nvars ) p
-volumeLink nvars npos lmap smap (ls,Tetra8 e  ) = zip p (getZipList $ getCompose $ kres !* Compose (ZipList vars))
+volumeLink nvars npos lmap smap (ls,Hexa8 e  ) = zip p (getZipList $ getCompose $ kres !* Compose (ZipList vars))
   where kres = hexa8stiffness coords   e
         sfs = (flip var smap) <$> ls
         lks = fmap (fmap (flip var lmap  )). fst <$>  sfs

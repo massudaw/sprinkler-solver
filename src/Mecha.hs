@@ -2,6 +2,7 @@
 module Mecha (openSCAD) where
 
 import Data.Distributive
+import Linear.Matrix
 import Debug.Trace
 import Numeric
 import Plane
@@ -11,6 +12,7 @@ import Position
 import Rotation.SO3
 import Data.Maybe
 import Linear.V3
+import Linear.V4
 import Element
 import qualified Data.Foldable as F
 
@@ -56,8 +58,8 @@ renderLinkMecha  _ nis _  o = Mecha.sphere 0.02
 instance RBackend Mecha.Solid where
   type TCoord Mecha.Solid = V3 Double
   errorItem = Mecha.torus 0.2 0.1
-  transformElement (r,s)= Mecha.moveX (r ^. _x) . Mecha.moveY (r ^. _y) . Mecha.moveZ (r ^. _z) . Mecha.rotateX ( ax ) . Mecha.rotateZ (az ) . Mecha.rotateY (ay )
-    where (V3 ax ay az) = unRot231 . SO3  $  distribute $ unSO3 s
+  transformElement (r@(V3 mx my mz),s)=  Mecha.affine (F.toList $ fmap F.toList v)
+    where v = (\(V3 x y z ) -> V4 x y z (V4 0 0 0 1)) $ liftA2 (\(V3 x y z) m -> V4 x  y z m ) (unSO3 s) r
 
 fromOnly i = maybe i (i <>)
 
@@ -81,13 +83,13 @@ instance Target Force Mecha.Solid  where
           mys = my/norm m
           mxs = mx/norm m
 
-  renderLink h nis  ni  (Link i   )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.moveY (d/2) $Mecha.moveZ (d/2)  $ Mecha.moveX (i/2)$ Mecha.scale (st,st,st) (Mecha.text (show (ni,h))))
+  renderLink h nis  ni  (Link i   )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.move (i/2,d/2,d/2) $ Mecha.scale (st,st,st) (Mecha.text (show (ni,h))))
     where d = 0.03 -- 2* (sqrt$ a/pi)
           st = 0.03
-  renderLink _ nis  ni  (Bar i _ a )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.moveY (d/2) $Mecha.moveZ (d/2)  $ Mecha.moveX (i/2)$ Mecha.scale (st,st,st) (Mecha.text (show ni)))
+  renderLink _ nis  ni  (Bar i _ a )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.move (i/2,d/2,d/2)$ Mecha.scale (st,st,st) (Mecha.text (show ni)))
     where d = 2* (sqrt$ a/pi)
           st = 0.09
-  renderLink _ nis  ni  (Beam i _ a _ _ )  =  Mecha.color (0.2,0.2,1, 1 ) $(   (Mecha.moveX (i/2) $ Mecha.scale (i,sqrt a , sqrt a) (Mecha.cube 1)  ) )<> ( Mecha.moveY (d/2) $Mecha.moveZ (d/2)  $ Mecha.moveX (i/2)$ Mecha.scale (st,st,st) (Mecha.text (show ni)))
+  renderLink _ nis  ni  (Beam i _ a _ _ )  =  Mecha.color (0.2,0.2,1, 1 ) $(   (Mecha.moveX (i/2) $ Mecha.scale (i,sqrt a , sqrt a) (Mecha.cube 1)  ) )<> ( Mecha.move (i/2,d/2,d/2) $ Mecha.scale (st,st,st) (Mecha.text (show ni)))
     where d = 0.03 -- 2* (sqrt$ a/pi)
           st = 0.09
   renderLink  _  nis ni (BeamTurn _  ) = Mecha.sphere d
