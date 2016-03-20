@@ -59,6 +59,30 @@ hexa8stiffness  ncoor  emat
           (jdet,V3 dnx dny dnz) = hexa8isopshape ncoor q
 
 
+quad4stress
+  :: (Fractional a ) =>
+     [V2 a] -> V3 (V3 a) -> [V2 a] -> [V3  a]
+quad4stress coord  emat udis = loop <$> quad4directions
+  where
+    loop q =  emat !* (be !* (Compose $ ZipList udis))
+      where
+        (jdet,V2 dnx dny) = quad4isopshape coord q
+        be = Compose . ZipList <$> V3 ((\x -> (V2 x 0))  <$> dnx) ( (\y -> V2 0 y) <$> dny) (zipWith (\y x -> V2 y x) dny  dnx)
+
+
+
+quad4distributedforce coord h bfor
+  = foldr1 (!+!) $ map loop  ([V2 i j | i<- [0..rule] , j<- [0..rule]])
+  where
+    rule = 1
+    loop v =  (*c) **^ bk
+      where
+        bk =  ZipList $ (*^br) <$> nf
+        c = jdet * h * w
+        br = nf *! bfor
+        (q, w)  = sqrule (V2 rule rule) v
+        (jdet,_) = quad4isopshape coord q
+        nf = quad4shapefunction q
 
 quad4stiffness :: (Show a,Floating a) => [V2 a] -> a -> V3 (V3 a )->  Compose ZipList V2 ( Compose ZipList V2 a)
 quad4stiffness  ncoor h emat
@@ -67,14 +91,11 @@ quad4stiffness  ncoor h emat
       rule = 1
       loop [i,j] = (*c) **^  (sequenceA be !*! (emat !*!  be))
         where
-          -- be :: [Compose [] V2 a]
           be = Compose . ZipList <$> V3 ((\x -> (V2 x 0))  <$> dnx) ( (\y -> V2 0 y) <$> dny) (zipWith (\y x -> V2 y x) dny  dnx)
           c = jdet * h* w
           (q,w) = sqrule (V2 rule rule) (V2 i j)
-          (jdet,V2 dnx dny) = quad4isopshapesimple ncoor q
+          (jdet,V2 dnx dny) = quad4isopshape ncoor q
 
-nodeDir2 :: Num a =>  [V2 a ]
-nodeDir2 = [V2 (-1) (-1) , V2 1 (-1) , V2 1 1 , V2 (-1) 1 ]
 nodeDir :: Num a =>  [V3 a ]
 nodeDir = [V3 (-1) (-1) (-1), V3 1 (-1) (-1), V3 1 1 (-1) , V3 (-1) 1 (-1) , V3 (-1) (-1) 1, V3 1 (-1) 1,V3 1 1  1, V3 (-1) 1 1]
 nodeDirTetra :: Num a =>  [V3 a ]
@@ -83,14 +104,10 @@ nodeDirTetra = [V3 (-1) (-1) (-1), V3 1 (-1) (-1), V3 1 1 (-1) , V3 (-1) 1 (-1) 
 
 dni :: Fractional a => V3 a -> V3 a -> a
 dni (V3 i j k) (V3 xi eta mi)  = (1 + i*xi)*(1 + j*eta)*(1 + k*mi)/8
-dni2 ::Fractional  a => V2 a -> V2 a -> a
-dni2 (V2 i j ) (V2 xi eta )  = (1 + i*xi)*(1 + j*eta)/4
 
 dnj3 :: Fractional a => V3 a -> [V3 a]
 dnj3 = jacobian (\i-> (\j -> dni j i) <$> nodeDir)
 
-dnj2 :: Fractional a => V2 a -> [V2 a]
-dnj2 = jacobian (\i-> (\j -> dni2 j i) <$> nodeDir2)
 
 dndctetra4  :: Num a => V4 a -> V4 (V4 a)
 dndctetra4 v = V4 (V4 1 0 0 0) (V4 0 1 0 0) (V4 0 0 1 0) (V4 0 0 0 1)
@@ -124,17 +141,24 @@ testtetra = do
     s = tetraisopshape  p (V4 1 1 1 1)
 
 hexa8isopshape :: Fractional a => [V3 a] -> V3 a ->  ( a, V3 [a])
-hexa8isopshape coords v@(V3 xi eta mi) = (jdet,(/jdet) **^ dn)
+hexa8isopshape coords v@(V3 xi eta mi) = (jdet,(negate . (/jdet)) **^ dn)
   where
     dj = dnj3 v
     mj =  distribute  coords !*! dj
     jdet = det33 mj
     dn = distribute mj !*! distribute dj
 
+quad4directions:: Num a =>  [V2 a ]
+quad4directions = [V2 (-1) (-1) , V2 1 (-1) , V2 1 1 , V2 (-1) 1 ]
 
-quad4isopshapesimple coords v@(V2 xi eta) = (jdet,(/jdet) **^ dn)
+quad4shapefunction i = (\j -> dni2 j i) <$> quad4directions
+
+dni2 ::Fractional  a => V2 a -> V2 a -> a
+dni2 (V2 i j ) (V2 xi eta )  = (1 + i*xi)*(1 + j*eta)/4
+
+quad4isopshapesimple coords v@(V2 xi eta) = (jdet,(negate .(/jdet)) **^ dn)
   where
-    dj = dnj2 v
+    dj = jacobian quad4shapefunction  v
     mj =  distribute  coords !*! dj
     jdet = det22 mj
     dn = distribute mj !*! distribute dj
@@ -216,11 +240,16 @@ test = do
     print $ quad4isopshapesimple coord wei
     print $ quad4isopshape coord wei
     print $ quad4isopshape coord wei == quad4isopshapesimple coord wei
-    print k
+
+    print $ k
+    print $ quad4distributedforce coord 1 bf
+    print $ quad4stress coord emat  sf
   where
     wei = V2 (-1/sqrt 3) 1
     k = quad4stiffness coord h emat
     em = 96
+    bf = [V2 1 1 ,V2 1 1,V2 1 1,V2 1 1]
+    sf = [V2 0 1, V2 1 0,V2 1 1,V2 1 0]
 
     nu = 1/3
     h = 1 :: Double

@@ -35,6 +35,7 @@ class RBackend a => Target sys a  where
   renderVolume :: [[(Bool,(Int,Int, [sys Double]))]] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
   renderNodeSolve :: NodeDomain sys Double -> Int -> sys Double ->  a
   renderLinkSolve :: LinkDomain sys Double -> sys Double ->  a
+  renderSurfaceSolve :: [(Int,SurfaceDomain sys Double )]-> [(Bool,(Int,Int, [sys Double]))] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a -> a
 
 
 showErr (Other (Constant i)) = Left i
@@ -180,8 +181,20 @@ styleSurfaces it = catMaybes $  fmap (\(n,(h,i))  -> do
                     nodes = fmap (\(h,t,_)->  [(h,var h npos),(t,var t npos)]) (snd <$>paths)
                 return $ renderSurface paths (concat nodes)  i ) (surfaces it)
       where
-        lEls =  M.fromList $ links it
+        lEls = M.fromList $ links it
         npos = M.fromList $ shead it
+
+styleSurfacesSolve iter@(Iteration l n it) = catMaybes $  fmap (\(n,(h,i))  -> do
+                let paths = fmap (fmap (\l -> var l lEls)) h
+                    nodes = fmap (\(h,t,_)->  [(h,var h npos),(t,var t npos)]) (snd <$>paths)
+                    m  =(\i -> (i,var i  spos)) . fst <$> L.nub (concat nodes)
+                return $ renderSurfaceSolve m paths (concat nodes)  i (renderSurface paths (concat nodes) i)) (surfaces it)
+      where
+        spos = M.fromList $ postprocess iter
+
+        lEls = M.fromList $ links it
+        npos = M.fromList $ shead it
+
 
 styleVolume it = catMaybes $  fmap (\(n,(h,i))  -> do
                 let surfs = fmap (\(d,i) -> if d then fst $ var i lSurfs else fmap (first flip ) $ fst $ var i lSurfs ) h
@@ -199,7 +212,7 @@ styleVolume it = catMaybes $  fmap (\(n,(h,i))  -> do
 
 mergeStates i x = fst $ runState( traverse parse i) (F.toList x)
 
-drawIter iter = statements $ nds <> lds <> styleSurfaces (grid iter) <> styleVolume (grid iter)
+drawIter iter = statements $ nds <> lds <> styleSurfaces (grid iter) <> styleVolume (grid iter) <> styleSurfacesSolve iter
   where
     nds = styleNodes iter
     lds = styleLinks iter

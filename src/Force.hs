@@ -1,8 +1,10 @@
 {-# LANGUAGE TupleSections,MultiParamTypeClasses,FlexibleInstances,GeneralizedNewtypeDeriving,FlexibleContexts,TypeFamilies,DeriveFunctor,DeriveFoldable,DeriveTraversable #-}
 module Force where
 
+import Data.Ord
 import Utils
 import Position
+import Grid
 import Plane
 import Control.Applicative
 import qualified Position as P
@@ -78,9 +80,40 @@ instance Num a => Num (Maybe a) where
 instance Show1 Forces where
   showsPrec1 = showsPrec
 
+contourband xyc@[V2 xc1 yc1 , V2 xc2 yc2 , V2 xc3 yc3] f@[fc1 ,fc2,fc3] fmin fmax finc eps
+  | fmax < fmin || finc < 0 = []
+  where
+    sv@[(f1,pc1 ), (f2,pc2),(f3,pc3)] = L.sortBy (comparing fst) $zip f xyc
+    nv= min (floor (fmax-fmin+eps)/finc ) 1000
+
+
+trigbandSegment p1@(V2 x1 y1) p2@(V2 x2 y2) p3@(V2 x3 y3)  [f1,f2,f3] fv  eps
+  | fv < f1 =  ((p1,p1),-1)
+  | fv > f3 =  ((p3,p3),0)
+  | fv <= f2 = ((p21,p13),1)
+  | otherwise = ((p32,p13),1)
+    where
+      f21 = if f2 - f1 > eps then eps else f2 - f1
+      f32 = if f3 - f2 > eps then eps else f3 - f2
+      f1' = if f2 - f1 < eps then f1 - eps else f1
+      f3' = if f3 - f2 < eps then f2 + eps else f3
+      f31 = f3 - f1
+      s212  = max 0 (min ((fv - f1)/f21) 1)
+      s211 = 1 - s212
+      s313  =max 0 (min ((fv - f1)/f31) 1)
+      s311 = 1 - s313
+      p21 = V2 (x2*s212+x1*s211 ) (y2*s212 + y1*s211)
+      p13 = V2 (x1*s311+x3*s313 ) (y1*s311 + y3*s313)
+      s323 = max (min ((fv - f2)/f32 ) 1) 0
+      s322 = 1 - s323
+      p32 = V2 (x3*s323 +  x2*s322 ) (y3*s323 + y2*s322)
+
+
+
 instance PreSys Force where
   type NodeDomain Force = Forces
-  type LinkDomain Force = Compose  [] Forces
+  type LinkDomain Force = Compose [] Forces
+  type SurfaceDomain Force = V3
   revElem (BeamTurn i )  = (BeamTurn (-i))
   revElem (BTurn (a,b) )  = (BTurn (a,-b))
   revElem i = i
@@ -103,6 +136,7 @@ instance PreSys Force where
         Roller -> (V3 0 Nothing 0 ,V3 0 0 0 )
         Friction x -> (V3 0 Nothing 0 ,V3 0 0 0 )
     constr i  = (Just <$> 0,Just <$> 0)
+  postprocess i = M.toList $ printResidual i forces
 
 momentForceEquations :: (g ~Force , Show a , Ord a ,Floating a) => Grid g a -> M.Map Int (LinkDomain g a) -> M.Map Int (NodeDomain g a) -> [a]
 momentForceEquations = (\l v h -> momentForce l  v  h )
@@ -128,8 +162,6 @@ rotor  l0@(V3 x0 y0 z0) l1 l2   = V3 tx ty  tz
         n@(V3 x21 y21  z21 ) = l1 ^-^ l2
         lm@(V3 xm ym zm ) = (1/2) *^(l1 ^+^ l2)
         V3 dx dy dz = l0 ^-^ lm
-
-
 
 
 moment l1 l2  b = transpose (rotor (V3 0 1 0) l1 l2) !*! force b !*! rotor (V3 0 1 0 ) l1 l2
@@ -205,7 +237,9 @@ delta di df  ni nf  r = ((((transpose b  !*! r ) !* (V3 (norm bl) 0 0)) ^+^ (ni 
 localToGlobal v  l = rot2V3 (normalize v) (normalize l)
     where normalize l = (1/norm l) *^ l
 
-bendingRatio d l = localToGlobal l (l ^+^ d)
+bendingRatio d l
+  | abs (cross l (l ^+^ d) ) < 1e-6 = identV3
+  | otherwise = localToGlobal l (l ^+^ d)
 
 volumeLink nvars npos lmap smap (ls,Tetra4 e  ) =  zip p (getZipList$ getCompose $ (( kres) !* Compose (ZipList vars)))
   where kres = tetrastiffness coords   e
@@ -222,12 +256,21 @@ volumeLink nvars npos lmap smap (ls,Hexa8 e  ) = zip p (getZipList $ getCompose 
         sfs = (\(l,i)-> if l then fst $ var i smap else first neg <$>  (fst $ var i smap) ) <$> ls
         neg True = False
         neg False = True
-        -- sfs = (flip var smap) <$> ls
         lks = fmap (fmap (flip var lmap  )) <$>  sfs
         res =  fmap (\(b,(h,t,e))-> if b then (h,t) else (t,h)) <$> lks
         p = L.nub $ concat $ path <$> res
         coords =  fmap (\i->  fst $ var i npos) p
         vars =  fmap (\i-> (\(v,_,_,_) -> v )$ var i nvars ) p
+
+surfaceStress nvars npos lmap (ls,Quad4 e h ) = zip p ( kres  (vars))
+  where
+    kres = quad4stress coords e
+    lks = fmap (flip var lmap  ) <$>  ls
+    res =  (\(b,(h,t,e))-> if b then (h,t) else (t,h)) <$> lks
+    p = reverse $ path res
+    coords =  fmap (\i-> (\(V3 x y _) -> V2 x y)$ fst $ var i npos) p
+    vars =  fmap (\i-> (\(V3 x y _,_,_,_) -> V2 x y)$ var i nvars ) p
+
 
 
 surfaceLink _  _ _ (_,FaceLoop) = []
@@ -268,11 +311,13 @@ eqLink nvars (i,(h,t,l)) =  (i,(h,t,( rtb !*  resh ,rtb !* mesh),( rtb !* rest,r
     mest  = (btor !* mt ^+^ ctor !* mh) ^+^ (bendt !* (fhl ^-^ ftl))
     nvarsEl h =  var h nvars
 
-forces  g linkInPre nodesInPre =  Compose . fmap (\(a,b) -> Compose (V2 a b))  $nodeForces lmap nvars <$> nodesSet g
+forces  g linkInPre nodesInPre = sfmap
   where
     lmap = M.fromList $ eqLink nvars <$> links g
     nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip (M.toList nodesIn) (snd <$> shead g)
+    smap = M.fromList $ eqLink nvars <$> links g
     nodesIn = unForces <$> nodesInPre
+    sfmap = M.fromListWith (liftA2 (+)) $ concat $ surfaceStress nodesIn (M.fromList $ shead g) (M.fromList (links g)). snd <$>  surfaces g
 
 
 
@@ -289,7 +334,7 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
             sEls = maybeToList ((<> replicate 4 0) . F.toList <$>  M.lookup ix smap)
             vEls = maybeToList ((<> replicate 3 0) . F.toList <$>  M.lookup ix cmap)
     lmap = M.fromList $ eqLink nvars <$> l
-    smap = M.fromList $ concat $ surfaceLink nodesIn (M.fromList $ shead g) (M.fromList l) . snd <$>  surfaces g
+    smap = M.fromListWith (liftA2 (+)) $ concat $ surfaceLink nodesIn (M.fromList $ shead g) (M.fromList l) . snd <$>  surfaces g
     cmap = M.fromListWith (liftA2 (+) ) $ concat $ volumeLink nodesIn (M.fromList $ shead g) (M.fromList l) (M.fromList (surfaces g)). snd <$>  volumes g
 
 

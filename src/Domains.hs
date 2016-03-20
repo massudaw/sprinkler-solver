@@ -44,6 +44,7 @@ data Grid b a
 class PreSys sys  where
   type NodeDomain sys  :: (* -> *)
   type LinkDomain sys  :: (* -> *)
+  type SurfaceDomain sys  :: (* -> *)
   revElem :: Num a => sys  a -> sys a
   initIter :: (Functor (LinkDomain sys),Traversable (NodeDomain sys),Fractional a) => Grid sys a -> Iteration  sys a
   initIter g = Iteration  (fmap Compose <$> varsL) (fmap Compose <$> varsN) g
@@ -59,6 +60,7 @@ class PreSys sys  where
       varsL = fmap (fmap ((fmap convL . lconstrained ))) $ (fmap (\(i,(_,_,l))-> (i,l)) $  links g)
   constrained :: Num a => sys a -> NodeDomain sys (Maybe a)
   lconstrained :: Num a => [sys a]-> LinkDomain sys (Maybe a)
+  postprocess :: (Show a,Floating a )=> Iteration sys a -> [(Int,SurfaceDomain sys a)]
 
 type Iteration sys  a =  FIteration (NodeDomain sys ) (LinkDomain sys) sys a
 data FIteration n l  b a
