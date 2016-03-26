@@ -61,6 +61,7 @@ class PreSys sys  where
   constrained :: Num a => sys a -> NodeDomain sys (Maybe a)
   lconstrained :: Num a => [sys a]-> LinkDomain sys (Maybe a)
   postprocess :: (Show a,Floating a )=> Iteration sys a -> [(Int,SurfaceDomain sys a)]
+  postprocess _ = []
 
 type Iteration sys  a =  FIteration (NodeDomain sys ) (LinkDomain sys) sys a
 data FIteration n l  b a

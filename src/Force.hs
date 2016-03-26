@@ -238,7 +238,7 @@ localToGlobal v  l = rot2V3 (normalize v) (normalize l)
     where normalize l = (1/norm l) *^ l
 
 bendingRatio d l
-  | abs (cross l (l ^+^ d) ) < 1e-6 = identV3
+  | norm (cross l (l ^+^ d) ) < 1e-6 = identV3
   | otherwise = localToGlobal l (l ^+^ d)
 
 volumeLink nvars npos lmap smap (ls,Tetra4 e  ) =  zip p (getZipList$ getCompose $ (( kres) !* Compose (ZipList vars)))
@@ -262,7 +262,7 @@ volumeLink nvars npos lmap smap (ls,Hexa8 e  ) = zip p (getZipList $ getCompose 
         coords =  fmap (\i->  fst $ var i npos) p
         vars =  fmap (\i-> (\(v,_,_,_) -> v )$ var i nvars ) p
 
-surfaceStress nvars npos lmap (ls,Quad4 e h ) = zip p ( kres  (vars))
+surfaceStress nvars npos lmap (ls,Quad4 e h ) = zip p ( kres  vars)
   where
     kres = quad4stress coords e
     lks = fmap (flip var lmap  ) <$>  ls
@@ -279,7 +279,7 @@ surfaceLink nvars npos lmap (ls,Quad4 e h ) = zip p (getZipList $ getCompose $ k
     kres = quad4stiffness coords h  e
     lks = fmap (flip var lmap  ) <$>  ls
     res =  (\(b,(h,t,e))-> if b then (h,t) else (t,h)) <$> lks
-    p = reverse $ path res
+    p = path res
     coords =  fmap (\i-> (\(V3 x y _) -> V2 x y)$ fst $ var i npos) p
     vars =  fmap (\i-> (\(V3 x y _,_,_,_) -> V2 x y)$ var i nvars ) p
 

@@ -43,6 +43,9 @@ instance Coord Element (V3 Double) where
     where
       this e  =  (M.fromList ( els $ first F.toList  e))
         where
+          els (_,(Tee (TeeConfig [rl,br,bl,rr] _ ang  _ _ _) _ ))
+            =  [(rl,1/2 - t ),(rr,-t),(br,0),(bl,1/2)]
+              where t = ang/pi/2
           els (_,(Tee (TeeConfig [rl,b,rr] _ ang  _ _ _) _ ))
             =  [(rl,1/2 - t ),(rr,-t),(b,0)]
               where t = ang/pi/2
@@ -113,7 +116,7 @@ jacobianNodeHeadEquation grid  vm nh =  term <$> l
     sflow = signedFlow grid vm
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTee conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,(h,t,e)) =   (sum (pipeElement (var l vm) <$> e) ) + (varr3 t nhs ^. _z - varr3 h nhs ^. _z)*9.78235  + traceShowId ( varn t nh - varn h nh )  +  addTee (h,l) + addTee (t,l)
+    term (l,(h,t,e)) =   (sum (pipeElement (var l vm) <$> e) ) + (varr3 t nhs ^. _z - varr3 h nhs ^. _z)*9.78235  + ( varn t nh - varn h nh )  +  addTee (h,l) + addTee (t,l)
       where
          nhs = fmap fst (M.fromList $shead grid)
 

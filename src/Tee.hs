@@ -59,7 +59,6 @@ classifyTee Table   flowMap  t =  classifyFlow flow
         [rli,bi,rri] = teeConfig t
         db = teeDiameterBranch t
         dr = teeDiameterRun t
-        -- r =  teeRadius t
         rho = teeMaterial t
         direct = Perda (Just $ dr) ("Conexao","Te","Direta")  rho
         lateral = Perda (Just $db) ("Conexao","Te","Lateral")  rho

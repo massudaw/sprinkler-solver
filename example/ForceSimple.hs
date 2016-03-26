@@ -21,7 +21,7 @@ import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
 
-main = mapM solve$ zip [0..] [exampleSurf]-- tetragon,example7,exampleSurf,hexahedron8]
+main = mapM solve$ zip [0..] [hexahedron8]
 
 solve (i,ex) = do
   let (g,e) = upgradeGrid 0 1 ex
@@ -36,7 +36,7 @@ solve (i,ex) = do
   putStrLn $ "Pre Resídual: " <>  show preres
   putStrLn $ "Pos Resídual: " <>  show posres
   putStrLn $ "Resídual Improvement: " <>  show (zipWith (/) posres  preres)
-  putStrLn $ "Node Forces:" <>  show (printResidual iter forces)
+  -- putStrLn $ "Node Forces:" <>  show (printResidual iter forces)
   -- putStrLn $ "Link Forces:" <>  show (printResidual iter forces)
   displayBended ("force-model-bend" <> show i ,iter )
   -- displaySolve ("force-model-bend" <> show i ,iter )
@@ -241,6 +241,25 @@ ContourBandPlotNodeFuncOver2DMesh[NodeCoordinates,ElemNodes,sxy,{sxymin,sxymax,s
   {True,True,True,False,True,True},{2,2},aspect,"Stress sigma-xy"];
 
 -}
+quad9ex = fst $ runInput $ mdo
+  let em = 10000
+      a = 5
+      ba = 6
+      nu = 1/4
+      th = 3
+      nsub = 4
+  x1 <- conn [turn l1 0 1] (Tag 0 0  (V3 Nothing Nothing 0 ) 0)
+  l1 <- link [Link a] x1 x2
+  x2 <- conn [turn l1 0 1 ,turn l2 1 0] (Tag (V3 Nothing 0 0) 0 (V3 0 Nothing 0 ) 0)
+  l2 <- link [Link ba] x2 x3
+  x3 <- conn [turn l2  (-1) 0 , turn l3 0 1] (Tag (V3 Nothing Nothing  0) 0 (V3 20 75 0) 0)
+  l3 <- link [Link a] x3 x4
+  x4 <- conn [turn l3 0 (-1),turn l4 (-1) 0] (Tag (V3 0 Nothing 0)  0 (V3 Nothing 75 0 ) 0 )
+  l4 <- link [Link ba] x4 x1
+  surface (Quad4 (ematQ em nu) th ) [cw l1,cw l2,cw l3,cw l4]
+  return ()
+
+
 
 exampleSurf = fst $ runInput $ mdo
   let em = 1000
@@ -252,7 +271,7 @@ exampleSurf = fst $ runInput $ mdo
   l1 <- link [Link a] x1 x2
   x2 <- conn [turn l1 0 1 ,turn l2 1 0] (Tag (V3 Nothing 0 0) 0 (V3 0 Nothing 0 ) 0)
   l2 <- link [Link ba] x2 x3
-  x3 <- conn [turn l2  (-1) 0 , turn l3 0 1] (Tag (V3 Nothing Nothing  0) 0 (V3 20 75 0) 0)
+  x3 <- conn [turn l2  (-1) 0 , turn l3 0 1] (Tag (V3 Nothing Nothing  0) 0 (V3 0 75 0) 0)
   l3 <- link [Link a] x3 x4
   x4 <- conn [turn l3 0 (-1),turn l4 (-1) 0] (Tag (V3 0 Nothing 0)  0 (V3 Nothing 75 0 ) 0 )
   l4 <- link [Link ba] x4 x1
@@ -293,8 +312,8 @@ hexahedron8 = fst $ runInput $ mdo
     em=480
     v=1/3
     sf = FaceLoop
-    free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 10 0 (0) ) 0
-    free= Tag (V3 Nothing Nothing Nothing ) 0  (V3 10 0 (0) ) 0
+    free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 30 0 0 ) 0
+    free= Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 0 ) 0
   x1 <- conn [turn l1 0 1 ,{-turn l4 (-1) 0,-}rise b5  (-1) 0  ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
   l1 <- link [Link a ] x1 x2
   x2 <- conn [turn l1 0 (-1) ,turn l2 (1) 0,rise b6 (-1) 0 ] (Tag (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
@@ -304,7 +323,7 @@ hexahedron8 = fst $ runInput $ mdo
   x4 <- conn [turn l3 0 (-1) ,turn l4 (1) 0,rise b8 (-1) 0 ]  (Tag  (V3 0 0 0)  0 (V3  Nothing Nothing Nothing ) 0 )
   l4 <- link [Link a ] x4 x1
   s0 <- surface sf [ccw l1,ccw l2,ccw l3,ccw l4]
-  ((s1,(f1,f2,f3,f4),(a1,a2,a3,a4)),(b5,b6,b7,b8)) <- (incr 4 >~> incr 4 >~> incr 4 >~> incr 4  >~> incr 4) ((s0,(l1,l2,l3,l4),(x1,x2,x3,x4)),(l5,l6,l7,l8))
+  ((s1,(f1,f2,f3,f4),(a1,a2,a3,a4)),(b5,b6,b7,b8)) <- (incr 4 ) ((s0,(l1,l2,l3,l4),(x1,x2,x3,x4)),(l5,l6,l7,l8))
   l5 <- link [Link l ] a1 x5
   l6 <- link [Link l ] a2 x6
   l7 <- link [Link l ] a3 x7
@@ -313,9 +332,9 @@ hexahedron8 = fst $ runInput $ mdo
   l9 <- link [Link a ] x6 x5
   x6 <- conn [turn l10 (1) 0 ,rise l6 1  0 , turn l9 0 (-1)  ]  free
   l10 <- link [Link a ] x6  x7
-  x7 <- conn [turn l11   0 (1)   ,rise l7  1 0,turn l10  (1) 0     ]  free2
+  x7 <- conn [turn l11   0 (1)   ,rise l7  1 0,turn l10  (1) 0     ]  free
   l11 <- link [Link a ] x8  x7
-  x8 <- conn [turn l12  1 0 ,rise l8 1 0,turn l11  0 (-1) ]  free
+  x8 <- conn [turn l12  1 0 ,rise l8 1 0,turn l11  0 (-1) ]  free2
   l12 <- link [Link a ] x8 x5
   s2 <- surface sf [cw l9,ccw l10,cw l11,ccw l12]
   s3 <- surface sf [cw f1,cw l6 , cw l9,ccw l5]

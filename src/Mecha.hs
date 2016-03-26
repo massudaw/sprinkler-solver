@@ -155,7 +155,7 @@ axis i@(V3 x y z) = ( Mecha.scale  (is,is,is) <$> arrow3dl x "x" )<> (Mecha.scal
 
 instance Target Force Mecha.Solid  where
   renderNode  _ ni (Support (Tag _ _ _ _ )) =   Mecha.color (0,1,0,1) $ Mecha.sphere 0.1 <> (Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
-  renderNode  _ ni _ =  Mecha.color (0,1,0,1) $ Mecha.sphere 0.1 <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))   <> fromJust (axis (V3 1 1 1))
+  renderNode  _ ni _ =  Mecha.color (0,1,0,1) $ Mecha.sphere 0.1 <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))   -- <> fromJust (axis (V3 1 1 1))
   renderNodeSolve (Forces (V3 _ _ _,_,i@(V3 x  y z),m@(V3 mx my  mz))) ix _
     = Mecha.moveZ 2 $  Mecha.color (0,1,0,1) $  fromOnly (Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ix ))) $
           ( Mecha.scale  (is,is,is) <$> arrow3d x )<> (Mecha.scale  (js,js,js) . Mecha.rotateZ (pi/2) <$>  arrow3d y)<> (Mecha.scale  (ls,ls,ls) . Mecha.rotateY (pi/2) <$>arrow3d z) <> ( Mecha.scale (mzs,mzs,mzs) <$> Mecha.marrow3d mz <> (Mecha.scale  (mys,mys,mys) . Mecha.rotateY (pi/2) <$>marrow3d my ) <> (Mecha.scale  (mxs,mxs,mxs) . Mecha.rotateX (pi/2) <$>  marrow3d mx))
@@ -192,13 +192,17 @@ instance Target Force Mecha.Solid  where
       nls = M.fromList $ zip (fst <$> nds) [0..]
       npos = (fst . snd <$> nds)
       paths = (fmap (\n -> fromJust $M.lookup n nls) . path . fmap (\(b,(h,t,l))-> if b then (h,t) else (t,h))  ) <$> ls
-  renderSurfaceSolve v ls nds (Quad4 _ _) si  =  traceShow px $ st (contourBandplotquad4 (zip px ((\(V3 a b c) -> V2 a b) <$> npos)) (L.minimum px) (L.maximum px) ((L.maximum px - L.minimum px)/50) 0.01)
+  renderSurfaceSolve v ls nds (Quad4 _ _) si  =  st (contourBandplotquad4 (zip px ((\(V3 a b c) -> V2 a b) <$> npos)) (L.minimum px) (L.maximum px) ((L.maximum px - L.minimum px)/50) 0.01)
     where
       px = (^._x) <$> (fmap ((\i -> fromJust  $ M.lookup i (M.fromList v)).fst) $ L.nub nds )
       st quad= foldl Mecha.Union si (fmap (\(c,p)-> Mecha.color c (Mecha.extrude p 0.11 ))   quad)
       nls = M.fromList $ zip (fst <$> L.nub nds) [0..]
       npos = (fst . snd <$> L.nub nds)
       paths = fmap (\n -> fromJust $M.lookup n nls) $ path $ (\(b,(h,t,l))-> if b then (h,t) else (t,h)) <$> ls
+  renderSurfaceSolve v ls nds (FaceLoop ) si  =  si
+
+
+
 
 
 marrow3d ni
