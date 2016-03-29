@@ -31,6 +31,7 @@ library
     ,Position
     ,Mecha
     ,Diagram
+    ,Backend.DXF
     ,Lint
     ,Equation
     ,Graphviz
@@ -41,7 +42,8 @@ library
                       ,random
                       , mtk
                       , text
-                      ,array
+                      , dxf
+                      , array
                       , containers
                       , distributive
                       , ad 

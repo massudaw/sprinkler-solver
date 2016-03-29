@@ -6,6 +6,7 @@ import Control.Applicative.Lift
 import Force (bendIter)
 import Element
 import Domains
+import Backend.DXF
 import Data.Functor.Compose
 import Data.Functor.Identity
 import Hydraulic
@@ -114,6 +115,7 @@ solveModel (header ,model) = do
   putStrLn sofficec
   -- callCommand $ sofficec
   print $ "renderReport " <> (fname <> ".xls")
+  renderDXF  fname  (drawGrid $ grid iter)
   let scadFile = openSCAD (drawGrid $ grid iter )
   T.writeFile (fname <> "-temp.scad") scadFile
   let movefile = "mv " <> (fname <> "-temp.scad") <>  "  " <> (fname <> ".scad")
