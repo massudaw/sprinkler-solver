@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo,TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
+{-# LANGUAGE RecursiveDo,OverloadedStrings ,TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
 module Project where
 
 import Grid
@@ -6,7 +6,12 @@ import Control.Applicative.Lift
 import Force (bendIter)
 import Element
 import Domains
+
 import Backend.DXF
+import DXF
+import Polygon
+import Point2 hiding ((<*>))
+
 import Data.Functor.Compose
 import Data.Functor.Identity
 import Hydraulic
@@ -16,6 +21,7 @@ import Rotation.SO3 hiding (rotM)
 import System.Process
 import Control.Monad
 import qualified Data.Text.IO as T
+import qualified Data.Text as T
 import Position
 import Data.Maybe
 import qualified Language.Mecha as Mecha
@@ -50,13 +56,15 @@ data ProjectHeader
     , endereco :: String
     , projectOwner :: String
     , authorInfo :: Author
-    , regionInfo :: Region
+    , baseFile :: String
+    , regionInfo :: [Region]
     }
 
 data Region
   = Region  { regionName :: String
     , regionFile :: String
     , regionView :: [(String,String)]
+    , regionBoundary :: [V2  Double]
     }
 data Author
   = Author { authorName :: String
@@ -103,20 +111,39 @@ displayModel (header,model) = do
   T.writeFile (header <> "-temp.scad") $openSCAD (drawGrid $ model )
   callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
 
+filterBounded poly grid = grid {nodesFlow =spks}
+  where
+    pcon = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a,b)) poly
+    spks = fmap (\(i,v) ->
+      let
+        (V3 x y z,s) = var i (M.fromList (shead grid))
+      in (i,if Polygon.contains pcon (Point2 (x,y))   then v else if isSprinkler v then Open 0 else v )
+        ) (nodesFlow grid)
 
-solveModel (header ,model) = do
+renderModel (header,model) = do
+  let fname  = baseFile header
+      dxfname = fname <> ".DXF"
+  Right f <- readDXF dxfname
+  let calc_bounds  =     filter ((== "calc_area").layer. eref) $ entities f
+      projBounds (Entity n o (LWPOLYLINE _ _ _ polygon )) = polygon
+      regions (i,b) =  Region (show i) (baseFile header  <> "-" <> show i ) [] b
+  mapM (\r@(Region _ _ _ p) -> do
+     solveModel (header , initIter $  filterBounded p  $ fst $ upgradeGrid 0 1 $ model ,r)) (regions <$> zip [0..] (projBounds <$> calc_bounds))
+
+
+solveModel (header ,model,region ) = do
+  let fname  = regionFile region
   let
-       iter = solveIter (makeIter 0 1 model ) jacobianEqNodeHeadGrid
-       fname  = regionFile $ regionInfo header
+       iter = solveIter (fmap realToFrac model ) jacobianEqNodeHeadGrid
   print iter
-  reportIter header 0 iter
+  reportIter header region 0 iter
   print $ "renderReport" <> (fname <> ".csv")
   let sofficec = "soffice --convert-to xls --infilter=csv:\"Text - txt - csv (StarCalc)\":59/44,34,0,1,,1033,true,true  " <> fname <> ".csv"
   putStrLn sofficec
   -- callCommand $ sofficec
   print $ "renderReport " <> (fname <> ".xls")
-  renderDXF  fname  (drawGrid $ grid iter)
-  let scadFile = openSCAD (drawGrid $ grid iter )
+  renderDXF  (baseFile header) fname  (drawGrid $ grid iter)
+  let scadFile = openSCAD (drawGrid $ grid iter ) <> "import(\"" <> T.pack (baseFile header) <> ".DXF\");"
   T.writeFile (fname <> "-temp.scad") scadFile
   let movefile = "mv " <> (fname <> "-temp.scad") <>  "  " <> (fname <> ".scad")
   callCommand movefile
@@ -124,7 +151,7 @@ solveModel (header ,model) = do
   mapM (\v -> do
       let command  = "openscad -o " <> fname <> "-" <> fst v<> ".png " <> fname <> ".scad  " <> snd v
       putStrLn command
-      callCommand  command) (regionView $ regionInfo header)
+      callCommand  command) (regionView $ region )
 
 
 
@@ -175,9 +202,9 @@ sf2 = show -- formatFloatN 2
 sf3 = show -- formatFloatN 3
 
 
-reportIter :: ProjectHeader -> Int -> Iteration Element Double -> IO ()
-reportIter header i iter@(Iteration f h a)  = do
-    let name = regionFile $ regionInfo header
+reportIter :: ProjectHeader -> Region -> Int -> Iteration Element Double -> IO ()
+reportIter header rinfo i iter@(Iteration f h a)  = do
+    let name = regionFile $ rinfo
     writeFile (name <> ".csv")  $(headerCalculo <> "\n\n" <> "Relatório dos Nós" <> "\n\n" <>( L.intercalate "\n"    $ (L.intercalate ","  nodeHeader :) (evalState (runReaderT (do
            nodemap  <- fst <$> ask
            recurse (\ni -> either (nmap ni) (lmap ni)) i (Left $ fromJustE "no node" $ M.lookup i nodemap )) (M.fromList $  findNodesLinks a (nodesFlow a) ,M.fromList $ links a )) (S.empty,S.empty))) <>
@@ -210,7 +237,7 @@ reportIter header i iter@(Iteration f h a)  = do
     addTee k = maybeToList (M.lookup k nodeLosses)
     sflow = signedFlow a  (justError "no flow " .runIdentity .getCompose <$> M.fromList f)
 
-    projectHeader =  L.intercalate "\n" ["Projeto," <> projectName header   ,"Proprietário," <> projectOwner header , "Endereço," <> endereco header, formation ainfo <> "," <> authorName ainfo , "Crea," <> creaNumber ainfo , "Empresa," <>   empresa ainfo , "Região Cálculo," <> regionName (regionInfo header)]
+    projectHeader =  L.intercalate "\n" ["Projeto," <> projectName header   ,"Proprietário," <> projectOwner header , "Endereço," <> endereco header, formation ainfo <> "," <> authorName ainfo , "Crea," <> creaNumber ainfo , "Empresa," <>   empresa ainfo , "Região Cálculo," <> regionName rinfo ]
         where ainfo = authorInfo header
     headerCalculo = projectHeader <> "\n\n" <> "Dados do projeto" <> "\n\n" <> L.intercalate "\n\n"
             (maybeToList (display <$>bomba )<> [

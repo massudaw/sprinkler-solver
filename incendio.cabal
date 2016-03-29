@@ -43,6 +43,7 @@ library
                       , mtk
                       , text
                       , dxf
+                      , triangulate
                       , array
                       , containers
                       , distributive

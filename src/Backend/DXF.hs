@@ -35,9 +35,9 @@ genEntity ty@(CIRCLE x y)l  h = Entity "CIRCLE" (Object h "1F" "AcDbEntity" Noth
 genEntity ty@(TEXT _ _ _ _ _ )l  h = Entity "TEXT" (Object h "1F" "AcDbEntity" Nothing l "AcDbText")  ty
 
 
-renderDXF :: FilePath -> [EntityTy] -> IO ()
-renderDXF f o = do
-  dxfe <- readDXF (f <> ".DXF")
+renderDXF :: FilePath -> FilePath -> [EntityTy] -> IO ()
+renderDXF b f o = do
+  dxfe <- readDXF (b <> ".DXF")
   dxf <- case  dxfe of
            Right v -> return v
            Left e -> error e
