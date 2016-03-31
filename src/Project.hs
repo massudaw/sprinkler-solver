@@ -4,9 +4,7 @@ module Project where
 import Grid
 import qualified Data.Set as S
 import Debug.Trace
-import Data.Tuple
 import Control.Applicative.Lift
-import Input
 import Force (bendIter)
 import Data.Graph
 import Element
@@ -21,8 +19,6 @@ import Point2 hiding ((<*>))
 import Data.Functor.Compose
 import Data.Functor.Identity
 import Hydraulic
-import Thermal
-import Eletric hiding(Node)
 import Rotation.SO3 hiding (rotM)
 import System.Process
 import Control.Monad
@@ -30,19 +26,14 @@ import qualified Data.Text.IO as T
 import qualified Data.Text as T
 import Position
 import Data.Maybe
-import qualified Language.Mecha as Mecha
 import Sprinkler
 import Tee
-import Element
 import qualified Data.Map as M
 import qualified Data.List as L
-import qualified Data.Set as S
-import Data.Ord
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
 import Mecha
-import System.Random
 
 import Control.Lens
 
@@ -123,7 +114,7 @@ filterBounded poly grid = prune (grid {nodesFlow =spks}) tar
     pcon = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a,b)) poly
     spks = fmap (\(i,v) ->
       let
-        (V3 x y z,s) = var i (M.fromList (shead grid))
+        (V3 x y _,_) = var i (M.fromList (shead grid))
       in (i,if Polygon.contains pcon (Point2 (x,y))   then v else if isSprinkler v then Open 0 else v )
         ) (nodesFlow grid)
 
@@ -148,11 +139,12 @@ prune g t = g {nodesFlow = out1nodes   <> nn  , links = out1links <> nt }
       out1S = S.fromList $ fst <$> out1nodes
 
       -- Extra nodes to close the pruned the circuit
-      openN = filter (\(l,(h,t,v)) -> (S.member h out1S||  S.member t out1S)&& not (S.member t out1S&& S.member h out1S)) (links g)
-      (nt,nn) = unzip $ generate <$> traceShow ((\(l,(h,t,v)) -> (l,h,t))<$> openN , out1S) openN
-      generate  (l,(h,t,v))
-        | S.member h out1S= ((l,(h, t, [tubod 0.025 0.1])), (t,Open 0))
-        | S.member t out1S= ((l,(h, t, [tubod 0.025 0.1])), (h,Open 0))
+      (nt,nn) = unzip $ generate <$>  openN
+        where
+          openN = filter (\(l,(h,t,v)) -> (S.member h out1S||  S.member t out1S)&& not (S.member t out1S&& S.member h out1S)) (links g)
+          generate  (l,(h,t,v))
+            | S.member h out1S= ((l,(h, t, [tubod 0.025 0.1])), (t,Open 0))
+            | S.member t out1S= ((l,(h, t, [tubod 0.025 0.1])), (h,Open 0))
 
 connected x y g = helper x y g (S.singleton x)
   where
@@ -172,7 +164,7 @@ renderModel (header,model) = do
       regions (i,b) =  Region (show i) (baseFile header  <> "-" <> show i ) [] b
       modelg = fst $ upgradeGrid 0 1 $ model
   mapM (\r@(Region _ _ _ p) -> do
-     solveModel (header , initIter $  fst $ upgradeGrid 0 1 $ filterBounded p  $ modelg ,r)) (drop 3 $ regions <$> zip [0..] (projBounds <$> calc_bounds))
+     solveModel (header , initIter $  fst $ upgradeGrid 0 1 $ filterBounded p  $ modelg ,r)) (regions <$> zip [0..] (projBounds <$> calc_bounds))
   renderDXF  (baseFile header) fname  (drawGrid  modelg)
   drawSCAD (baseFile header) (baseFile header) modelg
 
@@ -276,8 +268,6 @@ reportIter header rinfo i iter@(Iteration f h a)  = do
                 vazao = fromJustE "no flow for node 1 " $ join $ M.lookup ix fm
 
     sprinklers =  fmap (\(i,e) -> (i,fromJustE "no sprinkler" $ join $ M.lookup i  hm ,e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
-    areaSprinkler =  sum $ fmap coverageArea ((\(_,_,i) -> areaCobertura i)<$> sprinklers)
-    (_,_,Sprinkler (Just (dsp,ksp))  _ _ _) = head sprinklers
     spkReport = L.intercalate "\n" $ L.intercalate ","  . (\(ix,p,e@(Sprinkler (Just (d,k )) (dl) f a ))-> [show ix , formatFloatN 2 p ,   formatFloatN 2 $ k*sqrt p]  ) <$>    sprinklers
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTeeEl conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow a
     addTee k = maybeToList (M.lookup k nodeLosses)
