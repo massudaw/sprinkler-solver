@@ -53,6 +53,7 @@ instance Coord Element (V3 Double) where
             =  [(a,0),(b,1/2)]
           els ([a],i)
             =  [(a,0)]
+          els i = errorWithStackTrace $ show i
   elemTrans t = (lengthE t , angleE t)
     where
       angleE  = SO3 . P.rotM . (\i-> opi i ) . angE
