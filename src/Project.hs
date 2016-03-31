@@ -2,11 +2,16 @@
 module Project where
 
 import Grid
+import qualified Data.Set as S
+import Debug.Trace
+import Data.Tuple
 import Control.Applicative.Lift
 import Force (bendIter)
+import Data.Graph
 import Element
 import Domains
 
+import qualified Data.Array as A
 import Backend.DXF
 import DXF
 import Polygon
@@ -16,7 +21,7 @@ import Data.Functor.Compose
 import Data.Functor.Identity
 import Hydraulic
 import Thermal
-import Eletric
+import Eletric hiding(Node)
 import Rotation.SO3 hiding (rotM)
 import System.Process
 import Control.Monad
@@ -106,12 +111,20 @@ displaySolve (header,model) = do
   T.writeFile (header <> "-temp.scad") $ openSCAD (drawIter  model )
   callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
 
+pruneForest i = filter (pruneTarget i) . fmap (pruneNode i )
+pruneNode i (Node r f ) = Node r (pruneForest i f )
+
+pruneTarget i (Node r f)
+  | f == [] = i r
+  | otherwise  = L.any  (pruneTarget i)  f
+
+
 
 displayModel (header,model) = do
   T.writeFile (header <> "-temp.scad") $openSCAD (drawGrid $ model )
   callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
 
-filterBounded poly grid = grid {nodesFlow =spks}
+filterBounded poly grid = traceShowId $ prune (grid {nodesFlow =spks}) tar
   where
     pcon = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a,b)) poly
     spks = fmap (\(i,v) ->
@@ -120,29 +133,52 @@ filterBounded poly grid = grid {nodesFlow =spks}
       in (i,if Polygon.contains pcon (Point2 (x,y))   then v else if isSprinkler v then Open 0 else v )
         ) (nodesFlow grid)
 
+    tar = fst <$> filter (Polygon.contains pcon. (\(V3 x y z) -> Point2 (x,y)) . fst . snd) (shead grid)
+
+prune g t = g {nodesFlow = filter (\(i,_)-> S.member i reach) (nodesFlow g)  , links = filter (\(l,(h,t,_)) -> S.member h reach && S.member t reach ) (links g)}
+    where
+      l = concat $ (\(h,t,v)-> [(h,t)] <> (if L.any isValvulaGoverno v then [] else [(t,h)])) . snd <$> links g
+      r = concat $ (\(h,t,v)->  (if L.any isValvulaGoverno v then [] else [(h,t)] <>[(t,h)])) . snd <$> links g
+      reach = S.fromList $  concat $ fmap (\(i,j) -> [i,j]) $ concat $ concat $ fmap (\v -> connected 0 v   graph  ) (take 1 t)
+      graph = L.nub <$> buildG (0,length l) (L.sort rl)
+      reachS =  S.fromList $ (t <>  reachable  (buildG (0,length l) l) (head t))
+      rl = filter (\(h,t) -> S.member h reachP || S.member t reachP) l
+      reachP = reachS <> reachRoot
+      reachRoot = S.fromList $ (reachable  (buildG (0,length l) r) 0)
+
+
+
+connected x y g = helper x y g (S.singleton x)
+  where
+    helper a b g visited
+        | a == b    = [[]]
+        | otherwise = [(a,c):path | c <- next ,  path <- helper c b g nextS]
+      where
+        next = filter (not . (`S.member` visited))  (g A.! a)
+        nextS = foldr S.insert visited  next
+
 renderModel (header,model) = do
   let fname  = baseFile header
       dxfname = fname <> ".DXF"
   Right f <- readDXF dxfname
   let calc_bounds  =     filter ((== "calc_area").layer. eref) $ entities f
-      projBounds (Entity n o (LWPOLYLINE _ _ _ polygon )) = polygon
+      projBounds (Entity n o (LWPOLYLINE _ _ _ polygon )) = fmap fst polygon
       regions (i,b) =  Region (show i) (baseFile header  <> "-" <> show i ) [] b
   mapM (\r@(Region _ _ _ p) -> do
-     solveModel (header , initIter $  filterBounded p  $ fst $ upgradeGrid 0 1 $ model ,r)) (regions <$> zip [0..] (projBounds <$> calc_bounds))
+     solveModel (header , initIter $  filterBounded p  $ fst $ upgradeGrid 0 1 $ model ,r)) (drop 3 $ regions <$> zip [0..] (projBounds <$> calc_bounds))
 
 
 solveModel (header ,model,region ) = do
   let fname  = regionFile region
   let
        iter = solveIter (fmap realToFrac model ) jacobianEqNodeHeadGrid
-  print iter
-  reportIter header region 0 iter
+  -- reportIter header region 0 iter
   print $ "renderReport" <> (fname <> ".csv")
   let sofficec = "soffice --convert-to xls --infilter=csv:\"Text - txt - csv (StarCalc)\":59/44,34,0,1,,1033,true,true  " <> fname <> ".csv"
   putStrLn sofficec
   -- callCommand $ sofficec
-  print $ "renderReport " <> (fname <> ".xls")
-  renderDXF  (baseFile header) fname  (drawGrid $ grid iter)
+  -- print $ "renderReport " <> (fname <> ".xls")
+  -- renderDXF  (baseFile header) fname  (drawGrid $ grid iter)
   let scadFile = openSCAD (drawGrid $ grid iter ) <> "import(\"" <> T.pack (baseFile header) <> ".DXF\");"
   T.writeFile (fname <> "-temp.scad") scadFile
   let movefile = "mv " <> (fname <> "-temp.scad") <>  "  " <> (fname <> ".scad")
@@ -152,8 +188,6 @@ solveModel (header ,model,region ) = do
       let command  = "openscad -o " <> fname <> "-" <> fst v<> ".png " <> fname <> ".scad  " <> snd v
       putStrLn command
       callCommand  command) (regionView $ region )
-
-
 
 totalHead a p va =   p/(g*rho) + v^2/(2*g)
   where g = 9.81

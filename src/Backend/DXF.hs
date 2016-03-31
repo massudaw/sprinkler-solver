@@ -12,6 +12,7 @@ import Hydraulic
 import Force
 import Position
 import Rotation.SO3
+import Exponential.SO3
 import Data.Maybe
 import Linear.V3
 import qualified Data.List as L
@@ -30,9 +31,10 @@ import qualified Data.Text as T
 import Diagrams.Prelude
 
 
-genEntity ty@(LINE x y) l h = Entity "LINE" (Object h "4C9" "AcDbEntity"  Nothing l "AcDbLine")  ty
-genEntity ty@(CIRCLE x y)l  h = Entity "CIRCLE" (Object h "1F" "AcDbEntity" Nothing l "AcDbCircle")  ty
-genEntity ty@(TEXT _ _ _ _ _ )l  h = Entity "TEXT" (Object h "1F" "AcDbEntity" Nothing l "AcDbText")  ty
+genEntity ty@(LINE x y) l h = Entity "LINE" (Object h "4C9" "AcDbEntity"  Nothing l Nothing Nothing Nothing Nothing (Just "AcDbLine"))  ty
+genEntity ty@(INSERT _ _ _ _ _ _ ) l h = Entity "INSERT" (Object h "1F" "AcDbEntity"  Nothing l Nothing Nothing Nothing Nothing (Just "AcDbBlockReference"))  ty
+genEntity ty@(CIRCLE x y)l  h = Entity "CIRCLE" (Object h "1F" "AcDbEntity" Nothing l Nothing Nothing Nothing Nothing (Just "AcDbCircle"))  ty
+genEntity ty@(TEXT _ _ _ _ _ )l  h = Entity "TEXT" (Object h "1F" "AcDbEntity" Nothing l Nothing Nothing Nothing Nothing (Just "AcDbText"))  ty
 
 
 renderDXF :: FilePath -> FilePath -> [EntityTy] -> IO ()
@@ -157,20 +159,23 @@ renderLinkMecha  _ nis _  o = Mecha.sphere 0.02
 rotationToAxis (V3 (V3 a11 a12 a13) (V3 a21 a22 a23) (V3 a31 a32 a33)) = (t, V3 (a32- a23) (a13 - a31) (a21 - a12)^/ (2*sin t) )
   where t = acos ((a11 + a22 + a33 -1)/2)
 
+change b a = Position.rotM (V3 0 0 a) !*! (if (b == V3 0 0 1) then identV3 else ( rot2V3 b (V3 0 0 1)))
 instance RBackend [EntityTy]  where
   type TCoord [EntityTy] = V3 Double
   transformElement v l = transformEl v <$>  l
     where
+      transformEl (v@(V3 mx my mz),SO3 r ) (INSERT n p s ro ax  attr) = (INSERT n ( p ^+^ v) s ro ax attr)
       transformEl (v@(V3 mx my mz),SO3 r ) (LINE o t   ) = (LINE ( o ^+^ v) (v ^+^  r !* t))
       transformEl (v@(V3 mx my mz),SO3 r ) (CIRCLE o ra ) = (CIRCLE( o ^+^ v) ra)
-      transformEl (v@(V3 mx my mz),SO3 r ) (TEXT o h t _ _ ) = (TEXT ( v ^+^ (r !* o) ) h t  (fmap (\i -> 180*i/pi) $ a ) Nothing )
-        where (a,ax) = case rotationToAxis (distribute r) of
-                         (a ,ax) -> if a == 0 || abs (abs a - pi) < 1e-9 then (Nothing,Nothing) else (Just a , Just ax)
+      transformEl (v@(V3 mx my mz),SO3 r ) (TEXT o h t _ _ ) = (TEXT ( {-maybe v (\i -> i !* v) (liftA2  change ax a )-} v ^+^ r !* o  ) h t  (fmap (\i -> 180*i/pi) $ a ) Nothing )
+        where (a,ax) = case rotationToAxis $ distribute r of
+                         (a ,ax) -> if a == 0 || abs (abs a - pi) < 1e-9 then (Nothing,Nothing) else (Just a , Just $ax )
     -- where v = (\(V3 x y z ) -> V4 x y z (V4 0 0 0 1)) $ liftA2 (\(V3 x y z) m -> V4 x  y z m ) (unSO3 s) r
   statements = concat
 instance Target Element [EntityTy] where
   renderLink _ nis ni (Tubo (Just d) c _ ) = [TEXT (V3 (c/2) 0.3 0) 0.2 (show d)  Nothing Nothing, LINE 0 (V3 c 0 0)]
   renderLink _ nis ni (Joelho (Just d) c _ _ ) = [CIRCLE 0 d]
   renderLink _ nis ni i = [CIRCLE 0 0.2]
+  renderNode _ nis (Sprinkler _ _ _ _)  = [INSERT "spk" 0  (Just 1) Nothing Nothing []]
   renderNode _ nis i = [CIRCLE 0 0.2]
 
