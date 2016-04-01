@@ -83,8 +83,6 @@ class (PreSys sys ,PreCoord a) => Coord sys a where
   nodeTrans :: sys Double -> [(Int,(a,Ang a))]
   elemTrans :: sys Double -> (a,Ang a)
 
-
-
 var :: Show a => Int -> M.Map Int a -> a
 var i m = case M.lookup i m of
                Just i -> i

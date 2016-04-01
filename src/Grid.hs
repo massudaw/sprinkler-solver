@@ -55,7 +55,7 @@ solveIter iter@(Iteration fl f g) modeler =  Iteration outLinks outNodes (grid i
     inNodes ,inLinks :: [Double]
     inNodes = (concat $ ( catMaybes . F.toList . getCompose ). snd <$> f )
     inLinks= (concat $ (catMaybes . F.toList . getCompose ) .  snd <$> fl )
-    res = fst . rootJ HybridsJ 1e-7 1000 mod  (jacobian ( prepareModel (grid iter) modeler) )  $ inNodes <> inLinks
+    res = fst . rootJ HybridsJ 1e-3 1000 mod  (jacobian ( prepareModel (grid iter) modeler) )  $ inNodes <> inLinks
     mod = prepareModel (grid iter) modeler
 
 {-solveIter iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid iter) $ take fl res) (zip (fmap fst $ nodesFlow $ grid iter)  $ drop fl res) (grid iter)

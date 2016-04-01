@@ -19,7 +19,7 @@ renderGraph ::  [DotStatement Int ] -> FilePath -> IO FilePath
 renderGraph i f =  do
   runGraphviz (DotGraph { strictGraph = False
          , directedGraph = False , graphID = Just (Num (Int 1))
-         , graphStatements = Seq.fromList ({-(GA $ GraphAttrs $ [Layout Neato]) :-} i)}) Png f
+         , graphStatements = Seq.fromList  i}) Png f
 
 renderElemMecha _ ni Node  = [DN $ DotNode ni [shape MDiamond]]
 renderElemMecha _ ni Ground  = [DN $ DotNode ni [shape MSquare]]

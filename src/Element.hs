@@ -6,12 +6,14 @@ import Hydraulic
 import qualified Position as P
 import Control.Lens ((^.))
 import Debug.Trace
+import Control.Monad.State
 import Tee hiding (ktubo)
 import Data.Monoid
 import Data.Functor.Identity
 import qualified Data.Map as M
 import GHC.Stack
 import Domains
+import Data.Functor.Compose
 import Position
 import Control.Monad
 import Linear.V3
@@ -26,10 +28,21 @@ import Linear.V3
 import Rotation.SO3 hiding (rotM)
 
 
-
 instance PreSys Element  where
   type NodeDomain Element = Identity
   type LinkDomain Element= Identity
+  initIter g = Iteration  (fmap Compose <$> varsL) (fmap Compose <$> varsN) g
+    where
+      varsN = fst  $ runState (((traverse (traverse (traverse conv  . constrained )))) $ nodesFlow g) 1
+      conv (Just i) = return Nothing
+      conv Nothing = do
+        i <- get
+        put 50
+        return (Just  i)
+      convL (Just i) = Nothing
+      convL Nothing = (Just 98)
+      varsL = fmap (fmap ((fmap convL . lconstrained ))) $ (fmap (\(i,(_,_,l))-> (i,l)) $  links g)
+
   revElem (Joelho i j b k) = Joelho i j (-b) k
   revElem (Turn i ) = Turn i
   revElem i = i
@@ -101,10 +114,11 @@ jacobianContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( 
         sumn =  fmap negate . suma
         -- nodeFlow
         nflow i e = genFlow (var i pm) e
-        genFlow _ (Open i ) = i
-        genFlow _ (Tee _ _ ) = 0
-        genFlow idf (Sprinkler (Just (_,k)) _ _ _) = k*sqrt(abs idf)
-        genFlow _ (Reservatorio _  ) = errorWithStackTrace "reservatorio doesn't preserve flow"
+
+genFlow _ (Open i ) = i
+genFlow _ (Tee _ _ ) = 0
+genFlow idf (Sprinkler (Just (_,k)) _ _ _) = if idf <= 0 then negate k*sqrt (abs idf) else k*sqrt(abs idf)
+genFlow _ (Reservatorio _  ) = errorWithStackTrace "reservatorio doesn't preserve flow"
 
 varn h = justError " no press" .  M.lookup h
 varr3 h = justError "no el " .  M.lookup h

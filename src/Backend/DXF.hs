@@ -156,21 +156,60 @@ renderLinkMecha  _ nis _  o = Mecha.sphere 0.02
 
 -}
 
+arbritaryAxis n@(V3 nx ny nz)  = V3 nax  ( normalize (n `cross` nax)) n
+  where
+    wz = V3 0 0 1
+    wy = V3 0 1 0
+    nax = normalize ax
+    ax
+      | abs nx < 1e-12 && abs ny <1e-12 = wy `cross` n
+      | otherwise  = wz `cross` n
+
+{-
+If (Nx < 1/64) and (Ny < 1/64) then
+       Ax = Wy * N      (where "*" is the cross-product operator).
+Otherwise,
+       Ax = Wz * N.
+Scale Ax to unit length.
+
+The method of getting the Ay vector would be:
+
+    Ay = N * Ax.
+Scale Ay to unit length.
+-}
+
+
 rotationToAxis (V3 (V3 a11 a12 a13) (V3 a21 a22 a23) (V3 a31 a32 a33)) = (t, V3 (a32- a23) (a13 - a31) (a21 - a12)^/ (2*sin t) )
   where t = acos ((a11 + a22 + a33 -1)/2)
 
-change b a = Position.rotM (V3 0 0 a) !*! (if (b == V3 0 0 1) then identV3 else ( rot2V3 b (V3 0 0 1)))
+
+testConv = (filter (not.(<= 1e-6 ). norm .(^-^ V3 10  9 2) . unconv ) $  conv <$> (concat $ sym <$> angleSet ))
+  where
+    angleSet = [pi/2,pi/3,pi/6]
+    sym a = angle  a <> fmap negate (angle a)
+    angle a = [(V3  a 0  0),(V3 0 a 0), (V3 0 0 a),(V3 a a 0),V3 0 a a,V3 a 0 a]
+    conv a = convert2 (V3 10 9 2, SO3 $ Position.rotM a)
+    unconv = unconvert2
+
+unconvert2 (ax,p) =  distribute tr !* p
+    where tr = arbritaryAxis ax
+
+convert2 :: (V3 Double,SO3 Double) -> (V3 Double ,V3 Double)
+convert2 (p,SO3 r)  = ( nz,   arbritaryAxis nz !* p  )
+  where nz = r !* V3 0 0 1
+
+
+
 instance RBackend [EntityTy]  where
   type TCoord [EntityTy] = V3 Double
   transformElement v l = transformEl v <$>  l
     where
-      transformEl (v@(V3 mx my mz),SO3 r ) (INSERT n p s ro ax  attr) = (INSERT n ( p ^+^ v) s ro ax attr)
-      transformEl (v@(V3 mx my mz),SO3 r ) (LINE o t   ) = (LINE ( o ^+^ v) (v ^+^  r !* t))
-      transformEl (v@(V3 mx my mz),SO3 r ) (CIRCLE o ra ) = (CIRCLE( o ^+^ v) ra)
-      transformEl (v@(V3 mx my mz),SO3 r ) (TEXT o h t _ _ ) = (TEXT ( {-maybe v (\i -> i !* v) (liftA2  change ax a )-} v ^+^ r !* o  ) h t  (fmap (\i -> 180*i/pi) $ a ) Nothing )
-        where (a,ax) = case rotationToAxis $ distribute r of
-                         (a ,ax) -> if a == 0 || abs (abs a - pi) < 1e-9 then (Nothing,Nothing) else (Just a , Just $ax )
-    -- where v = (\(V3 x y z ) -> V4 x y z (V4 0 0 0 1)) $ liftA2 (\(V3 x y z) m -> V4 x  y z m ) (unSO3 s) r
+      transformEl (v,SO3 r ) (INSERT n p s ro ax  attr) = (INSERT n ( p ^+^ v) s ro ax attr)
+      transformEl (v,SO3 r ) (LINE o t   ) = (LINE ( o ^+^ v) (v ^+^  r !* t))
+      transformEl (v,SO3 r ) (CIRCLE o ra ) = (CIRCLE( o ^+^ v) ra)
+      transformEl or@(v,SO3 r) (TEXT o h t _ _ ) = (TEXT np h t  (fmap (\i -> 180*i/pi) $ if abs a < 1e-5 then Nothing else Just  a) (if norm (ax - (V3 0 0 1) ) < 1e-10  then  Nothing else Just ax) )
+        where (ax,np) = convert2 ( v ^+^ r !* o , SO3 r)
+              (a,_ ) = rotationToAxis r
   statements = concat
 instance Target Element [EntityTy] where
   renderLink _ nis ni (Tubo (Just d) c _ ) = [TEXT (V3 (c/2) 0.3 0) 0.2 (show d)  Nothing Nothing, LINE 0 (V3 c 0 0)]

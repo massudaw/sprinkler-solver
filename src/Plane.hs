@@ -162,10 +162,6 @@ quad9stress coord  emat udis = loop <$> quad9directions
         (jdet,V2 dnx dny) = quad9isopshapesimple coord q
         be = Compose . ZipList <$> V3 ((\x -> (V2 x 0))  <$> dnx) ( (\y -> V2 0 y) <$> dny) (zipWith (\y x -> V2 y x) dny  dnx)
 
-
-
-
-
 quad4directions:: Num a =>  [V2 a ]
 quad4directions = [V2 (-1) (-1) , V2 1 (-1) , V2 1 1 , V2 (-1) 1 ]
 

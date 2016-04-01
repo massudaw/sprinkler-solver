@@ -124,7 +124,7 @@ prune g t = g {nodesFlow = out1nodes   <> nn  , links = out1links <> nt }
     where
       l = concat $ (\(h,t,v)-> [(h,t)] <> (if L.any isValvulaGoverno v then [] else [(t,h)])) . snd <$> links g
       r = concat $ (\(h,t,v)->  (if L.any isValvulaGoverno v then [] else [(h,t)] <>[(t,h)])) . snd <$> links g
-      reach = S.fromList $  concat $ fmap (\(i,j) -> [i,j]) $ concat $ concat $ fmap (\v -> connected 0 v   graph  ) (take 1 t)
+      reach = S.fromList $  concat $ fmap (\(i,j) -> [i,j]) $ concat $ concat $ fmap (\v -> connected 0 v   graph  ) (t)
       graph = L.nub <$> buildG (0,length l) (L.sort rl)
       reachS =  S.fromList $ (t <>  reachable  (buildG (0,length l) l) (head t))
       rl = filter (\(h,t) -> S.member h reachP || S.member t reachP) l
@@ -155,7 +155,7 @@ connected x y g = helper x y g (S.singleton x)
         next = filter (not . (`S.member` visited))  (g A.! a)
         nextS = foldr S.insert visited  next
 
-renderModel (header,model) = do
+renderModel range (header,model) = do
   let fname  = baseFile header
       dxfname = fname <> ".DXF"
   Right f <- readDXF dxfname
@@ -164,7 +164,7 @@ renderModel (header,model) = do
       regions (i,b) =  Region (show i) (baseFile header  <> "-" <> show i ) [] b
       modelg = fst $ upgradeGrid 0 1 $ model
   mapM (\r@(Region _ _ _ p) -> do
-     solveModel (header , initIter $  fst $ upgradeGrid 0 1 $ filterBounded p  $ modelg ,r)) (regions <$> zip [0..] (projBounds <$> calc_bounds))
+     solveModel (header , initIter $  fst $ upgradeGrid 0 1 $ filterBounded p  $ modelg ,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
   renderDXF  (baseFile header) fname  (drawGrid  modelg)
   drawSCAD (baseFile header) (baseFile header) modelg
 
@@ -268,7 +268,7 @@ reportIter header rinfo i iter@(Iteration f h a)  = do
                 vazao = fromJustE "no flow for node 1 " $ join $ M.lookup ix fm
 
     sprinklers =  fmap (\(i,e) -> (i,fromJustE "no sprinkler" $ join $ M.lookup i  hm ,e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
-    spkReport = L.intercalate "\n" $ L.intercalate ","  . (\(ix,p,e@(Sprinkler (Just (d,k )) (dl) f a ))-> [show ix , formatFloatN 2 p ,   formatFloatN 2 $ k*sqrt p]  ) <$>    sprinklers
+    spkReport = L.intercalate "\n" $ L.intercalate ","  . (\(ix,p,e@(Sprinkler (Just (d,k )) (dl) f a ))-> [show ix , formatFloatN 2 p ,   formatFloatN 2 $ genFlow p e ]  ) <$>    sprinklers
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTeeEl conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow a
     addTee k = maybeToList (M.lookup k nodeLosses)
     sflow = signedFlow a  (justError "no flow " .runIdentity .getCompose <$> M.fromList f)

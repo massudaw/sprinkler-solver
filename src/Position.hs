@@ -71,6 +71,7 @@ instance PreCoord (V3 Double) where
 rot (V3 ix iy iz) = rotZ (V1 iz) !*! rotY (V1  iy)  !*! rotX (V1  ix)
 
 rotD (V3 ix iy iz) = distribute (rotZ (V1 iz)) !*! (distribute (rotY (V1  iy))  !*! distribute (rotX (V1  ix)))
+rot132  (V3 ix iy iz) =  (distribute (rotY (V1  iy))  !*! distribute (rotZ (V1 iz)) !*! distribute (rotX (V1  ix)))
 unRot = unRot123
 
 opi i = i * 2 *pi

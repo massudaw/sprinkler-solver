@@ -235,7 +235,7 @@ delta di df  ni nf  r = ((((transpose b  !*! r ) !* (V3 (norm bl) 0 0)) ^+^ (ni 
     bl = (nf ^+^ df) ^-^ (ni ^+^ di)
 
 localToGlobal v  l = rot2V3 (normalize v) (normalize l)
-    where normalize l = (1/norm l) *^ l
+    where normalize a =  a ^/ (norm a)
 
 bendingRatio d l
   | norm (cross l (l ^+^ d) ) < 1e-6 = identV3
@@ -358,7 +358,7 @@ instance Coord Force (V3 Double) where
 
 skew231 (V3 x y z) = V3 (V3 0 z (-y)) (V3 (-z) 0 x) (V3 y (-x) 0)
 
-rot2V3  x y = identV3 !+! skewV3 v !+! ((*((1 - dot x  y )/norm v)) **^ (skewV3 v !*! skewV3 v))
+rot2V3  x y = identV3 !+! skewV3 v !+! ((*((1 - dot x y)/(norm v)^2)) **^ (skewV3 v !*! skewV3 v))
   where
     v = cross x y
 
