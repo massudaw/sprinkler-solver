@@ -3,6 +3,7 @@ module Project where
 
 import Grid
 import qualified Data.Set as S
+import Search
 import Debug.Trace
 import Control.Applicative.Lift
 import Force (bendIter)
@@ -146,21 +147,12 @@ prune g t = g {nodesFlow = out1nodes   <> nn  , links = out1links <> nt }
             | S.member h out1S= ((l,(h, t, [tubod 0.025 0.1])), (t,Open 0))
             | S.member t out1S= ((l,(h, t, [tubod 0.025 0.1])), (h,Open 0))
 
-connected x y g = helper x y g (S.singleton x)
-  where
-    helper a b g visited
-        | a == b    = [[]]
-        | otherwise = [(a,c):path | c <- next ,  path <- helper c b g nextS]
-      where
-        next = filter (not . (`S.member` visited))  (g A.! a)
-        nextS = foldr S.insert visited  next
-
 renderModel range (header,model) = do
   let fname  = baseFile header
       dxfname = fname <> ".DXF"
   Right f <- readDXF dxfname
   let calc_bounds  =     filter ((== "calc_area").layer. eref) $ entities f
-      projBounds (Entity n o (LWPOLYLINE _ _ _ polygon )) = fmap fst polygon
+      projBounds (Entity n o (LWPOLYLINE _ _ _ polygon _ _ )) = fmap fst polygon
       regions (i,b) =  Region (show i) (baseFile header  <> "-" <> show i ) [] b
       modelg = fst $ upgradeGrid 0 1 $ model
   mapM (\r@(Region _ _ _ p) -> do
