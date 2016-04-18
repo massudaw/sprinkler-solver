@@ -125,7 +125,7 @@ prune g t = g {nodesFlow = out1nodes   <> nn  , links = out1links <> nt }
     where
       l = concat $ (\(h,t,v)-> [(h,t)] <> (if L.any isValvulaGoverno v then [] else [(t,h)])) . snd <$> links g
       r = concat $ (\(h,t,v)->  (if L.any isValvulaGoverno v then [] else [(h,t)] <>[(t,h)])) . snd <$> links g
-      reach = S.fromList $  concat $ fmap (\(i,j) -> [i,j]) $ concat $ concat $ fmap (\v -> connected 0 v   graph  ) (t)
+      reach = S.fromList $  concat $ fmap (\(i,j) -> [i,j]) $ concat $ concat $ fmap (flip (connected 0) graph) t
       graph = L.nub <$> buildG (0,length l) (L.sort rl)
       reachS =  S.fromList $ (t <>  reachable  (buildG (0,length l) l) (head t))
       rl = filter (\(h,t) -> S.member h reachP || S.member t reachP) l
@@ -151,9 +151,10 @@ renderModel range (header,model) = do
   let fname  = baseFile header
       dxfname = fname <> ".DXF"
   Right f <- readDXF dxfname
-  let calc_bounds  =     filter ((== "calc_area").layer. eref) $ entities f
+  let calc_bounds  = filter ((== "calc_area").layer. eref) $ entities f
       projBounds (Entity n o (LWPOLYLINE _ _ _ polygon _ _ )) = fmap fst polygon
-      regions (i,b) =  Region (show i) (baseFile header  <> "-" <> show i ) [] b
+      regions (i,b) =  Region (show i) (baseFile header  <> "-" <> maybe (show i) (\(Entity _ _ (TEXT _ _ l   _ _)) -> l) label ) [] ( b)
+        where label =  L.find (\(Entity  _ _ (TEXT (V3 x y _)  _ _ _ _)) -> Polygon.contains  (PolygonCW $ fmap (\(V2 i j) -> Point2 (i,j)) b) (Point2 (x,y)))$  filter ((== "area_label").layer. eref) $ entities f
       modelg = fst $ upgradeGrid 0 1 $ model
   mapM (\r@(Region _ _ _ p) -> do
      solveModel (header , initIter $  fst $ upgradeGrid 0 1 $ filterBounded p  $ modelg ,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
@@ -167,10 +168,10 @@ solveModel (header ,model,region ) = do
        iter = solveIter (fmap realToFrac model ) jacobianEqNodeHeadGrid
   reportIter header region 0 iter
   print $ "renderReport: " <> (fname <> ".csv")
-  -- let sofficec = "soffice --convert-to xls --infilter=csv:\"Text - txt - csv (StarCalc)\":59/44,34,0,1,,1033,true,true  " <> fname <> ".csv"
-  -- putStrLn sofficec
-  -- callCommand $ sofficec
-  -- print $ "renderReport: " <> (fname <> ".xls")
+  let sofficec = "soffice --convert-to xls --infilter=csv:\"Text - txt - csv (StarCalc)\":59/44,34,0,1,,1033,true,true  " <> fname <> ".csv"
+  putStrLn sofficec
+  callCommand sofficec
+  print $ "renderReport: " <> fname <> ".xls"
   drawSCAD (baseFile header) fname (grid iter)
 
 drawSCAD base fname  grid = do
@@ -254,7 +255,7 @@ reportIter header rinfo i iter@(Iteration f h a)  = do
     display (i,l ) = i <> "\n" <> L.intercalate "\n" (L.intercalate "," <$> l)
     bomba :: Maybe (String ,[[String]])
     bomba = fmap result $  join $ (\(i,(_,_,l)) -> (i,) <$> L.find isBomba l)<$> L.find (\(_,(_,_,l)) -> L.any isBomba l ) (links a)
-      where result (ix,bomba@(Bomba (pn,vn) _ )) = ("Bomba", [["Pressão Nominal",  sf2 pn , "kpa"] ,["Vazão Nominal", sf2 vn , "L/min"] ,["Potência", sf2 185 ,"cv"], ["Vazão Operação",sf2 vazao , "L/min"] ,["Pressão Operação", sf2 pressao , "kpa"]])
+      where result (ix,bomba@(Bomba (pn,vn) _ )) = ("Bomba", [["Pressão Nominal",  sf2 pn , "kpa"] ,["Vazão Nominal", sf2 vn , "L/min"] ,["Potência", maybe "-" (sf2.fst) $ M.lookup (pn,vn) dadosBomba ,"cv"], ["Vazão Operação",sf2 vazao , "L/min"] ,["Pressão Operação", sf2 pressao , "kpa"]])
               where
                 pressao = abs $ pipeElement vazao bomba
                 vazao = fromJustE "no flow for node 1 " $ join $ M.lookup ix fm

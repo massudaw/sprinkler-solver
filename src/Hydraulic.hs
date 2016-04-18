@@ -187,3 +187,6 @@ bombaBP p v  = Bomba (p,v) (Poly [(0,120),(1,0.142857),(2,-0.00134921),(3,-7.936
 bombaBipartida x = 120 + 0.0142857*x - 0.00134921*x^2 - 7.936507936507936e-6*x^3
 
 
+dadosBomba :: M.Map (Double,Double) (Double,Double)
+dadosBomba = M.fromList [((80,20),(15,205))]
+
