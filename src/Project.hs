@@ -4,6 +4,7 @@ module Project where
 import Grid
 import qualified Data.Set as S
 import Search
+import GHC.Stack
 import Debug.Trace
 import Control.Applicative.Lift
 import Force (bendIter)
@@ -59,11 +60,66 @@ data ProjectHeader
     }
 
 data Region
-  = Region  { regionName :: String
+  = Region
+    { regionName :: String
     , regionFile :: String
     , regionView :: [(String,String)]
     , regionBoundary :: [V2  Double]
+    , regionRisk :: RegionRisk
     }
+data RiskClass
+   = Light
+   | OrdinaryI
+   | OrdinaryII
+   | ExtraOrdinaryI
+   | ExtraOrdinaryII
+   deriving (Eq,Show,Ord)
+data ComodityClass
+   = ComodityI
+   | ComodityII
+   | ComodityIII
+   deriving(Eq,Show,Ord)
+
+data RegionRisk
+  = Standard
+  { stdrisk ::  RiskClass
+  }
+  | MiscelaneousStorage
+  { stdrisk :: RiskClass
+  , storageHeight :: Double
+  }
+  | HighpilledStorage
+  { commodityClass :: ComodityClass
+  , storageHeight :: Double
+  }deriving(Eq,Show,Ord)
+
+interp ((a1,a2),(b1,b2)) =   (c,a1 - b1*c)
+    where
+      c = (a2 - a1)/(b2 - b1)
+
+eval x ordinaryII = case interp ordinaryII of
+           (a,c) ->  a*x + c
+
+
+ordinaryI = ((6.1,8.1), (372,139))
+ordinaryII = ((6.1,8.1), (372,139))
+light = ((6.1,8.1), (372,139))
+
+stdCurves OrdinaryII = ordinaryII
+stdCurves OrdinaryI = ordinaryI
+stdCurves Light = light
+
+comodityCurves  _ = undefined
+
+regionRiskDensity (Region _ _ _ b (Standard i ))
+  = eval   (abs $ Polygon.area (convPoly b)) (stdCurves i)
+regionRiskDensity (Region _ _ _ b (MiscelaneousStorage i h ))
+  | h > 3.7   = errorWithStackTrace "altura maior que 3.7"
+  | otherwise =  eval (abs $ Polygon.area (convPoly b)) (stdCurves i)
+regionRiskDensity (Region _ _ _ b (HighpilledStorage i h )) = errorWithStackTrace "not implemented"
+  -- | h >= 3.7   = errorWithStackTrace "altura maior que 3.7"
+  -- | otherwise =  eval (abs $ Polygon.area (convPoly b)) (stdCurves i)
+
 data Author
   = Author { authorName :: String
     , creaNumber :: String
@@ -147,17 +203,18 @@ prune g t = g {nodesFlow = out1nodes   <> nn  , links = out1links <> nt }
             | S.member h out1S= ((l,(h, t, [tubod 0.025 0.1])), (t,Open 0))
             | S.member t out1S= ((l,(h, t, [tubod 0.025 0.1])), (h,Open 0))
 
-renderModel range (header,model) = do
+renderModel regionRisk range (header,model) = do
   let fname  = baseFile header
       dxfname = fname <> ".DXF"
   Right f <- readDXF dxfname
   let calc_bounds  = filter ((== "calc_area").layer. eref) $ entities f
       projBounds (Entity n o (LWPOLYLINE _ _ _ polygon _ _ )) = fmap fst polygon
-      regions (i,b) =  Region (show i) (baseFile header  <> "-" <> maybe (show i) (\(Entity _ _ (TEXT _ _ l   _ _)) -> l) label ) [] ( b)
+      regions (i,b) =  Region name (baseFile header  <> "-" <> name ) [] ( b)  (regionRisk !! i)
         where label =  L.find (\(Entity  _ _ (TEXT (V3 x y _)  _ _ _ _)) -> Polygon.contains  (PolygonCW $ fmap (\(V2 i j) -> Point2 (i,j)) b) (Point2 (x,y)))$  filter ((== "area_label").layer. eref) $ entities f
+              name = maybe (show i) (\(Entity _ _ (TEXT _ _ l   _ _)) -> l) label
       modelg = fst $ upgradeGrid 0 1 $ model
-  mapM (\r@(Region _ _ _ p) -> do
-     solveModel (header , initIter $  fst $ upgradeGrid 0 1 $ filterBounded p  $ modelg ,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
+  mapM (\r -> do
+     solveModel (header , initIter $  fst $ upgradeGrid 0 1 $ filterBounded (regionBoundary r)  $ modelg ,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
   renderDXF  (baseFile header) fname  (drawGrid  modelg)
   drawSCAD (baseFile header) (baseFile header) modelg
 
@@ -229,9 +286,10 @@ recurse render ni r@(Left n@((lks,e))) = do
   ti <- mapM (\i -> recurse render i . Right . flip var nodemap $ i ) nexts
   return $ render ni r : concat ti
 
-sf2 = show -- formatFloatN 2
-sf3 = show -- formatFloatN 3
+sf2 = formatFloatN 2
+sf3 = formatFloatN 3
 
+convPoly poly =   PolygonCCW $ fmap (\(V2 a b) -> Point2 (a,b)) poly
 
 reportIter :: ProjectHeader -> Region -> Int -> Iteration Element Double -> IO ()
 reportIter header rinfo i iter@(Iteration f h a)  = do
@@ -255,23 +313,31 @@ reportIter header rinfo i iter@(Iteration f h a)  = do
     display (i,l ) = i <> "\n" <> L.intercalate "\n" (L.intercalate "," <$> l)
     bomba :: Maybe (String ,[[String]])
     bomba = fmap result $  join $ (\(i,(_,_,l)) -> (i,) <$> L.find isBomba l)<$> L.find (\(_,(_,_,l)) -> L.any isBomba l ) (links a)
-      where result (ix,bomba@(Bomba (pn,vn) _ )) = ("Bomba", [["Pressão Nominal",  sf2 pn , "kpa"] ,["Vazão Nominal", sf2 vn , "L/min"] ,["Potência", maybe "-" (sf2.fst) $ M.lookup (pn,vn) dadosBomba ,"cv"], ["Vazão Operação",sf2 vazao , "L/min"] ,["Pressão Operação", sf2 pressao , "kpa"]])
+      where result (ix,bomba@(Bomba (pn,vn) _ )) = ("Bomba", [["Pressão Nominal",  sf2 pn , "kpa"] ,["Vazão Nominal", sf2 vn , "L/min"] ,["Potência", maybe "-" (sf2.potenciaB) dbomba ,"cv"], ["Rotação", maybe "-" (sf2.rotacaoB) dbomba  ,"rpm"],["Vazão Operação",sf2 vazao , "L/min"] ,["Pressão Operação", sf2 pressao , "kpa"]])
               where
+                dbomba = M.lookup (traceShowId (pn/10,vn/60)) dadosBomba
                 pressao = abs $ pipeElement vazao bomba
                 vazao = fromJustE "no flow for node 1 " $ join $ M.lookup ix fm
 
     sprinklers =  fmap (\(i,e) -> (i,fromJustE "no sprinkler" $ join $ M.lookup i  hm ,e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
-    spkReport = L.intercalate "\n" $ L.intercalate ","  . (\(ix,p,e@(Sprinkler (Just (d,k )) (dl) f a ))-> [show ix , formatFloatN 2 p ,   formatFloatN 2 $ genFlow p e ]  ) <$>    sprinklers
-    nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTeeEl conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow a
     addTee k = maybeToList (M.lookup k nodeLosses)
     sflow = signedFlow a  (justError "no flow " .runIdentity .getCompose <$> M.fromList f)
 
     projectHeader =  L.intercalate "\n" ["Projeto," <> projectName header   ,"Proprietário," <> projectOwner header , "Endereço," <> endereco header, formation ainfo <> "," <> authorName ainfo , "Crea," <> creaNumber ainfo , "Empresa," <>   empresa ainfo , "Região Cálculo," <> regionName rinfo ]
         where ainfo = authorInfo header
     headerCalculo = projectHeader <> "\n\n" <> "Dados do projeto" <> "\n\n" <> L.intercalate "\n\n"
-            (maybeToList (display <$>bomba )<> [
-            "Reservatório\n" <> "Volume," <> sf2 (vazao * tempo) <> ",L\n" <> "Tempo de Duração," <> sf2 tempo<> ",min"
-            {-,"Sprinkler\nTipo,ESFR\n"  {-<> "Diâmetro,25,mm\n" <> "Area,9,m²\n" <> -}<> "K," <> sf2 ksp <> ",L/min/(kpa^(-1/2))\n"<> "Vazão Mínima," <> sf2 (ksp*sqrt 350) <>  ",L/min\n" <> "Pressão Mínima,350,kpa\n" <> "Area Projeto;" <> sf3 areaSprinkler <>  ";m²\n" <> "Quantidade Bicos," <> show (L.length sprinklers) <> ",un" -} ]) <>  "\nId,Pressão(kpa),Vazão(L/min)\n" <> spkReport <>  "\n\n" <>residuos
+            (maybeToList (display <$>bomba )<> [ "Reservatório\n" <> "Volume," <> sf2 (vazao * tempo) <> ",L\n" <> "Tempo de Duração," <> sf2 tempo<> ",min" ,unlines $ L.intercalate "," <$> regionReport rinfo ]) <>  "\n\n" <>residuos
+
+    regionReport r =  [ ["Nome da Região",regionName  r] ,["Classe de Risco" , riskName $ regionRisk r],["Área da Região", sf2 area,"m²"] ,["Densidade de Água",sf2 density,"L/min/m²"], ["Vazão Mínima Área", sf2 minimalFlow ,"L/min"], ["Quantidade de Bicos", show nspk ,"un"] , ["Id","Pressão","Vazão","Vazão Min","Área" ],["","kpa","L/min","L/min","m²"]]<> spkReport
+        where riskName (Standard i) =  show i
+              riskName (MiscelaneousStorage i _) = show i
+              nspk = L.length sprinklers
+              area = abs $ Polygon.area (convPoly $ regionBoundary r)
+              density = regionRiskDensity r
+              minimalFlow = density * area
+              spkReport = (\(ix,p,e@(Sprinkler (Just (d,k )) (dl) f a ))-> [show ix , sf2 p ,   sf2 $ genFlow p e , sf2 $ coverageArea f * density ,sf2 $ coverageArea f]  ) <$>    sprinklers
+    nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTeeEl conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow a
+
 
     nmap = (\ni n@(s,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 4 $ maybe 0 id $p ni , formatFloatN 4 $h  ni,"",""] ++  expandNode (p ni) e )
         where p ni =  join $ varM ni hm
@@ -281,7 +347,7 @@ reportIter header rinfo i iter@(Iteration f h a)  = do
               p ni =  join $ varM ni fm
     lsmap n@(ni,(h,t,e)) = L.intercalate "\n" $ fmap (L.intercalate ",") $ (mainlink:) $ zipWith3 (expandLink (lname <>  "-") (p ni) ) [0..] dgrav els
         where p ni =  join $ varM ni fm
-              mainlink = [lname  , "", sf2 $ gravp  ,show $ negate $ fromMaybe 0 (join $ varM h hm ) - fromMaybe 0 (join $ varM t hm) + gravDelta (var h pm ) (var t pm) ,"", ""]
+              mainlink = [lname  , "", sf2 $ gravp  ,sf3 $ negate $ fromMaybe 0 (join $ varM h hm ) - fromMaybe 0 (join $ varM t hm) + gravDelta (var h pm ) (var t pm) ,"", ""]
                 where gravp =gravDelta (var h pm ) (var t pm)
               lname = "T-"<> show h <>  "-" <> show t
               grav =  (if isJust (M.lookup (h,ni) nodeLosses) then(var h pm :)else id ) (var ni lpos  <> [var t pm,var t pm])
@@ -292,7 +358,7 @@ reportIter header rinfo i iter@(Iteration f h a)  = do
     hm = runIdentity . getCompose <$> M.fromList h
     pm = M.fromList (shead a )
     lpos = M.fromList (linksPosition a )
-    nodeHeader = ["ID","Pressão Dinâmica (kpa)","Altura (m)","Vazão (L/min)","Perda (kpa)","Elemento"]
+    nodeHeader = ["ID","Pressão (kpa)","Altura (m)","Vazão (L/min)","Perda (kpa)","Elemento"]
     expandNode (Just p) (Sprinkler (Just (d,k)) (dl) f a ) = ["Sprinkler"]
     expandNode _ (Reservatorio  _ )  = ["Reservatorio"]
     expandNode _ (Tee (TeeConfig i r _ db dr c) _ )  = ["Tê"]

@@ -187,6 +187,17 @@ bombaBP p v  = Bomba (p,v) (Poly [(0,120),(1,0.142857),(2,-0.00134921),(3,-7.936
 bombaBipartida x = 120 + 0.0142857*x - 0.00134921*x^2 - 7.936507936507936e-6*x^3
 
 
-dadosBomba :: M.Map (Double,Double) (Double,Double)
-dadosBomba = M.fromList [((80,20),(15,205))]
+data DadosBomba  a
+  = DadosBomba
+  { larguraB :: a
+  , comprimentoB :: a
+  , potenciaB :: a
+  , rotorB :: a
+  , pressaoB :: a
+  , vazaoB :: a
+  , rotacaoB :: a
+  }
+
+dadosBomba :: M.Map (Double,Double) (DadosBomba  Double)
+dadosBomba = M.fromList $ (\e -> ((pressaoB e ,vazaoB e),e))<$> [(DadosBomba 32 200 15 201 75 22 3500),(DadosBomba 32 200 15 205  80 20 3500 ),(DadosBomba 32 200 15 205 80 22 3500)]
 

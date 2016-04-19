@@ -106,5 +106,5 @@ gridInput  = [(ph (rteto "mezanino"), pregrid  bombamin )]
             dm = dj
             tubod l d = Tubo (Just d) l 100
 
-main = mapConcurrently (displayModel . ("mezanino",) . grid .  makeIter 0 1 . snd) gridInput
+main = mapConcurrently (renderModel [MiscelaneousStorage OrdinaryII 3.7 ]  [0,1,2,3] )gridInput
 
