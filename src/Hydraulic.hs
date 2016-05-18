@@ -2,6 +2,7 @@
 module Hydraulic where
 
 import Position hiding (rotM)
+import TBL.Parser
 import qualified Position as P
 import Control.Lens ((^.))
 import Data.Monoid
@@ -28,10 +29,16 @@ isBomba (Bomba _ _ ) = True
 isBomba _ = False
 isSprinkler  (Sprinkler _ _ _ _ ) = True
 isSprinkler _ = False
+isGrelha (Grelha  _ _ _ _ ) = True
+isGrelha _ = False
 isTee (Tee _  _ ) = True
 isTee i  = False
 isReservoir (Reservatorio _ ) = True
 isReservoir _ = False
+isEntry (Tee (TeeConfig _ _ (RectangularEntry _ _ _)) _ ) = True
+isEntry (Tee (TeeConfig _ _ (RoundEntry  _ _)) _ ) = True
+isEntry (Tee (TeeConfig _ _ (DuctEntry _ _)) _ ) = True
+isEntry _ = False
 
 data TeTipo
   = TeBranch
@@ -54,30 +61,96 @@ data SPKGoods a = SPKGoods
   , goodsClass :: Int
   }deriving(Eq,Ord,Show,Functor)
 
+data ElbowConstruction
+  = Mitted
+  | Pleated
+  | Gored Int
+  | DieStamped
+  | FlatBack
+  deriving(Show,Eq,Ord)
+
 coverageArea (SPKCoverage x y _ _ ) = x*y
 
-data TeeConfig a
-  = TeeConfig
-  { teeConfig :: [Int] -- Left Run Branch Right Run
+
+data FanMode a
+  = Centrifugal
+  deriving(Show,Eq,Ord,Functor)
+
+data Section  a
+  = Circular a
+  | Rectangular a a
+  deriving(Eq,Ord,Show,Functor)
+
+data InternalConfig a
+  = RoundTee
+  { teeAngle :: a
   , teeRadius :: a
-  , teeAngle :: a
-  , teeDiameterBranch :: a
-  , teeDiameterRun :: a
   , teeMaterial :: a
+  }
+  | Transition
+  { transitionAngle :: a }
+  | RectangularTee
+  { teeMaterial :: a
+  }
+  | FanSystemInteraction
+  { interactionElement :: InternalConfig a
+  , fanlength :: a
+  , fanMode :: FanMode a
+  }
+  | Elbow
+  { angleElbow :: a
+  , radiusElbow :: a
+  , construction :: ElbowConstruction
+  }
+  | Screen
+  { nscreen :: a
+  , areascreen :: a
+  }
+  | FireDamper
+  | Damper
+  { angle :: a
+  , diameterDamper :: a
+  }
+  | RoundEntry
+  { radius:: a
+  , wall :: Bool
+  }
+  | DuctEntry
+  { wallLength :: a
+  , tubeThickness:: a
+  }
+  | RectangularEntry
+  { angle  :: a
+  , lengthEntry ::  a
+  , wall :: Bool
   }
   deriving(Eq,Ord,Show,Functor)
 
-data TeeConfigType = Table | Formula deriving (Eq,Ord,Show)
+data TeeConfig a
+  = TeeConfig
+  { teeConfig :: [Int]
+  , teeSection :: [Section a]
+  , teeInternal :: InternalConfig a
+  }
+  deriving(Eq,Ord,Show,Functor)
 
+data TeeConfigType a
+  = Table
+  | Formula
+  | TBL (M.Map String [(String,TableType a )])
+  deriving (Eq,Ord,Show,Functor)
+
+data TabelaPerda a
+  = TabelaPerda
+  { section :: Section a
+  , tipoJ :: (String,String,String)
+  , materialP :: a
+  }deriving(Eq,Show,Ord,Functor)
 
 data Element a
+  -- Tubo Fechado
   = Tubo
-  { diametro :: Maybe a
-  , comprimento :: a
-  , atrito :: a
-  }
-  | OpenTubo
-  { diametro :: Maybe a
+  { secao :: Section a
   , comprimento :: a
   , atrito :: a
   }
@@ -87,74 +160,93 @@ data Element a
   | Open
   { openFlow :: a
   }
-  | DiameterChange
-  { input :: Maybe a
-  , output :: Maybe a
-  , material :: a
-  }
   | Bomba
   { nominalValues :: (a,a)
   , curva :: Curva a
   }
-  | Tee (TeeConfig a) TeeConfigType
+  | Tee (TeeConfig a) (TeeConfigType a)
   | Joelho
-  { diametroJ :: Maybe a
-  , tipoJ :: (String,String,String)
-  , direction :: a
-  , material :: a
+  { direction :: a
+  , perdas :: TabelaPerda a
   }
   | Turn
   { jointTurn :: a
   }
   | Perda
-  { diametroJ :: Maybe a
-  , tipoJ :: (String,String,String)
-  , material :: a
+  { perdas :: TabelaPerda a
   }
   | Sprinkler
-  { tipo :: Maybe (a,a)
-  , diametroJ :: Maybe a
+  { tipo :: (a,a)
+  , diametroJ :: a
   , areaCobertura :: SPKCoverage a
   , densidadeMin ::a
   }
-  | Te
-  { diametro :: Maybe a
-  , tipoTe ::  TeTipo
-  , pathRight :: [Element a]
-  , pathLeft :: [Element a]
-  }
-
-  | Reduction
-  { diametroRH :: a
-  , diametroRT :: a
-  }
-  | Origem
-  { elements :: [Element a]
+  | Grelha
+  { height ::a
+  , width:: a
+  , areaGrelha :: a
+  , velocidadeMin ::a
   }
   deriving(Eq,Show,Functor)
 
+data Tree a
+  = Te
+  { tediametro :: a
+  , tipoTe ::  TeTipo
+  , pathRight :: [Tree a]
+  , pathLeft :: [Tree a]
+  }
+  | Atom (Element a)
+  | Origem
+  { elements :: [Tree a]
+  }
 
+data Fluido a
+  = Fluido
+  { viscosity :: a
+  , density :: a
+  , fluidName :: String
+  }deriving(Eq,Ord,Show,Functor)
 
+kinematicViscosity f = viscosity f/density f
 
-diametroE :: Element a -> Maybe a
-diametroE (Tubo d _ _ ) = d
-diametroE (OpenTubo d _ _ ) = d
-diametroE (Joelho d _ _ _) = d
-diametroE (Perda d _  _) = d
-diametroE i = Nothing
+-- hydraulicDiameter e = 4*areaE e/perimeterE e
 
-distanciaE :: (Show a,Ord a,Fractional a )=> Element a -> a
+hydraulicDiameter (Rectangular w h) = 1.30*(w*h)**0.625/(w+h)**0.25
+hydraulicDiameter (Circular d ) = d
+
+areaS :: Floating a => Section a -> a
+areaS (Rectangular w h ) = w*h
+areaS (Circular d) = pi*(d/2)^2
+
+areaE :: Floating a => Element a -> a
+areaE (Tubo (Rectangular i j) _ _ ) = i*j
+areaE e = pi*(( diametroE e)/2)^2
+
+perimeterE (Tubo (Rectangular i j) _ _) =  2*i+2*j
+roughnessE e = justError "no roughness" $ M.lookup (materialE e) (M.fromList [(100,0.09),(120,0.09)])
+
+sectionE  (Tubo d _ _ ) = d
+sectionE  i = errorWithStackTrace (show i)
+
+diametroE :: Floating a => Element a -> a
+diametroE (Tubo d _ _ ) = hydraulicDiameter d
+diametroE (Joelho _ p ) = hydraulicDiameter (section p)
+diametroE (Perda d ) = hydraulicDiameter (section d)
+diametroE i = errorWithStackTrace "no diameter"
+
+distanciaE :: (Show a,Ord a,Floating a )=> Element a -> a
 distanciaE (Tubo _ d _ ) = d
-distanciaE (OpenTubo _ d _ ) = d
-distanciaE (Joelho (Just dtubom) tipo _ c) =  justError (show ("joelho",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
-distanciaE (Perda   (Just dtubom)  tipo c) = justError (show ("perda",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
+distanciaE (Joelho _ (TabelaPerda s tipo  c)) =  justError (show ("joelho",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
+  where dtubom = hydraulicDiameter s
+distanciaE (Perda   (TabelaPerda s tipo c)) = justError (show ("perda",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
+  where dtubom = hydraulicDiameter s
 distanciaE i = 0
 
 materialE :: Show a => Element  a -> a
 materialE (Tubo _ _ c) =  c
-materialE (OpenTubo _ _ c) =  c
-materialE (Joelho _ _ _ c) = c
-materialE (Perda _  _ c) = c
+materialE (Joelho _ c) = materialP c
+materialE (Perda  c) = materialP c
 materialE i = error $ "No Material Defined" ++ show i
 
 
@@ -172,13 +264,12 @@ joelhos = M.fromList
     ,((("Conexao","Te","Direta"),100),M.fromList [(25,0.5),(32,0.7),(40,0.9),(50,1.1),(65,1.3),(75,1.6),(80,1.6),(100,2.1),(125,2.7),(150,3.4),(200,4.3),(250,5.5)])
     ,((("Valvula","Governo",""),100),M.fromList [(80,5),(100 ,5.84),(150 ,7.84),(200 ,8.84),(250 ,9.84)])
     ,((("Conexao","Te","Lateral"),100),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
-    --,((("Conexao","Te","Lateral"),1000),M.fromList [(25,1.7),(32,2.3),(40,2.8),(50,3.5),(65,4.3),(75,5.2),(80,5.2),(100,6.7),(125,8.4),(150,10.0),(200,13),(250,16)])]
 
-isValvulaGoverno (Perda _ ("Valvula","Governo",_) _  ) = True
+isValvulaGoverno (Perda (TabelaPerda _ ("Valvula","Governo",_) _)  ) = True
 isValvulaGoverno _ = False
 
 bombaSuccaoFrontal, bombaBipartida :: (Num a ,Fractional a )=> a -> a
-bombaSF ,bombaJohnson2:: Floating a => Curva a
+bombaSF ,bombaJohnson2,ventiladorLinear:: Floating a => Curva a
 bombaSF = Poly [(0,151.229),(1,-0.422331),(2,-0.000979227),(3,- 1.194467786948394e-7)]
 bombaJohnson = Poly [ (0,3000/31) ,(1,12/31) ,(2,-324/96875)]
 bombaJohnson2 = Poly [(0,3250/31),(1,111 /775) , (2,-486 /484375),(3,-2187 /302734375 )]
@@ -186,6 +277,7 @@ bombaSuccaoFrontal x = 151.229 - 0.422331*x - 0.000979227*x^2 - 1.19446778694839
 bombaBP p v  = Bomba (p,v) (Poly [(0,120),(1,0.142857),(2,-0.00134921),(3,-7.936507936507936e-6)])
 bombaBipartida x = 120 + 0.0142857*x - 0.00134921*x^2 - 7.936507936507936e-6*x^3
 
+ventiladorLinear = Poly [(0,3440/2200*100),(1,-124*10/2200)]
 
 data DadosBomba  a
   = DadosBomba
@@ -199,5 +291,5 @@ data DadosBomba  a
   }
 
 dadosBomba :: M.Map (Double,Double) (DadosBomba  Double)
-dadosBomba = M.fromList $ (\e -> ((pressaoB e ,vazaoB e),e))<$> [(DadosBomba 32 200 15 201 75 22 3500),(DadosBomba 32 200 15 205  80 20 3500 ),(DadosBomba 32 200 15 205 80 22 3500)]
+dadosBomba = M.fromList $ (\e -> ((pressaoB e ,vazaoB e),e))<$> [DadosBomba 32 200 15 201 75 22 3500,DadosBomba 32 200 15 205  80 20 3500 ,DadosBomba 32 200 15 205 80 22 3500, DadosBomba 50 200 40 204 75 80 3500]
 

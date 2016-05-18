@@ -29,7 +29,7 @@ import Linear.V3
 
 
 printJacobian :: forall t m c . (Functor t,Show m, Ord m, Floating m, Traversable (NodeDomain c) , Traversable (LinkDomain c) , PreSys c )=> (forall  a . (Show a , Ord a , Floating a ) => Iteration  c a ) -> (forall   b. (Show b, Ord b, Floating b) => Grid c b -> M.Map Int (LinkDomain c b) -> M.Map Int (NodeDomain c b) -> t b ) -> t [m]
-printJacobian iter@(Iteration fl f a) modeler = jacobian (prepareModel (grid iter) modeler )   $ (inNodes <> inLinks)
+printJacobian iter@(Iteration fl f e a) modeler = jacobian (prepareModel (grid iter) modeler )   $ (inNodes <> inLinks)
   where
     inNodes = (concat $ ( catMaybes . F.toList . getCompose ). snd <$> f )
     inLinks= (concat $ (catMaybes . F.toList . getCompose ) .  snd <$> fl )
@@ -38,14 +38,14 @@ printJacobian iter@(Iteration fl f a) modeler = jacobian (prepareModel (grid ite
 
 -- printResidual iter@(ForceIter f fl a) modeler = modeler a  (concat $ (\(i,j) ->  catMaybes $ F.toList i <> F.toList j). snd <$> f )
 -- printResidual :: forall m c . (Show m, Ord m, Floating m, Traversable (NodeDomain c) , Traversable (LinkDomain c) , PreSys c )=> (forall  a . (Show a , Ord a , Floating a ) => Iteration  c a ) -> (forall   b. (Show b, Ord b, Floating b) => Grid c b -> M.Map Int (LinkDomain c b) -> M.Map Int (NodeDomain c b) -> [b] ) -> ([m],[[m]])
-printResidual iter@(Iteration fl f a) modeler = (prepareModel a modeler )   (inNodes <> inLinks)
+printResidual iter@(Iteration fl f e a) modeler = (prepareModel a modeler )   (inNodes <> inLinks)
   where
     inNodes = (concat $ ( catMaybes . F.toList . getCompose ). snd <$> f )
     inLinks= (concat $ (catMaybes . F.toList . getCompose ) .  snd <$> fl )
 
 
 solveIter :: forall c . (Traversable (NodeDomain c) , Traversable (LinkDomain c) , PreSys c )=> (forall  a . (Show a , Ord a , Floating a ) => Iteration  c a ) -> (forall   b. (Show b, Ord b, Floating b) => Grid c b -> M.Map Int (LinkDomain c b) -> M.Map Int (NodeDomain c b) -> [b] ) -> Iteration c Double
-solveIter iter@(Iteration fl f g) modeler =  Iteration outLinks outNodes (grid iter)
+solveIter iter@(Iteration fl f e g) modeler =  Iteration outLinks outNodes e (grid iter)
   where
     (outNodes ,outLinks )= (fst $ runState  ((,) <$> nodesOutP g <*> linksOutP g) res)
     -- nodesOutP :: ( PreSys c ,Traversable (NodeDomain c) , Traversable (LinkDomain c)  )=> Grid c Double -> State [Double] [(Int,Compose (NodeDomain c) Maybe Double)]

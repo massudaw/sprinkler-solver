@@ -20,8 +20,8 @@ lintLinks grid = mapM_ checkLinks (links grid)
              F.foldl' (\i j -> do
                    idia <- i
                    case j of
-                      (DiameterChange dii dio _ ) ->  when (diametroE idia /= dii ) $
-                          tell $ ["diametro elem " ++ show idia ++ " is different from "++ show j ]
+                      -- (DiameterChange dii dio _ ) ->  when (diametroE idia /= dii ) $
+                          -- tell $ ["diametro elem " ++ show idia ++ " is different from "++ show j ]
                       i ->  when (diametroE idia /= diametroE j) $
                           tell $ ["diametro elem " ++ show idia ++ " is different from "++ show j ]
                    return j) (return $ head elems)  (tail elems)

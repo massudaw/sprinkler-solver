@@ -35,14 +35,14 @@ import Diagrams.TwoD.Text (Text)
 
 
 renderElem s n (Open i) =  regPoly 6 0.1
-renderElem s n (Tee (TeeConfig tc@[rl,b,rr] _ _ _ _ _) _ ) = regPoly 3 0.1
-renderElem s n (Sprinkler (Just (d,k))  _ _ _) = regPoly 5 0.1
+renderElem s n (Tee (TeeConfig tc@[rl,b,rr] _  _ ) _ ) = regPoly 3 0.1
+renderElem s n (Sprinkler ((d,k))  _ _ _) = regPoly 5 0.1
 renderElem  _ _ _ = regPoly 4 0.1
 
 renderLinkSVG  _ sl l t@(Tubo _ c _) =   line
   where
     line =  translateX (c/2) ahead <> (fromOffsets [c *^ unitX ] )
-renderLinkSVG  _ sl l j@(Joelho _ _ _ _ )  =  joelho
+renderLinkSVG  _ sl l j@(Joelho _ _ )  =  joelho
   where
     joelho = fromOffsets [0.1 *^ unitX,0.1 *^ unitY]
 renderLinkSVG  _ sl l i = mempty

@@ -106,9 +106,11 @@ instance RBackend [EntityTy]  where
               (a,_ ) = rotationToAxis r
   statements = concat
 instance Target Element [EntityTy] where
-  renderLink _ nis ni (Tubo (Just d) c _ ) = [TEXT (V3 (c/2) 0.3 0) 0.2 (show d)  Nothing Nothing, LINE 0 (V3 c 0 0)]
-  renderLink _ nis ni (Joelho (Just d) c _ _ ) = [CIRCLE 0 d]
+  renderLink _ nis ni (Tubo (Circular d) c _ ) = [TEXT (V3 (c/2) 0.3 0) 0.2 (show $ round (d*1000))  Nothing Nothing, LINE 0 (V3 c 0 0)]
+  renderLink _ nis ni (Joelho _ (TabelaPerda (d) c _ ) ) = []
   renderLink _ nis ni i = [CIRCLE 0 0.2]
   renderNode _ nis (Sprinkler _ _ _ _)  = [INSERT "spk" 0  (Just 1) Nothing Nothing []]
+  renderNode _ nis (Tee _ _) = []
+  renderNode _ nis (Open _ ) = []
   renderNode _ nis i = [CIRCLE 0 0.2]
 

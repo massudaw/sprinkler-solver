@@ -209,8 +209,8 @@ linkForces g linkInPre nodesInPre
     nodesIn = unForces <$> nodesInPre
 
 
-bendIter iter@(Iteration r i g)
-  =  Iteration r i (g {shead = editNodes <$> (shead g), linksPosition = editLinks <$> linksPosition g})
+bendIter iter@(Iteration r i e g)
+  =  Iteration r i e (g {shead = editNodes <$> shead g, linksPosition = editLinks <$> linksPosition g})
     where
       lmap = M.fromList (links (grid iter))
       npmap = M.fromList (shead (grid iter))

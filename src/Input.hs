@@ -1,5 +1,5 @@
 {-# LANGUAGE RecursiveDo  #-}
-module Input ((>~>),link,node, surface,polyhedra,runInput) where
+module Input ((>~>),link',node',link,node, surface,polyhedra,runInput) where
 
 import Sprinkler
 import Hydraulic
@@ -40,10 +40,21 @@ lk (_,i,_,_) = i
 sf (_,_,i,_) = i
 vo (_,_,_,i) = i
 
+node'  efun  = do
+  un <-  getUniqueN
+  let e = efun un
+  modify (\(g,i) -> (g {nodesFlow = (un,e): nodesFlow g} ,i))
+  return (un,e)
+
 node  e = do
   un <-  getUniqueN
   modify (\(g,i) -> (g {nodesFlow = (un,e): nodesFlow g} ,i))
   return (un,e)
+
+link' e  (h,_) (t,_) = do
+  un <-  getUniqueL
+  modify (\(g,i) -> (g {links = (un,(h,t,e)): links g} ,i))
+  return (un,(h,t),e)
 
 link e  (h,_) (t,_) = do
   un <-  getUniqueL

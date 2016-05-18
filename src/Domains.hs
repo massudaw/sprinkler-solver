@@ -30,7 +30,7 @@ import Control.Monad.State
 import GHC.Stack
 import System.IO.Unsafe
 
-data Grid b a
+data Grid  b a
   = Grid
   { linksPosition :: [(Int,[(V3 a ,SO3 a)])]
   , links :: [(Int,(Int,Int,[b a]))]
@@ -42,12 +42,13 @@ data Grid b a
 
 
 class PreSys sys  where
+  type Enviroment sys :: (* -> *)
   type NodeDomain sys  :: (* -> *)
   type LinkDomain sys  :: (* -> *)
   type SurfaceDomain sys  :: (* -> *)
   revElem :: Num a => sys  a -> sys a
-  initIter :: (Functor (LinkDomain sys),Traversable (NodeDomain sys),Fractional a) => Grid sys a -> Iteration  sys a
-  initIter g = Iteration  (fmap Compose <$> varsL) (fmap Compose <$> varsN) g
+  initIter :: (Functor (LinkDomain sys),Traversable (NodeDomain sys),Fractional a) => Grid sys a -> (Enviroment sys a -> Iteration sys a)
+  initIter g = (\e -> Iteration  (fmap Compose <$> varsL) (fmap Compose <$> varsN)  e g)
     where
       varsN = fst  $ runState (((traverse (traverse (traverse conv  . constrained )))) $ nodesFlow g) 1
       conv (Just i) = return Nothing
@@ -63,12 +64,13 @@ class PreSys sys  where
   postprocess :: (Show a,Floating a )=> Iteration sys a -> [(Int,SurfaceDomain sys a)]
   postprocess _ = []
 
-type Iteration sys  a =  FIteration (NodeDomain sys ) (LinkDomain sys) sys a
-data FIteration n l  b a
+type Iteration sys  a =  FIteration (NodeDomain sys ) (LinkDomain sys) (Enviroment sys) sys a
+data FIteration n l o b a
   = Iteration
   { flows :: [(Int,Compose l Maybe a)]
   , pressures :: [(Int,Compose n Maybe a)]
-  , grid :: Grid b a
+  , environment :: o a
+  , grid :: Grid  b a
   }deriving(Show,Functor)
 
 class PreCoord a  where
@@ -78,8 +80,8 @@ class PreCoord a  where
   dist :: (a,Ang a) -> (a,Ang a) -> (Double,Double)
 
 class (PreSys sys ,PreCoord a) => Coord sys a where
-  nextElement :: Int -> (Set Int,sys Double) -> [(Int,(a,Ang a))]
-  thisElement :: Set Int -> sys Double -> M.Map Int (Int,(a,Ang a))
+  nextElement :: Int -> [Int] -> sys Double -> [(Int,(a,Ang a))]
+  thisElement :: [Int] -> sys Double -> M.Map Int (Int,(a,Ang a))
   nodeTrans :: sys Double -> [(Int,(a,Ang a))]
   elemTrans :: sys Double -> (a,Ang a)
 
@@ -120,7 +122,7 @@ parseT  v = do
   traverse parse  v
 
 
-justError e Nothing = error ("justError" <> e)
+justError e Nothing = errorWithStackTrace ("justError" <> e)
 justError _ (Just i) = i
 
 prepareModel l model vh = model l v h

@@ -13,7 +13,6 @@ import Data.Maybe
 import Data.Distributive
 import qualified Data.Map as M
 import qualified Data.List as L
-import qualified Data.Set as S
 import Control.Monad.Trans.State
 import Linear.V3
 import Linear.V1
@@ -29,7 +28,7 @@ class RBackend a where
   statements :: [a ] -> a
 
 class RBackend a => Target sys a  where
-  renderNode :: S.Set Int -> Int -> sys Double -> a
+  renderNode :: [Int] -> Int -> sys Double -> a
   renderLink :: (Int,Int) -> Int -> Int -> sys Double -> a
   renderSurface :: [(Bool,(Int,Int, [sys Double]))] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
   renderVolume :: [[(Bool,(Int,Int, [sys Double]))]] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
@@ -45,17 +44,17 @@ about (ix,iy,iz) = transform (aboutX (ix @@ turn)) . transform (aboutZ (iz @@ tu
 
 subSp (i,b) (j,c) = (i ^-^ j, SO3 $   distribute (unSO3 c) !*! (unSO3  b )  )
 
-nextS :: (Show (f Double),Coord f (V3 Double)) => Int -> (S.Set Int,f Double) -> [(Int,(V3 Double,SO3 Double))]
-nextS l v@(p,_)  = fmap (\i -> (i,  nElement i v )) $ filter (/=l) (F.toList p )
+nextS :: (Show (f Double),Coord f (V3 Double)) => Int -> [Int] -> f Double -> [(Int,(V3 Double,SO3 Double))]
+nextS l p v  = fmap (\i -> (i,  nElement i p v )) $ filter (/=l) p
 
-nextE :: (Show (f Double),Coord f (V3 Double)) => Int -> (S.Set Int,f Double) -> [(Int,(V3 Double,SO3 Double))]
-nextE l v@(p,_)  = fmap (\i -> (i,subSp (0,SO3 $ rotM (V3 0 0 pi)) $ subSp  (tElement i v) (tElement l v))) $ filter (/=l) (F.toList p )
+nextE :: (Show (f Double),Coord f (V3 Double)) => Int -> [Int] -> f Double -> [(Int,(V3 Double,SO3 Double))]
+nextE l p v  = fmap (\i -> (i,subSp (0,SO3 $ rotM (V3 0 0 pi)) $ subSp  (tElement i p v) (tElement l p v))) $ filter (/=l) p
 
 
 -- tElement :: Show (f Double) => Int -> f Double -> TCoord (f Double)
-tElementInfer l (i,e) = fmap snd . M.lookup l . thisElement i $ e
-tElement l (i,e) = snd . justError (" no element " <> show l <> " in " <> show e  ) . M.lookup l . thisElement i $ e
-nElement l (i,e) = case  justError (" no element " <> show (l,e) ) . M.lookup l . thisElement i $ e of
+tElementInfer l i e = fmap snd . M.lookup l . thisElement i $ e
+tElement l i e = snd . justError (" no element " <> show l <> " in " <> show e  ) . M.lookup l . thisElement i $ e
+nElement l i e = case  justError (" no element " <> show (l,e) ) . M.lookup l . thisElement i $ e of
             (0,v) -> subSp (0,SO3$ rotM (V3 pi 0 0)) v
             (1,v) -> subSp (0,SO3$ rotM (V3 0 pi 0)) v
             (2,v) -> subSp (0,SO3$ rotM (V3 0 0 pi )) v
@@ -82,24 +81,24 @@ unrot = unRot . SO3 . distribute . unSO3
 locateGrid
   :: (SO3 Double ~ (Ang a) , a ~ V3 Double, Coord f a, Show (f Double),Show (Ang a), Show a,  Num a, Monad m) =>
      M.Map Int (Int, Int, [ f Double ])
-     -> M.Map Int (S.Set Int, f Double )
+     -> M.Map Int ([Int], f Double )
      -> Int
      -> (a, Ang a)
      -> Int
      -> Either
           (Int, Int, [f Double])
-          (S.Set Int, f Double)
+          ([Int], f Double)
      -> StateT (M.Map Int (a, Ang a), M.Map Int [(a, Ang a)]) m (Errors [(Int,Int,String,Double)] [(Int,Int,(a,Ang a))])
 locateGrid lmap nmap l r n (Right oe@(s,e)) = do
   let
-      t = tElement  l (s,e)
+      t = tElement  l  s e
       rnew = trans r t
   modify (<> (M.singleton n rnew,mempty))
   let trav ne@(i,coo)  =  do
         let pos = trans rnew coo
         (_,visitedLink) <- get
         locateGrid lmap nmap n  pos i (Left $ var i lmap )
-  l <- mapM trav  (nextElement l (s,e))
+  l <- mapM trav  (nextElement l s e)
   return (foldl (liftA2 mappend) (pure []) l )
 
 locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
@@ -107,21 +106,22 @@ locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
     (i,err) <- path tn e
     modify (<> (mempty ,M.singleton l i))
     return err
-  | n == tn = do
-    {-(i,err) <- revpath hn e
+  {-| n == tn = do
+    (i,err) <- revpath hn (revElems e)
     modify (<> (mempty ,M.singleton l i))
-    return err-}
-    return (pure [])
+    return err
+    return (pure [])-}
   | otherwise = error $ "wrong back element " <> show n  <> " " <> show ll
   where
     {-revpath  nn e = do
       let
-        sn =  scanr transElemr r  e
+        -- es = fmap snd . nextElement n [hn,tn] <$> e
+        sn =  scanr transElemr r  (elemTrans <$> e) -- (head <$> es) --
       err <- nextNode  (head sn) nn
-      return (init sn,err)-}
+      return (init $ reverse sn,err)-}
     path  nn e = do
       let
-        sn =  scanl transEleml r  e
+        sn =  scanl transEleml r  (elemTrans <$> e)
       err <- nextNode  (last sn) nn
       return (init sn,err)
     nextNode  pos@(dt ,a) nn  = do
@@ -132,7 +132,7 @@ locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
           else do
             let
               npos = var nn visitedNode
-            case tElementInfer l  (var nn  nmap)of
+            case uncurry (tElementInfer l ) (var nn  nmap)of
               Just el -> do
                 let
                   pos2 = trans pos el
@@ -152,8 +152,8 @@ r2p = p3 . unr3
 
 rotM = rotD
 
-transElemr e =  flip untrans (elemTrans e)
-transEleml i e =  trans i (elemTrans e)
+transElemr e =  flip untrans (e)
+transEleml i e =  trans i (e)
 
 
 
@@ -166,7 +166,7 @@ drawGrid iter = statements  $ styleNodes iter <> styleLinks iter <> {- styleSurf
     styleNodes  it = catMaybes $ fmap (\i -> do
             pos <- varM (fst i) gridMap
             let pres = 0
-            return $ transformElement  pos $ renderNode S.empty (fst i ) (snd i) ) (nodesFlow it)
+            return $ transformElement  pos $ renderNode [] (fst i ) (snd i) ) (nodesFlow it)
       where
         gridMap = (M.fromList (shead $ it))
 
@@ -185,7 +185,7 @@ styleSurfaces it = catMaybes $  fmap (\(n,(h,i))  -> do
         lEls = M.fromList $ links it
         npos = M.fromList $ shead it
 
-styleSurfacesSolve iter@(Iteration l n it) = catMaybes $  fmap (\(n,(h,i))  -> do
+styleSurfacesSolve iter@(Iteration l n e it) = catMaybes $  fmap (\(n,(h,i))  -> do
                 let paths = fmap (fmap (\l -> var l lEls)) h
                     nodes = fmap (\(h,t,_)->  [(h,var h npos),(t,var t npos)]) (snd <$>paths)
                     m  =(\i -> (i,var i  spos)) . fst <$> L.nub (concat nodes)
@@ -221,7 +221,7 @@ drawIter iter = statements $ nds <> lds <> styleSurfaces (grid iter) <> styleVol
             pos <- varM (fst i) gridMap
             pres <- varM (fst i) (M.fromList (pressures it))
             let nstate = mergeStates (constrained (snd i))  pres
-            return $ transformElement  pos $ (renderNode  S.empty (fst i) (snd i) <> renderNodeSolve nstate (fst i) (snd i) )) (nodesFlow (grid it))
+            return $ transformElement  pos $ (renderNode  [] (fst i) (snd i) <> renderNodeSolve nstate (fst i) (snd i) )) (nodesFlow (grid it))
       where
         gridMap = (M.fromList (shead $ grid it))
 
@@ -238,7 +238,7 @@ drawIterGraph  iter = statements $ nds <> lds
   where nds = styleNodes iter
         lds = styleLinks iter
         styleNodes  it = catMaybes $ fmap (\i -> do
-                return $ renderNode S.empty  (fst i) (snd i) ) (nodesFlow (it))
+                return $ renderNode [] (fst i) (snd i) ) (nodesFlow (it))
           where
                 gridMap = (M.fromList (shead $ it))
 
