@@ -7,13 +7,13 @@ import Search
 import GHC.Stack
 import Debug.Trace
 import Control.Applicative.Lift
-import Force (bendIter)
 import Data.Graph
 import Element
 import Domains
 
 import qualified Data.Array as A
 import Backend.DXF
+import Backend.Mecha
 import DXF
 import Polygon
 import Point2 hiding ((<*>))
@@ -35,7 +35,6 @@ import qualified Data.List as L
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
-import Mecha
 import Control.Lens
 import Data.Semigroup
 import Linear.V2
@@ -156,20 +155,6 @@ joelho45L e = Joelho left45 (pj45 e)
 
 -- testResistor :: SR.Expr
 
-displayBended (header,model) = do
-  T.writeFile (header <> "-temp.scad") $ openSCAD ({- Mecha.color (1,0,0,0.2) (drawIter  model) <>  -} drawIter (bendIter model))
-  callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
-
-displaySolve (header,model) = do
-  T.writeFile (header <> "-temp.scad") $ openSCAD (drawIter  model )
-  callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
-
-
-
-displayModel (header,model) = do
-  T.writeFile (header <> "-temp.scad") $openSCAD (drawGrid $ model )
-  callCommand $ "mv " <> (header <> "-temp.scad") <>  "  " <> (header <> ".scad")
-
 filterBounded poly grid = prune (grid {nodesFlow =spks}) tar
   where
     pcon = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a,b)) poly
@@ -246,45 +231,6 @@ drawSCAD base fname  grid = do
       putStrLn command
       callCommand  command) (regionView $ region )-}
 
-
-
-data CyclePoint a b
-  = CloseLink a
-  | BranchLink b
-  deriving(Eq,Show,Ord)
-
-
-
-
-upgradeGrid :: (Show (f Double) , Coord f (V3 Double)) => Int -> Int -> Grid f Double -> (Grid  f Double,Errors [(Int,Int,String,Double)] [(Int,Int,(V3 Double ,SO3 Double))])
-upgradeGrid ni li a = (a {shead = M.toList nodesPos, linksPosition = M.toList linksPos},err)
-  where
-    (err,(nodesPos,linksPos)) =  runState (do
-          modify (<> (M.singleton ni (0,SO3 $ rotM 0), mempty))
-          let
-            niel = var ni nmap
-            nels = fmap snd $ thisElement (fst niel) (snd niel)
-            oi = var li nels
-          i <- locateGrid lmap nmap ni oi  li (Left $ var li lmap )
-          j <- mapM (\(inx,ie) -> locateGrid lmap nmap ni ie inx (Left $ var inx lmap) ) (filter ((/=li).fst) $ M.toList nels)
-          return $ mappend <$> i <*> (foldr (liftA2 mappend ) (pure []) j))  (mempty,mempty)
-    lmap = M.fromList (links a)
-    nmap = M.fromList (findNodesLinks a $   (nodesFlow a) )
-
-recurse render ni r@(Right l@(h,t,e)) = do
-  lift $ modify (<> (S.empty,S.singleton ni))
-  i <- fst <$> lift  get
-  linkmap <- fst <$> ask
-  let nexts = S.toList $ S.difference (S.fromList [h,t]) i
-  ti <- mapM (\i -> recurse render i . Left . flip var linkmap $ i ) nexts
-  return $ render ni r  : concat ti
-recurse render ni r@(Left n@((lks,e))) = do
-  lift $ modify (<>(S.singleton ni,S.empty))
-  s <- snd <$> lift  get
-  nodemap <- snd <$> ask
-  let nexts = S.toList $ S.difference (S.fromList lks)  s
-  ti <- mapM (\i -> recurse render i . Right . flip var nodemap $ i ) nexts
-  return $ render ni r : concat ti
 
 sf2 = show -- formatFloatN 2
 sf3 = show -- formatFloatN 3
@@ -400,5 +346,3 @@ reportIter header rinfo i iter@(Iteration f h e a)  = do
 
 
 
-findNodesLinks grid = fmap (\(i,n) -> (i,(var i nodeMapSet,n)))
-    where nodeMapSet = fmap L.nub $ M.fromListWith mappend $ concat $ (\(l,(h,t,_)) -> [(h,[l ]),(t,[l ])]) <$> links grid

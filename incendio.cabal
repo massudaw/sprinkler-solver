@@ -29,8 +29,8 @@ library
     ,Sprinkler
     ,Tee
     ,Position
-    ,Mecha
     ,Diagram
+    ,Backend.Mecha
     ,Backend.DXF
     ,Lint
     ,Equation

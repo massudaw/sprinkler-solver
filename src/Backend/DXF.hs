@@ -7,9 +7,7 @@ import DXF
 import Linear.Matrix
 import Debug.Trace
 import Numeric
-import Plane
 import Hydraulic
-import Force
 import Position
 import Rotation.SO3
 import Exponential.SO3
@@ -22,17 +20,11 @@ import Element
 import qualified Data.Foldable as F
 
 import qualified Data.Map as M
-import qualified Language.Mecha.Types as Mecha
-import qualified Language.Mecha.Solid as Mecha
-import Language.Mecha.Export
 import qualified Data.Text as T
 
 import Linear.Metric
 import Linear.Matrix
 import Linear.Vector
-import Linear.V2
-import Control.Lens
-import Control.Applicative
 import Data.Semigroup
 
 
