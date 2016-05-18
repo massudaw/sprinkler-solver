@@ -75,9 +75,11 @@ instance PreSys Element  where
 
 
 instance Coord Element (V3 Double) where
-  nextElement  = nextS
+  thisElement [a,b] (Bomba  _ _ ) = (2,)<$> M.fromList [(a,(0,SO3 $ P.rotM 0)),(b,(V3 0 0 0,SO3 $ P.rotM 0))]
   thisElement [a,b] (Tubo _ c _ ) = (2,)<$> M.fromList [(a,(0,SO3 $ P.rotM 0)),(b,(V3 c 0 0,SO3 $ P.rotM 0))]
-  thisElement l (Tee (TeeConfig [rl,rr]  _ (FanSystemInteraction (Elbow ang  _ _ ) len _ )) _ ) = (2,).(\ (l,j) -> (V3 0 (-l) 0 ,SO3 $ P.rotM $ fmap opi (V3 0 0 j ))) <$> M.fromList [(rl,(len,0)),(rr,(0,1/2 + ang/360))]
+  thisElement [a,b] (Joelho  c _ ) = (2,)<$> M.fromList [(a,(0,SO3 $ P.rotM 0)),(b,(0,SO3 $ P.rotM (V3 0 0 (opi c) )))]
+  thisElement [a,b] (Turn c ) = (0,)<$> M.fromList [(a,(0,SO3 $ P.rotM 0)),(b,(0,SO3 $ P.rotM (V3 (opi c) 0 0 )))]
+  thisElement _ (Tee (TeeConfig [rl,rr]  _ (FanSystemInteraction (Elbow ang  _ _ ) len _ )) _ ) = (2,).(\ (l,j) -> (V3 0 (-l) 0 ,SO3 $ P.rotM $ fmap opi (V3 0 0 j ))) <$> M.fromList [(rl,(len,0)),(rr,(0,1/2 + ang/360))]
   thisElement l i = (2,). (\j-> (0,SO3 $ P.rotM $ fmap opi  (V3 0 0 j))) <$> this  (F.toList l,i)
     where
       this =  M.fromList .  els
@@ -102,22 +104,6 @@ instance Coord Element (V3 Double) where
           els ([a],i)
             =  [(a,0)]
           els i = errorWithStackTrace $ show ("thisElement",i)
-  elemTrans t = (lengthE t , angleE t)
-    where
-      angleE  = SO3 . P.rotM . (\i-> opi i ) . angE
-        where
-          angE :: Fractional a => Element a -> V3 a
-          angE (Joelho r _ ) = r3 (0,0,r)
-          angE (Turn c) = r3 (c,0,0)
-          angE  i = r3 (0,0,0)
-
-
-      lengthE :: Num a => Element a -> V3 a
-      lengthE (Tubo _ c _ ) = r3 (c,0,0)
-      lengthE i = 0
-      r3 (x,y,z) = V3 x y z
-
-
 
 pipeElement am v e | v < 0 = negate $ pipeElement am (abs v) e
 pipeElement am v (Bomba  ((pn,vn)) (Poly l ) ) = negate $ (*pn) $ (/100)  $foldr1 (+) (polyTerm <$> l)

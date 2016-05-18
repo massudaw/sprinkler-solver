@@ -16,10 +16,13 @@ import qualified Data.List as L
 import Control.Monad.Trans.State
 import Linear.V3
 import Linear.V1
-import Linear.Matrix ((!*!),(!*))
+import Linear.Metric
+import Linear.Matrix
+import Linear.Vector
 import Rotation.SO3 hiding (rotM)
+import Control.Applicative
 
-import Diagrams.Prelude
+import Data.Semigroup
 
 class RBackend a where
   type TCoord a
@@ -28,8 +31,8 @@ class RBackend a where
   statements :: [a ] -> a
 
 class RBackend a => Target sys a  where
-  renderNode :: [Int] -> Int -> sys Double -> a
-  renderLink :: (Int,Int) -> Int -> Int -> sys Double -> a
+  renderNode :: Int -> sys Double -> a
+  renderLink :: Int -> Int -> sys Double -> a
   renderSurface :: [(Bool,(Int,Int, [sys Double]))] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
   renderVolume :: [[(Bool,(Int,Int, [sys Double]))]] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
   renderNodeSolve :: NodeDomain sys Double -> Int -> sys Double ->  a
@@ -40,7 +43,6 @@ class RBackend a => Target sys a  where
 showErr (Other (Constant i)) = Left i
 showErr (Pure i)  = Right i
 
-about (ix,iy,iz) = transform (aboutX (ix @@ turn)) . transform (aboutZ (iz @@ turn))  . transform (aboutY (iy @@ turn))
 
 subSp (i,b) (j,c) = (i ^-^ j, SO3 $   distribute (unSO3 c) !*! (unSO3  b )  )
 
@@ -48,7 +50,7 @@ nextS :: (Show (f Double),Coord f (V3 Double)) => Int -> [Int] -> f Double -> [(
 nextS l p v  = fmap (\i -> (i,  nElement i p v )) $ filter (/=l) p
 
 nextE :: (Show (f Double),Coord f (V3 Double)) => Int -> [Int] -> f Double -> [(Int,(V3 Double,SO3 Double))]
-nextE l p v  = fmap (\i -> (i,subSp (0,SO3 $ rotM (V3 0 0 pi)) $ subSp  (tElement i p v) (tElement l p v))) $ filter (/=l) p
+nextE l p v  = fmap (\i -> (i, subSp  (tElement i p v) (tElement l p v))) $ filter (/=l) p
 
 
 -- tElement :: Show (f Double) => Int -> f Double -> TCoord (f Double)
@@ -62,7 +64,7 @@ nElement l i e = case  justError (" no element " <> show (l,e) ) . M.lookup l . 
 angDist i j = unRot $ SO3 $ distribute $ (distribute $ unSO3 i) !*! ( unSO3 j)
 instance PreCoord (V3 Double) where
   type Ang (V3 Double) = SO3 Double
-  dist (i,ir) (j,jr) = (distance (r2p i) (r2p j) ,norm $ angDist ir jr)
+  dist (i,ir) (j,jr) = (distance (i) (j) ,norm $ angDist ir jr)
   trans (l,i) (lo,a) = ( l + unSO3 i !* lo  , SO3 $ unSO3 i !*!  unSO3 a )
   untrans (l,i) (lo,a) = ( l ^-^  unSO3 i !* lo  , SO3 $ unSO3 i !*! distribute (unSO3 a )  )
 
@@ -96,9 +98,8 @@ locateGrid lmap nmap l r n (Right oe@(s,e)) = do
   modify (<> (M.singleton n rnew,mempty))
   let trav ne@(i,coo)  =  do
         let pos = trans rnew coo
-        (_,visitedLink) <- get
         locateGrid lmap nmap n  pos i (Left $ var i lmap )
-  l <- mapM trav  (nextElement l s e)
+  l <- mapM trav  (nextS l s e)
   return (foldl (liftA2 mappend) (pure []) l )
 
 locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
@@ -107,21 +108,23 @@ locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
     modify (<> (mempty ,M.singleton l i))
     return err
   | n == tn = do
-    (i,err) <- revpath hn (revElems e)
+    (i,err) <- revpath hn ( e)
     modify (<> (mempty ,M.singleton l i))
     return err
     return (pure [])
   | otherwise = error $ "wrong back element " <> show n  <> " " <> show ll
   where
+
     revpath  nn e = do
       let
-        sn =  scanr transElemr r  (elemTrans <$> e) -- (head <$> es) --
+        es =justError "no element" .  M.lookup hn . M.fromList . nextE tn [hn,tn] <$> reverse e
+        sn =  scanr transElemr r es
       err <- nextNode  (head sn) nn
       return (init $ reverse sn,err)
     path  nn e = do
       let
-        -- es = fmap snd . nextElement nn [hn,tn] <$> e
-        sn =  scanl transEleml r   (elemTrans <$> e)
+        es =justError "no element" .  M.lookup tn . M.fromList . nextE hn [hn,tn] <$> e
+        sn =   scanl transEleml r es
       err <- nextNode  (last sn) nn
       return (init sn,err)
     nextNode  pos@(dt ,a) nn  = do
@@ -148,32 +151,26 @@ locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
 
 
 
-r2p = p3 . unr3
 
 rotM = rotD
 
-transElemr e =  flip untrans (e)
-transEleml i e =  trans i (e)
+transElemr e =  flip untrans e
+transEleml i e =  trans i e
 
-
-
-varM i j = case M.lookup i j of
-              Nothing ->  Nothing
-              i -> i
 
 drawGrid iter = statements  $ styleNodes iter <> styleLinks iter <> {- styleSurfaces iter <> -}styleVolume iter
   where
     styleNodes  it = catMaybes $ fmap (\i -> do
             pos <- varM (fst i) gridMap
             let pres = 0
-            return $ transformElement  pos $ renderNode [] (fst i ) (snd i) ) (nodesFlow it)
+            return $ transformElement  pos $ renderNode  (fst i ) (snd i) ) (nodesFlow it)
       where
         gridMap = (M.fromList (shead $ it))
 
     styleLinks it = concat $ catMaybes $  fmap (\(l,(h,t,i))  -> do
                 pos <- varM l  posMap
                 return $ catMaybes $ zipWith3 (\m ix n ->  do
-                  return $ transformElement m $ renderLink  (h,t) ix  l n ) pos  [0..] i ) (links (it))
+                  return $ transformElement m $ renderLink   ix  l n ) pos  [0..] i ) (links (it))
       where
         posMap = M.fromList $ linksPosition (it)
 
@@ -221,7 +218,7 @@ drawIter iter = statements $ nds <> lds <> styleSurfaces (grid iter) <> styleVol
             pos <- varM (fst i) gridMap
             pres <- varM (fst i) (M.fromList (pressures it))
             let nstate = mergeStates (constrained (snd i))  pres
-            return $ transformElement  pos $ (renderNode  [] (fst i) (snd i) <> renderNodeSolve nstate (fst i) (snd i) )) (nodesFlow (grid it))
+            return $ transformElement  pos $ (renderNode   (fst i) (snd i) <> renderNodeSolve nstate (fst i) (snd i) )) (nodesFlow (grid it))
       where
         gridMap = (M.fromList (shead $ grid it))
 
@@ -229,7 +226,7 @@ drawIter iter = statements $ nds <> lds <> styleSurfaces (grid iter) <> styleVol
                 pos <- varM l  posMap
                 return $ catMaybes $ zipWith3 (\m ix n ->  do
                   let flow = 0
-                  return $ transformElement m $ renderLink  (h,t) ix  l n ) pos  [0..] i ) (links (grid it))
+                  return $ transformElement m $ renderLink   ix  l n ) pos  [0..] i ) (links (grid it))
       where
         posMap = M.fromList $ linksPosition (grid it)
 
@@ -238,27 +235,11 @@ drawIterGraph  iter = statements $ nds <> lds
   where nds = styleNodes iter
         lds = styleLinks iter
         styleNodes  it = catMaybes $ fmap (\i -> do
-                return $ renderNode [] (fst i) (snd i) ) (nodesFlow (it))
+                return $ renderNode  (fst i) (snd i) ) (nodesFlow (it))
           where
                 gridMap = (M.fromList (shead $ it))
 
         --styleLinks :: Iteration Double -> [Mecha.Solid]
         styleLinks it = concat $ catMaybes $  fmap (\(l,(h,t,i))  -> do
                     return $ catMaybes $ zipWith3 (\m ix n ->  do
-                      return $ renderLink  (h,t) ix  l n ) [0..] [0..] i ) (links (it))
-
-
-
-revElems :: (PreSys f ,Num a) => [f a ] -> [f a]
-revElems = reverse .fmap revElem
-
-reflectPath el  ori = (compareS res ori , zipWith compareS fpath (bpath) ,zip fpath bpath)
-  where
-    res = foldr transElemr  end el
-    end  = foldl transEleml  ori el
-    fpath  = scanl transEleml ori el
-    bpath = scanr transElemr end el
-    compareS res ori = dist res ori < (1e-9 , 1e-9)
-    ang res = (unRot . SO3  . distribute . unSO3) res
-
-
+                      return $ renderLink   ix  l n ) [0..] [0..] i ) (links (it))

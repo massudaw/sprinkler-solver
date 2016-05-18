@@ -68,7 +68,7 @@ classifyTee fluid (TBL tblmap) flowMap t@(TeeConfig [_,bi] asection@[_,sec] (Elb
       where
         [ta] = fmap snd $ fromJustE ("no table " <> t <>  show tblmap) $ M.lookup t tblmap
 classifyTee fluid (TBL tblmap) flowMap t@(TeeConfig [_,bi] asection@[_,sec] (Screen n a1 ))
-  | otherwise = traceShowId $ lossess "Cd9-1"
+  | otherwise = lossess "Cd9-1"
   where
     [_,vi]  = zipWith (\a q->abs q/areaS a) asection  bl
     bl = (\i -> fromJustE ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) <$> teeConfig t
@@ -102,7 +102,7 @@ classifyTee fluid (TBL tblmap) flowMap t@(TeeConfig [_,bi] asection@[_,sec] (Dam
   where
     [_,vi]  = zipWith (\a q->abs q/areaS a) asection  bl
     bl = (\i -> fromJustE ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) <$> teeConfig t
-    lossess t = zip [bi] $ zipWith (*) [density fluid * vi^2/2] [traceShowId $ fromJustE "no linear cs" $  bilinearInterp (theta,traceShowId $  d/hydraulicDiameter sec) (buildTable2D ta)]
+    lossess t = zip [bi] $ zipWith (*) [density fluid * vi^2/2] [fromJustE "no linear cs" $  bilinearInterp (theta,d/hydraulicDiameter sec) (buildTable2D ta)]
       where
         [ta] = fmap snd $ fromJustE ("no table " <> t <>  show tblmap) $ M.lookup t tblmap
 classifyTee fluid (TBL tblmap) flowMap t@(TeeConfig _ asection@[sec] (RectangularEntry theta l wall))

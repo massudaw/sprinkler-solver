@@ -39,7 +39,11 @@ import Mecha
 
 import Control.Lens
 
-import Diagrams.Prelude hiding (end,Ambient)
+-- import Diagrams.Prelude hiding (end,Ambient)
+import Data.Semigroup
+import Linear.V2
+import Linear.V3
+import Control.Applicative
 
 
 path i h t  l = (i,h,t,  l)

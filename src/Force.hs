@@ -341,9 +341,8 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
 
 
 instance Coord Force (V3 Double) where
-  nextElement  = nextS
   thisElement l i = (\(u,m,j)-> (if u /= 0 then 0 else if m /= 0 then 1 else if j/= 0 then 2 else 2,(0,SO3 . P.rotM $ (V3 (opi u) (opi m) (opi j))))) <$> thisF l i
-  elemTrans t = (lengthE t , angleE t)
+  {-elemTrans t = (lengthE t , angleE t)
     where
       angleE  = SO3 . P.rotM . opi . angE
         where
@@ -355,6 +354,7 @@ instance Coord Force (V3 Double) where
       lengthE (Beam  c  m s _ _ ) = r3 (c,0,0)
       lengthE i = 0
       r3 (x,y,z) = V3 x y z
+      -}
 
 skew231 (V3 x y z) = V3 (V3 0 z (-y)) (V3 (-z) 0 x) (V3 y (-x) 0)
 

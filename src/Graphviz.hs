@@ -21,12 +21,12 @@ renderGraph i f =  do
          , directedGraph = False , graphID = Just (Num (Int 1))
          , graphStatements = Seq.fromList  i}) Png f
 
-renderElemMecha _ ni Node  = [DN $ DotNode ni [shape MDiamond]]
-renderElemMecha _ ni Ground  = [DN $ DotNode ni [shape MSquare]]
-renderElemMecha _ ni i = error $ show (ni,i)
+renderElemMecha  ni Node  = [DN $ DotNode ni [shape MDiamond]]
+renderElemMecha  ni Ground  = [DN $ DotNode ni [shape MSquare]]
+renderElemMecha  ni i = error $ show (ni,i)
 
-renderLinkMecha (h,t) nis ni (VoltageSource v ) = [DE $ DotEdge h t [Label $ StrLabel $ T.pack $ show v <> "V"] ]
-renderLinkMecha (h,t) nis ni (Resistor r ) = [DE $ DotEdge h t [Label $ StrLabel $ T.pack $show r <> "ohm" ] ]
+-- renderLinkMecha  nis ni (VoltageSource v ) = [DE $ DotEdge h t [Label $ StrLabel $ T.pack $ show v <> "V"] ]
+-- renderLinkMecha  nis ni (Resistor r ) = [DE $ DotEdge h t [Label $ StrLabel $ T.pack $show r <> "ohm" ] ]
 
 instance RBackend [DotStatement Int] where
   type TCoord [DotStatement Int]= V3 Double
@@ -35,12 +35,12 @@ instance RBackend [DotStatement Int] where
 
 instance Target  Eletric [DotStatement Int] where
   renderNode = renderElemMecha
-  renderLink = renderLinkMecha
+  -- renderLink = renderLinkMecha
 
 instance Target  Thermal [DotStatement Int] where
-  renderNode _ ni ThermalNode = [DN $ DotNode ni [shape Egg]]
-  renderNode _ ni (Ambient v) = [DN $ DotNode ni [XLabel $  StrLabel $ T.pack $ (show v) <> "ºC" , shape MDiamond]]
-  renderLink (h,t) nis ni (HeatFlow v ) = [DE $ DotEdge h t [Label $ StrLabel $ T.pack $ show v <> "F"] ]
-  renderLink (h,t) nis ni (Conductor v ) = [DE $ DotEdge h t [Label $ StrLabel $ T.pack $ show v <> "R"] ]
+  renderNode  ni ThermalNode = [DN $ DotNode ni [shape Egg]]
+  renderNode  ni (Ambient v) = [DN $ DotNode ni [XLabel $  StrLabel $ T.pack $ (show v) <> "ºC" , shape MDiamond]]
+  -- renderLink  nis ni (HeatFlow v ) = [DE $ DotEdge h t [Label $ StrLabel $ T.pack $ show v <> "F"] ]
+--  renderLink  nis ni (Conductor v ) = [DE $ DotEdge h t [Label $ StrLabel $ T.pack $ show v <> "R"] ]
 
 

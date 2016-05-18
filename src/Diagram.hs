@@ -34,18 +34,18 @@ import Diagrams.TwoD.Text (Text)
 
 
 
-renderElem s n (Open i) =  regPoly 6 0.1
-renderElem s n (Tee (TeeConfig tc@[rl,b,rr] _  _ ) _ ) = regPoly 3 0.1
-renderElem s n (Sprinkler ((d,k))  _ _ _) = regPoly 5 0.1
-renderElem  _ _ _ = regPoly 4 0.1
+renderElem  n (Open i) =  regPoly 6 0.1
+renderElem  n (Tee (TeeConfig tc@[rl,b,rr] _  _ ) _ ) = regPoly 3 0.1
+renderElem  n (Sprinkler ((d,k))  _ _ _) = regPoly 5 0.1
+renderElem   _ _ = regPoly 4 0.1
 
-renderLinkSVG  _ sl l t@(Tubo _ c _) =   line
+renderLinkSVG   sl l t@(Tubo _ c _) =   line
   where
     line =  translateX (c/2) ahead <> (fromOffsets [c *^ unitX ] )
-renderLinkSVG  _ sl l j@(Joelho _ _ )  =  joelho
+renderLinkSVG   sl l j@(Joelho _ _ )  =  joelho
   where
     joelho = fromOffsets [0.1 *^ unitX,0.1 *^ unitY]
-renderLinkSVG  _ sl l i = mempty
+renderLinkSVG   sl l i = mempty
 
 instance RBackend (Path V3 Double) where
   type TCoord (Path V3 Double ) = V3 Double
@@ -144,6 +144,8 @@ regPoly n l = Diagram.polygon (def & polyType .~
                            & polyOrient .~ OrientH
                            )
 
+about (ix,iy,iz) = transform (aboutX (ix @@ turn)) . transform (aboutZ (iz @@ turn))  . transform (aboutY (iy @@ turn))
+
 diagramRender :: FilePath -> Path V3 Double -> IO ()
 diagramRender file house = do
    let
@@ -151,3 +153,4 @@ diagramRender file house = do
      isometricHouse = stroke $ isometricApply zDir house
 
    renderSVG file (mkSizeSpec2D (Just 800) Nothing) ( hsep 1 . map (sized (mkHeight 3) . centerXY) $ [ isometricHouse ] :: Diagram B)
+
