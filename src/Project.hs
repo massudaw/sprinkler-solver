@@ -216,10 +216,10 @@ renderModel regionRisk range (header,model) = do
         where label =  L.find (\(Entity  _ _ (TEXT (V3 x y _)  _ _ _ _)) -> Polygon.contains  (PolygonCW $ fmap (\(V2 i j) -> Point2 (i,j)) b) (Point2 (x,y)))$  filter ((== "area_label").layer. eref) $ entities f
               name = maybe (show i) (\(Entity _ _ (TEXT _ _ l   _ _)) -> l) label
       modelg = fst $ upgradeGrid 0 1 $ model
+  drawSCAD (baseFile header) (baseFile header) modelg
+  renderDXF  (baseFile header) fname  (drawGrid  modelg)
   mapM (\r -> do
      solveModel (header , initIter (fst $ upgradeGrid 0 1 $ filterBounded (regionBoundary r)  $ modelg ) $ defAmbient,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
-  renderDXF  (baseFile header) fname  (drawGrid  modelg)
-  drawSCAD (baseFile header) (baseFile header) modelg
 
 
 solveModel (header ,model,region ) = do

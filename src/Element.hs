@@ -87,7 +87,7 @@ instance Coord Element (V3 Double) where
               where t = ang/pi/2
           els (_,(Tee (TeeConfig [rl,b,rr] _ (RoundTee ang  _ _ ) ) _ ))
             =  [(rl,1/2 - t ),(rr,-t),(b,0)]
-              where t = ang/360
+              where t = ang/pi/2
           els (_,(Tee (TeeConfig [rl,b,rr]  _ (RectangularTee _ )) _ ))
             =  [(rl,1/2 - t ),(rr,-t),(b,0)]
               where t = 1/4
