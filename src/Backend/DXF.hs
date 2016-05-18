@@ -27,8 +27,15 @@ import qualified Language.Mecha.Solid as Mecha
 import Language.Mecha.Export
 import qualified Data.Text as T
 
+import Linear.Metric
+import Linear.Matrix
+import Linear.Vector
+import Linear.V2
+import Control.Lens
+import Control.Applicative
+import Data.Semigroup
 
-import Diagrams.Prelude
+
 
 
 genEntity ty@(LINE x y) l h = Entity "LINE" (Object h "4C9" "AcDbEntity"  Nothing l Nothing Nothing Nothing Nothing (Just "AcDbLine"))  ty

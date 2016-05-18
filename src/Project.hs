@@ -36,10 +36,7 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
 import Mecha
-
 import Control.Lens
-
--- import Diagrams.Prelude hiding (end,Ambient)
 import Data.Semigroup
 import Linear.V2
 import Linear.V3

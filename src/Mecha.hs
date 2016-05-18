@@ -16,6 +16,7 @@ import Linear.V3
 import qualified Data.List as L
 import Data.Ord
 import Linear.V4
+
 import Element
 import qualified Data.Foldable as F
 
@@ -25,8 +26,13 @@ import qualified Language.Mecha.Solid as Mecha
 import Language.Mecha.Export
 import qualified Data.Text as T
 
-
-import Diagrams.Prelude
+import Linear.Metric
+import Linear.Matrix
+import Linear.Vector
+import Linear.V2
+import Control.Lens
+import Control.Applicative
+import Data.Semigroup
 
 
 -- testtrig = trigbandsegment [V2 1 2 , V2 0 0 , V2 1 0] [0,2,3] 1 0.4
