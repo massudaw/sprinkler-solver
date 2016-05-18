@@ -29,12 +29,12 @@ library
     ,Sprinkler
     ,Tee
     ,Position
-    ,Diagram
+    ,Backend.Graphviz
+    ,Backend.Diagram
     ,Backend.Mecha
     ,Backend.DXF
     ,Lint
     ,Equation
-    ,Graphviz
     ,Plane
   build-depends:        base >=4.7 && <4.9
                       , hmatrix

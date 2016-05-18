@@ -4,6 +4,7 @@ module Element where
 
 import Hydraulic
 import Backend.Mecha as Mecha
+import Backend.DXF
 import qualified Position as P
 import Control.Lens ((^.))
 import Debug.Trace
@@ -191,22 +192,8 @@ ktubo t  = perda*10/(1000*60)**1.85
 
 jacobianEqNodeHeadGrid :: (Show a , Ord a ,Floating a) => Ambient a -> Grid Element a -> M.Map Int (LinkDomain Element a) -> M.Map Int (LinkDomain Element  a) -> [a]
 jacobianEqNodeHeadGrid e = (\l v h -> jacobianNodeHeadEquation e l (runIdentity <$> v) (runIdentity <$> h) <> jacobianContinuity l (runIdentity <$> v) (runIdentity <$> h))
-{-
-rel = [tubod dm 0.5 , Turn (1/4) ,joelhoR  , tubod dm 1.2 , joelhoL,Turn (-1/4) , tubod dm 0.5]
-  where
-      dm = 0.08
-      tubod  d l  = Tubo (Just d) l 100
-      joelhoR  = Joelho right90 $ TabelaPerda Nothing ("Conexao","Joelho","90") 100
-      joelho  = joelhoR
-      joelhoL  = Joelho left90 $ TabelaPerda  Nothing ("Conexao","Joelho","90") 100
-      rightC d = d
-      right90  = rightC $ 1/4
-      leftC d = -d
-      left90  = leftC $ 1/4
 
-rori = (V3 1 0 (0::Double) , SO3 $rotM (V3 0 0 (-pi/2) :: V3 Double))
 
--}
 
 --------------------------
 -- Mecha Backend        --
@@ -245,4 +232,20 @@ renderLinkMecha   nis _  o = Mecha.sphere 0.02
 instance Target Element Mecha.Solid  where
   renderNode = renderElemMecha
   renderLink = renderLinkMecha
+
+
+----
+-- DXF Backend
+---
+
+instance Target Element [EntityTy] where
+  renderLink  nis ni (Tubo (Circular d) c _ ) = [TEXT (V3 (c/2) 0.3 0) 0.2 (show $ round (d*1000))  Nothing Nothing, LINE 0 (V3 c 0 0)]
+  renderLink  nis ni (Joelho _ (TabelaPerda (d) c _ ) ) = []
+  renderLink  nis ni i = [CIRCLE 0 0.2]
+  renderNode  nis (Sprinkler _ _ _ _)  = [INSERT "spk" 0  (Just 1) Nothing Nothing []]
+  renderNode  nis (Tee _ _) = []
+  renderNode  nis (Open _ ) = []
+  renderNode  nis i = [CIRCLE 0 0.2]
+
+
 

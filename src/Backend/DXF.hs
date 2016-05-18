@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables,MultiParamTypeClasses,FlexibleInstances,TypeSynonymInstances,GADTs,TypeFamilies, FlexibleContexts,RankNTypes,TupleSections,RecursiveDo, NoMonomorphismRestriction #-}
-module Backend.DXF (renderDXF) where
+module Backend.DXF (renderDXF,module DXF) where
 
 import Data.Distributive
 import GHC.Stack
@@ -16,7 +16,6 @@ import Linear.V3
 import qualified Data.List as L
 import Data.Ord
 import Linear.V4
-import Element
 import qualified Data.Foldable as F
 
 import qualified Data.Map as M
@@ -26,7 +25,6 @@ import Linear.Metric
 import Linear.Matrix
 import Linear.Vector
 import Data.Semigroup
-
 
 
 
@@ -104,12 +102,5 @@ instance RBackend [EntityTy]  where
         where (ax,np) = convert2 ( v ^+^ r !* o , SO3 r)
               (a,_ ) = rotationToAxis r
   statements = concat
-instance Target Element [EntityTy] where
-  renderLink  nis ni (Tubo (Circular d) c _ ) = [TEXT (V3 (c/2) 0.3 0) 0.2 (show $ round (d*1000))  Nothing Nothing, LINE 0 (V3 c 0 0)]
-  renderLink  nis ni (Joelho _ (TabelaPerda (d) c _ ) ) = []
-  renderLink  nis ni i = [CIRCLE 0 0.2]
-  renderNode  nis (Sprinkler _ _ _ _)  = [INSERT "spk" 0  (Just 1) Nothing Nothing []]
-  renderNode  nis (Tee _ _) = []
-  renderNode  nis (Open _ ) = []
-  renderNode  nis i = [CIRCLE 0 0.2]
+
 
