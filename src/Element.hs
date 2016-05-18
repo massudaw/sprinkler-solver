@@ -59,10 +59,6 @@ instance PreSys Element  where
       convL Nothing = (Just 98)
       varsL = fmap (fmap ((fmap convL . lconstrained ))) $ (fmap (\(i,(_,_,l))-> (i,l)) $  links g)
 
-  revElem (Joelho b p ) = Joelho (-b) p
-  revElem (Turn i ) = Turn i
-  revElem (Tubo a b c) = (Tubo a (-b) c)
-  revElem i = i
   constrained (Tee (TeeConfig _ _ (DuctEntry _ _ )) _ ) = Identity (Just 0)
   constrained (Tee (TeeConfig _ _ (RectangularEntry _ _ _ )) _ ) = Identity (Just 0)
   constrained (Tee (TeeConfig _ _ (RoundEntry _ _  )) _ ) = Identity (Just 0)
@@ -76,11 +72,12 @@ instance PreSys Element  where
 
 instance Coord Element (V3 Double) where
   thisElement [a,b] (Bomba  _ _ ) = (2,)<$> M.fromList [(a,(0,SO3 $ P.rotM 0)),(b,(V3 0 0 0,SO3 $ P.rotM 0))]
+  thisElement [a,b] (Perda  _ ) = (2,)<$> M.fromList [(a,(0,SO3 $ P.rotM 0)),(b,(V3 0 0 0,SO3 $ P.rotM 0))]
   thisElement [a,b] (Tubo _ c _ ) = (2,)<$> M.fromList [(a,(0,SO3 $ P.rotM 0)),(b,(V3 c 0 0,SO3 $ P.rotM 0))]
   thisElement [a,b] (Joelho  c _ ) = (2,)<$> M.fromList [(a,(0,SO3 $ P.rotM 0)),(b,(0,SO3 $ P.rotM (V3 0 0 (opi c) )))]
   thisElement [a,b] (Turn c ) = (0,)<$> M.fromList [(a,(0,SO3 $ P.rotM 0)),(b,(0,SO3 $ P.rotM (V3 (opi c) 0 0 )))]
   thisElement _ (Tee (TeeConfig [rl,rr]  _ (FanSystemInteraction (Elbow ang  _ _ ) len _ )) _ ) = (2,).(\ (l,j) -> (V3 0 (-l) 0 ,SO3 $ P.rotM $ fmap opi (V3 0 0 j ))) <$> M.fromList [(rl,(len,0)),(rr,(0,1/2 + ang/360))]
-  thisElement l i = (2,). (\j-> (0,SO3 $ P.rotM $ fmap opi  (V3 0 0 j))) <$> this  (F.toList l,i)
+  thisElement l i = (2,). (\j-> (0,SO3 $ P.rotM $ fmap opi  (V3 0 0 j))) <$> this  (l,i)
     where
       this =  M.fromList .  els
         where

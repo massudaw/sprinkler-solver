@@ -87,6 +87,10 @@ data InternalConfig a
   , teeRadius :: a
   , teeMaterial :: a
   }
+  | Diffusor
+  { interactionElement :: InternalConfig a
+  , fanMode :: FanMode a
+  }
   | Transition
   { transitionAngle :: a }
   | RectangularTee

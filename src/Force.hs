@@ -363,7 +363,7 @@ rot2V3  x y = identV3 !+! skewV3 v !+! ((*((1 - dot x y)/(norm v)^2)) **^ (skewV
     v = cross x y
 
 thisF l (Connection i _ ) = M.fromList i
-thisF l e = M.fromList (fmap (fmap (0,0,)) . els . (F.toList l,) $ e)
+thisF l e = M.fromList (fmap (fmap (0,0,)) . els . (l,) $ e)
   where
     els ([a,b,c,d,e,f],i)
       =  [(a,0),(b,0),(c,0),(d,0),(e,0),(f,0)]

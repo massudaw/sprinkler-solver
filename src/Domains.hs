@@ -21,15 +21,12 @@ module Domains
   )where
 
 import Linear.V3
-import Data.Set(Set)
 import Data.Functor.Compose
 import Data.Monoid
 import Rotation.SO3
-import qualified Data.Set as S
 import qualified Data.Map as M
 import Control.Monad.State
 import GHC.Stack
-import System.IO.Unsafe
 
 data Grid  b a
   = Grid
@@ -47,7 +44,6 @@ class PreSys sys  where
   type NodeDomain sys  :: (* -> *)
   type LinkDomain sys  :: (* -> *)
   type SurfaceDomain sys  :: (* -> *)
-  revElem :: Num a => sys  a -> sys a
   initIter :: (Functor (LinkDomain sys),Traversable (NodeDomain sys),Fractional a) => Grid sys a -> (Enviroment sys a -> Iteration sys a)
   initIter g = (\e -> Iteration  (fmap Compose <$> varsL) (fmap Compose <$> varsN)  e g)
     where
