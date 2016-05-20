@@ -4,8 +4,9 @@ module Backend.Mecha (marrow3d,arrow3d,arrow3dl,module Mecha) where
 import GHC.Stack
 import Debug.Trace
 import Numeric
-import Position
+import Domains
 import Rotation.SO3
+import Position (rotM)
 import Linear.V3
 import Linear.V4
 

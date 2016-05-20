@@ -10,8 +10,7 @@ import Rotation.SO3
 import Data.Maybe
 import Sprinkler
 import Tee
-import Position
-import Element
+import Domains
 import Numeric.AD
 import qualified Data.Map as M
 import Control.Applicative
@@ -27,13 +26,13 @@ import Diagrams.LinearMap         (amap)
 import Linear.Matrix
 import Exponential.Class
 import Diagrams.ThreeD.Projection
-import Diagrams.Prelude hiding (trace,regPoly,offset)
+import Diagrams.Prelude hiding (trace,regPoly,offset,polyTrail,polygon)
 import Diagrams.Backend.SVG
 import Diagrams.TwoD.Text (Text)
 
 
 
-
+{-
 renderElem  n (Open i) =  regPoly 6 0.1
 renderElem  n (Tee (TeeConfig tc@[rl,b,rr] _  _ ) _ ) = regPoly 3 0.1
 renderElem  n (Sprinkler ((d,k))  _ _ _) = regPoly 5 0.1
@@ -47,14 +46,16 @@ renderLinkSVG   sl l j@(Joelho _ _ )  =  joelho
     joelho = fromOffsets [0.1 *^ unitX,0.1 *^ unitY]
 renderLinkSVG   sl l i = mempty
 
+instance Target  Element (Path  V3 Double ) where
+  renderNode = renderElem
+  renderLink = renderLinkSVG
+-}
+
 instance RBackend (Path V3 Double) where
   type TCoord (Path V3 Double ) = V3 Double
   errorItem = errorCross
   transformElement (r,x)= translateX (r ^. _x) . translateY (r ^. _y) . translateZ(r ^. _z) . about (unr3 $ unRot123 x)
 
-instance Target  Element (Path  V3 Double ) where
-  renderNode = renderElem
-  renderLink = renderLinkSVG
 
 
 errorCross =   fromOffsets [ unitX , unitY  ]
@@ -133,11 +134,11 @@ orientPoints v xs = aboutZ a
 
 
 polygon :: (InSpace V3 n t, TrailLike t, OrderedField n) => PolygonOpts n -> t
-polygon = trailLike . Diagram.polyTrail
+polygon = trailLike . polyTrail
 
 
 regPoly :: (InSpace V3 n t, TrailLike t, OrderedField n) => Int -> n -> t
-regPoly n l = Diagram.polygon (def & polyType .~
+regPoly n l = polygon (def & polyType .~
                                PolySides
                                  (repeat (1/fromIntegral n @@ turn))
                                  (replicate (n-1) l)

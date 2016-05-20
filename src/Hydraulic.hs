@@ -141,7 +141,7 @@ data TeeConfig a
 data TeeConfigType a
   = Table
   | Formula
-  | TBL (M.Map String [(String,TableType a )])
+  | TBL
   deriving (Eq,Ord,Show,Functor)
 
 data TabelaPerda a
@@ -223,7 +223,7 @@ areaS :: Floating a => Section a -> a
 areaS (Rectangular w h ) = w*h
 areaS (Circular d) = pi*(d/2)^2
 
-areaE :: Floating a => Element a -> a
+areaE :: (Show a,Floating a) => Element a -> a
 areaE (Tubo (Rectangular i j) _ _ ) = i*j
 areaE e = pi*(( diametroE e)/2)^2
 
@@ -233,11 +233,11 @@ roughnessE e = justError "no roughness" $ M.lookup (materialE e) (M.fromList [(1
 sectionE  (Tubo d _ _ ) = d
 sectionE  i = errorWithStackTrace (show i)
 
-diametroE :: Floating a => Element a -> a
+diametroE :: (Show a, Floating a )=> Element a -> a
 diametroE (Tubo d _ _ ) = hydraulicDiameter d
 diametroE (Joelho _ p ) = hydraulicDiameter (section p)
 diametroE (Perda d ) = hydraulicDiameter (section d)
-diametroE i = errorWithStackTrace "no diameter"
+diametroE i = errorWithStackTrace ("no diameter" <> show i)
 
 distanciaE :: (Show a,Ord a,Floating a )=> Element a -> a
 distanciaE (Tubo _ d _ ) = d
@@ -246,6 +246,11 @@ distanciaE (Joelho _ (TabelaPerda s tipo  c)) =  justError (show ("joelho",tipo,
 distanciaE (Perda   (TabelaPerda s tipo c)) = justError (show ("perda",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
   where dtubom = hydraulicDiameter s
 distanciaE i = 0
+
+fittingsE joelhos (Joelho _ (TabelaPerda s tipo  c)) =  justError (show ("joelho",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
+  where dtubom = hydraulicDiameter s
+fittingsE joelhos (Perda   (TabelaPerda s tipo c)) = justError (show ("perda",tipo,c, dtubom*1000)) $ join $ fmap (M.lookup (dtubom*1000)) $ M.lookup (tipo,c) joelhos
+  where dtubom = hydraulicDiameter s
 
 materialE :: Show a => Element  a -> a
 materialE (Tubo _ _ c) =  c

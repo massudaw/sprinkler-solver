@@ -1,5 +1,5 @@
-{-# LANGUAGE RecursiveDo  #-}
-module Input ((>~>),link',node',link,node, surface,polyhedra,runInput) where
+{-# LANGUAGE NoMonomorphismRestriction,RecursiveDo  #-}
+module Input ((>~>),link',node',link,node, surface,polyhedra,runInput,(>:>),(<|),(|>),pureL',pureL) where
 
 import Sprinkler
 import Hydraulic
@@ -7,7 +7,7 @@ import Domains
 import Data.Functor.Identity
 import Element
 import Grid
-import Control.Lens
+import Control.Lens hiding ((<|),(|>))
 
 import Data.Monoid
 import Control.Monad.Trans.State
@@ -92,5 +92,51 @@ a >~> b = (\(i,l)-> mdo
           (e,f) <- a (i,n)
           (m,n) <- b (e,l)
           return (m,f) )
+
+
+pureL' :: Monad m => (t -> t1 -> m t2) -> (t, t1) -> m (t2, t2)
+pureL' l (i,o) = mdo
+  v <- l i o
+  return (v,v)
+
+pureL :: Monad m => ((t, t1) -> m t2) -> (t, t1) -> m (t2, t2)
+pureL l (i,o) = mdo
+  v <- l (i,o)
+  return (v,v)
+
+(>:>) = consL
+consL
+  :: MonadFix m =>
+     ((t, t1) -> m (t4, t2))
+     -> ((t2, t3) -> m (t1, t5)) -> (t, t3) -> m (t4, t5)
+consL l m (i,o) =  mdo
+  (vi,vo) <- l (i,ri)
+  (ri,ro) <- m (vo,o)
+  return (vi,ro)
+
+infixl 1 |>
+infixr 1 <|
+
+(|>) = leftL
+(<|) = flip rightL
+
+rightL
+  :: MonadFix m =>
+     (t5 -> m t3)
+     -> ((t2, t3) -> m (t, t5)) -> t2 -> m t
+rightL l m o =  mdo
+  vo <- l ri
+  (ro,ri) <- m (o,vo)
+  return ro
+
+
+leftL
+  :: MonadFix m =>
+     (t -> m t2)
+     -> ((t2, t3) -> m (t, t5)) -> t3 -> m t5
+leftL l m o =  mdo
+  vo <- l ri
+  (ri,ro) <- m (vo,o)
+  return ro
 
 

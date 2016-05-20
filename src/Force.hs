@@ -74,13 +74,6 @@ data Force a
 
 newtype Forces a = Forces {unForces :: (V3 a , V3 a , V3 a, V3 a )} deriving (Foldable,Functor,Traversable,Show)
 
-instance Fractional a => Fractional (Maybe a) where
-  fromRational i = Just (fromRational i)
-instance Num a => Num (Maybe a) where
-  fromInteger i = Just (fromInteger i)
-  i + j  = liftA2 (+) i  j
-  negate  = fmap negate
-
 instance Show1 Forces where
   showsPrec1 = showsPrec
 
@@ -397,7 +390,7 @@ testtrig3 = do
   let
     trig = contourBandplotTrig3 [V2 0 5 , V2 5 0 , V2 0 0] [3,8,8] 0 8 0.1 0.01
     quad = contourBandplotquad4 (zip [3,3,3,8] [V2 5 0 ,  V2 5 5 ,V2 0 5 , V2 0 0 ] )  0 8 0.1 0.01
-  writeFile "test.scad" $ T.unpack $ openSCAD $ Statements $ fmap  (\(c,p)-> color c (Mecha.extrude p 0.1 )) quad
+  writeFile "test.scad" $ T.unpack $ openSCAD $ Statements $ fmap  (\(c,p)-> color c (extrude p 0.1 )) quad
 
 contourBandplotquad4 xyc@[p1,p2,p3,p4] fmin fmax finc eps
   = concat $ ftab <$> xytab
@@ -459,7 +452,7 @@ contourBandplotTrig3  xyc@[x1,x2,x3] fc fmin fmax finc eps
     gen :: [(Double,Double)]
     gen = [(fbot iv  ,ftop iv ) | iv <- [1..nv  ], not $ fbot iv >= f3 ||  ftop iv <= f1 ]
     loop ((flast,plast ,tlast),l) (fbot,ftop)
-      = ((ftop,pt,tt),((\p -> (contourBandColor favg fmin fmax,Mecha.Polygon (fmap (\(V2 x y ) -> [x,y])p) [[0..L.length p - 1]] )) <$> p):l)
+      = ((ftop,pt,tt),((\p -> (contourBandColor favg fmin fmax,Polygon (fmap (\(V2 x y ) -> [x,y])p) [[0..L.length p - 1]] )) <$> p):l)
       where
         favg = (fbot + ftop)/2
         (pb,tb)
@@ -474,18 +467,18 @@ contourBandplotTrig3  xyc@[x1,x2,x3] fc fmin fmax finc eps
 
 fromOnly i = maybe i (i <>)
 
-axis i@(V3 x y z) = ( Mecha.scale  (is,is,is) <$> arrow3dl x "x" )<> (Mecha.scale  (js,js,js) . Mecha.rotateZ (pi/2) <$>  arrow3dl y "y")<> (Mecha.scale  (ls,ls,ls) . Mecha.rotateY (pi/2) <$>arrow3dl z "z")
+axis i@(V3 x y z) = ( scale  (is,is,is) <$> arrow3dl x "x" )<> ( scale  (js,js,js) .  rotateZ (pi/2) <$>  arrow3dl y "y")<> ( scale  (ls,ls,ls) .  rotateY (pi/2) <$>arrow3dl z "z")
     where is = x/ni
           js = y/ni
           ls = z/ni
           ni = norm i
 
-instance Target Force Mecha.Solid  where
-  renderNode   ni (Support (Tag _ _ _ _ )) =   Mecha.color (0,1,0,1) $ Mecha.sphere 0.1 <> (Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
-  renderNode   ni _ =  Mecha.color (0,1,0,1) $ Mecha.sphere 0.1 <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))   -- <> fromJust (axis (V3 1 1 1))
+instance Target Force Solid  where
+  renderNode   ni (Support (Tag _ _ _ _ )) =   color (0,1,0,1) $  sphere 0.1 <> ( scale (0.03,0.03,0.03) ( text (show ni)))
+  renderNode   ni _ =  color (0,1,0,1) $  sphere 0.1 <>  (  moveY 0.2 $  scale (0.03,0.03,0.03) ( text (show ni)))   -- <> fromJust (axis (V3 1 1 1))
   renderNodeSolve (Forces (V3 _ _ _,_,i@(V3 x  y z),m@(V3 mx my  mz))) ix _
-    = Mecha.moveZ 2 $  Mecha.color (0,1,0,1) $  fromOnly (Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ix ))) $
-          ( Mecha.scale  (is,is,is) <$> arrow3d x )<> (Mecha.scale  (js,js,js) . Mecha.rotateZ (pi/2) <$>  arrow3d y)<> (Mecha.scale  (ls,ls,ls) . Mecha.rotateY (pi/2) <$>arrow3d z) <> ( Mecha.scale (mzs,mzs,mzs) <$> marrow3d mz <> (Mecha.scale  (mys,mys,mys) . Mecha.rotateY (pi/2) <$>marrow3d my ) <> (Mecha.scale  (mxs,mxs,mxs) . Mecha.rotateX (pi/2) <$>  marrow3d mx))
+    = moveZ 2 $   color (0,1,0,1) $  fromOnly ( moveY 0.2 $  scale (0.03,0.03,0.03) ( text (show ix ))) $
+          ( scale  (is,is,is) <$> arrow3d x )<> ( scale  (js,js,js) .  rotateZ (pi/2) <$>  arrow3d y)<> ( scale  (ls,ls,ls) .  rotateY (pi/2) <$>arrow3d z) <> (  scale (mzs,mzs,mzs) <$> marrow3d mz <> ( scale  (mys,mys,mys) .  rotateY (pi/2) <$>marrow3d my ) <> ( scale  (mxs,mxs,mxs) .  rotateX (pi/2) <$>  marrow3d mx))
     where is = x/ni
           js = y/ni
           ls = z/ni
@@ -494,30 +487,30 @@ instance Target Force Mecha.Solid  where
           mys = my/norm m
           mxs = mx/norm m
 
-  renderLink  nis  ni  (Link i   )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.move (i/2,d/2,d/2) $ Mecha.scale (st,st,st) (Mecha.text (show (ni))))
+  renderLink  nis  ni  (Link i   )  =  color (0.2,0.2,1, 1 ) $(  rotateY (pi/2) $  cylinder d (abs $ i*0.99)) <> (  move (i/2,d/2,d/2) $  scale (st,st,st) ( text (show (ni))))
     where d = 0.03 -- 2* (sqrt$ a/pi)
           st = 0.03
-  renderLink  nis  ni  (Link i   )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.move (i/2,d/2,d/2) $ Mecha.scale (st,st,st) (Mecha.text (show (ni))))
+  renderLink  nis  ni  (Link i   )  =  color (0.2,0.2,1, 1 ) $(  rotateY (pi/2) $  cylinder d (abs $ i*0.99)) <> (  move (i/2,d/2,d/2) $  scale (st,st,st) ( text (show (ni))))
     where d = 0.03 -- 2* (sqrt$ a/pi)
           st = 0.03
-  renderLink  nis  ni  (Bar i _ a )  =  Mecha.color (0.2,0.2,1, 1 ) $( Mecha.rotateY (pi/2) $ Mecha.cylinder d (abs $ i*0.99)) <> ( Mecha.move (i/2,d/2,d/2)$ Mecha.scale (st,st,st) (Mecha.text (show ni)))
+  renderLink  nis  ni  (Bar i _ a )  =  color (0.2,0.2,1, 1 ) $(  rotateY (pi/2) $  cylinder d (abs $ i*0.99)) <> (  move (i/2,d/2,d/2)$  scale (st,st,st) ( text (show ni)))
     where d = 2* (sqrt$ a/pi)
           st = 0.09
-  renderLink  nis  ni  (Beam i _ a _ _ )  =  Mecha.color (0.2,0.2,1, 1 ) $(   (Mecha.moveX (i/2) $ Mecha.scale (i,sqrt a , sqrt a) (Mecha.cube 1)  ) )<> ( Mecha.move (i/2,d/2,d/2) $ Mecha.scale (st,st,st) (Mecha.text (show ni)))
+  renderLink  nis  ni  (Beam i _ a _ _ )  =  color (0.2,0.2,1, 1 ) $(   ( moveX (i/2) $  scale (i,sqrt a , sqrt a) ( cube 1)  ) )<> (  move (i/2,d/2,d/2) $  scale (st,st,st) ( text (show ni)))
     where d = 0.03 -- 2* (sqrt$ a/pi)
           st = 0.09
-  renderLink    nis ni (BeamTurn _  ) = Mecha.sphere d
+  renderLink    nis ni (BeamTurn _  ) = sphere d
     where d = 0.03
-  renderLink    nis ni (BTurn _  ) = Mecha.sphere d
+  renderLink    nis ni (BTurn _  ) = sphere d
     where d = 0.03
-  renderLink   nis ni (Load  ) =  Mecha.color (0,1,0,1) $  (Mecha.rotateZ (pi) $ Mecha.moveX (-0.3) $ Mecha.rotateY (pi/2) (Mecha.cone 0.12 0  0.3)) <> Mecha.rotateY (pi/2) ( Mecha.cylinder 0.03 1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show (ni,nis))))
-  renderSurface ls nds (FaceLoop ) =  Mecha.sphere 0.01
-  renderSurface ls nds (Quad4 _ _) = Mecha.sphere 0.01 -- Mecha.color (0,1,1,0.1) $ Mecha.extrude (Mecha.polygon (F.toList <$> npos) [paths])  0.1
+  renderLink   nis ni (Load  ) =  color (0,1,0,1) $  ( rotateZ (pi) $  moveX (-0.3) $  rotateY (pi/2) ( cone 0.12 0  0.3)) <>  rotateY (pi/2) (  cylinder 0.03 1) <>  (  moveY 0.2 $  scale (0.03,0.03,0.03) ( text (show (ni,nis))))
+  renderSurface ls nds (FaceLoop ) =  sphere 0.01
+  renderSurface ls nds (Quad4 _ _) = sphere 0.01 --  color (0,1,1,0.1) $  extrude ( polygon (F.toList <$> npos) [paths])  0.1
     where
       nls = M.fromList $ zip (fst <$> nds) [0..]
       npos = (fst . snd <$> nds)
       paths = fmap (\n -> fromJust $M.lookup n nls) $ path $ (\(b,(h,t,l))-> if b then (h,t) else (t,h)) <$> ls
-  renderVolume ls nds _ = Mecha.color (0,1,1,1) $Mecha.polyhedra (F.toList <$> npos) paths
+  renderVolume ls nds _ = color (0,1,1,1) $ polyhedra (F.toList <$> npos) paths
     where
       nls = M.fromList $ zip (fst <$> nds) [0..]
       npos = (fst . snd <$> nds)
@@ -525,7 +518,7 @@ instance Target Force Mecha.Solid  where
   renderSurfaceSolve v ls nds (Quad4 _ _) si  =  st (contourBandplotquad4 (zip px ((\(V3 a b c) -> V2 a b) <$> npos)) (L.minimum px) (L.maximum px) ((L.maximum px - L.minimum px)/50) 0.01)
     where
       px = (^._x) <$> (fmap ((\i -> fromJust  $ M.lookup i (M.fromList v)).fst) $ L.nub nds )
-      st quad= foldl Mecha.Union si (fmap (\(c,p)-> Mecha.color c (Mecha.extrude p 0.11 ))   quad)
+      st quad= foldl Union si (fmap (\(c,p)->  color c ( extrude p 0.11 ))   quad)
       nls = M.fromList $ zip (fst <$> L.nub nds) [0..]
       npos = (fst . snd <$> L.nub nds)
       paths = fmap (\n -> fromJust $M.lookup n nls) $ path $ (\(b,(h,t,l))-> if b then (h,t) else (t,h)) <$> ls

@@ -18,6 +18,8 @@ module Domains
   ,justError
   ,PreCoord(..)
   ,Coord(..)
+  ,RBackend(..)
+  ,Target(..)
   )where
 
 import Linear.V3
@@ -26,6 +28,7 @@ import Data.Monoid
 import Rotation.SO3
 import qualified Data.Map as M
 import Control.Monad.State
+import Control.Applicative
 import GHC.Stack
 
 data Grid  b a
@@ -84,7 +87,7 @@ varM i j = case M.lookup i j of
               i -> i
 
 
-var :: Show a => Int -> M.Map Int a -> a
+var :: (Ord b ,Show b,Show a )=> b -> M.Map b a -> a
 var i m = case M.lookup i m of
                Just i -> i
                Nothing -> errorWithStackTrace $ "no variable " ++ show i  ++ " " ++ show m
@@ -134,3 +137,30 @@ prepareModel l model vh = model l v h
 
 nodesSet grid = fmap (\(i,n) -> (i,(var i nodeMapSet,n))) (nodesFlow grid)
     where nodeMapSet =  M.fromListWith mappend $ concat $ (\(l,(h,t,_)) -> [(h,[l ]),(t,[l ])]) <$> links grid
+
+
+instance Num a => Num (Maybe a) where
+  fromInteger i = Just (fromInteger i)
+  i + j  = liftA2 (+) i  j
+  negate  = fmap negate
+
+instance Fractional a => Fractional (Maybe a) where
+  fromRational i = Just (fromRational i)
+
+
+class RBackend a where
+  type TCoord a
+  transformElement  ::  (TCoord a,Ang (TCoord a)) -> a -> a
+  errorItem :: a
+  statements :: [a ] -> a
+
+class RBackend a => Target sys a  where
+  renderNode :: Int -> sys Double -> a
+  renderLink :: Int -> Int -> sys Double -> a
+  renderSurface :: [(Bool,(Int,Int, [sys Double]))] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
+  renderVolume :: [[(Bool,(Int,Int, [sys Double]))]] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
+  renderNodeSolve :: NodeDomain sys Double -> Int -> sys Double ->  a
+  renderLinkSolve :: LinkDomain sys Double -> sys Double ->  a
+  renderSurfaceSolve :: [(Int,SurfaceDomain sys Double )]-> [(Bool,(Int,Int, [sys Double]))] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a -> a
+
+

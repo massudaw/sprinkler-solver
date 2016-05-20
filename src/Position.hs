@@ -28,25 +28,8 @@ import Control.Monad.Trans.Class
 
 import Data.Semigroup
 
-class RBackend a where
-  type TCoord a
-  transformElement  ::  (TCoord a,Ang (TCoord a)) -> a -> a
-  errorItem :: a
-  statements :: [a ] -> a
-
-class RBackend a => Target sys a  where
-  renderNode :: Int -> sys Double -> a
-  renderLink :: Int -> Int -> sys Double -> a
-  renderSurface :: [(Bool,(Int,Int, [sys Double]))] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
-  renderVolume :: [[(Bool,(Int,Int, [sys Double]))]] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a
-  renderNodeSolve :: NodeDomain sys Double -> Int -> sys Double ->  a
-  renderLinkSolve :: LinkDomain sys Double -> sys Double ->  a
-  renderSurfaceSolve :: [(Int,SurfaceDomain sys Double )]-> [(Bool,(Int,Int, [sys Double]))] -> [(Int, (V3 Double,SO3 Double))] -> sys Double -> a -> a
-
-
 showErr (Other (Constant i)) = Left i
 showErr (Pure i)  = Right i
-
 
 subSp (i,b) (j,c) = (i ^-^ j, SO3 $   distribute (unSO3 c) !*! (unSO3  b )  )
 
@@ -54,16 +37,17 @@ nextS :: (Show (f Double),Coord f (V3 Double)) => Int -> [Int] -> f Double -> [(
 nextS l p v  = fmap (\i -> (i,  nElement i p v )) $ filter (/=l) p
 
 nextE :: (Show (f Double),Coord f (V3 Double)) => Int -> [Int] -> f Double -> [(Int,(V3 Double,SO3 Double))]
-nextE l p v  = fmap (\i -> (i, subSp  (tElement i p v) (tElement l p v))) $ filter (/=l) p
+nextE l p v  = fmap (\i -> (i,  subSp  (nElement i p v) ini ) ) $ filter (/=l) p
+  where ini =  tElement l p v
 
 
 -- tElement :: Show (f Double) => Int -> f Double -> TCoord (f Double)
 tElementInfer l i e = fmap snd . M.lookup l . thisElement i $ e
 tElement l i e = snd . justError (" no element " <> show l <> " in " <> show e  ) . M.lookup l . thisElement i $ e
 nElement l i e = case  justError (" no element " <> show (l,e) ) . M.lookup l . thisElement i $ e of
-            (0,v) -> subSp (0,SO3$ rotM (V3 pi 0 0)) v
-            (1,v) -> subSp (0,SO3$ rotM (V3 0 pi 0)) v
-            (2,v) -> subSp (0,SO3$ rotM (V3 0 0 pi )) v
+            (0,v) -> untrans (0,so3 (V3 pi 0 0)) v
+            (1,v) -> untrans (0,so3 (V3 0 pi 0)) v
+            (2,v) -> untrans (0,so3 (V3 0 0 pi )) v
 
 angDist i j = unRot $ SO3 $ distribute $ (distribute $ unSO3 i) !*! ( unSO3 j)
 instance PreCoord (V3 Double) where
@@ -72,10 +56,13 @@ instance PreCoord (V3 Double) where
   trans (l,i) (lo,a) = ( l + unSO3 i !* lo  , SO3 $ unSO3 i !*!  unSO3 a )
   untrans (l,i) (lo,a) = ( l ^-^  unSO3 i !* lo  , SO3 $ unSO3 i !*! distribute (unSO3 a )  )
 
+so3 :: Floating a => V3 a -> SO3 a
+so3 = SO3 . rotM
 
 rot (V3 ix iy iz) = rotZ (V1 iz) !*! rotY (V1  iy)  !*! rotX (V1  ix)
 
 rotD (V3 ix iy iz) = distribute (rotZ (V1 iz)) !*! (distribute (rotY (V1  iy))  !*! distribute (rotX (V1  ix)))
+
 rot132  (V3 ix iy iz) =  (distribute (rotY (V1  iy))  !*! distribute (rotZ (V1 iz)) !*! distribute (rotX (V1  ix)))
 unRot = unRot123
 
@@ -151,7 +138,7 @@ locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
                  then return (pure [])
                  else return (failure [(l, nn,  show (unrot (snd pos),unrot (snd pos2)) <> " /= " <>  show (unrot $ snd npos) <> "  " <> show (angDist (snd pos2) (snd npos)), adis)])
                 return $ mappend <$> p <*>  a
-              Nothing ->  return $ pure [(l,nn,(V3 0 0 0,SO3 $ (unSO3 $ snd npos ) !*! distribute (unSO3 $ snd pos )))]
+              Nothing ->  return $ pure [(l,nn,(0 ,SO3 $ (unSO3 $ snd npos ) !*! distribute (unSO3 $ snd pos )))]
 
 
 
@@ -161,7 +148,10 @@ rotM = rotD
 transElemr e =  flip untrans e
 transEleml i e =  trans i e
 
-
+drawGrid
+  :: (Show (sys Double), Target sys a, TCoord a ~ V3 Double,
+      Ang (TCoord a) ~ SO3 Double) =>
+     Grid sys Double -> a
 drawGrid iter = statements  $ styleNodes iter <> styleLinks iter <> {- styleSurfaces iter <> -}styleVolume iter
   where
     styleNodes  it = catMaybes $ fmap (\i -> do
@@ -253,7 +243,7 @@ upgradeGrid :: (Show (f Double) , Coord f (V3 Double)) => Int -> Int -> Grid f D
 upgradeGrid ni li a = (a {shead = M.toList nodesPos, linksPosition = M.toList linksPos},err)
   where
     (err,(nodesPos,linksPos)) =  runState (do
-          modify (<> (M.singleton ni (0,SO3 $ rotM 0), mempty))
+          modify (<> (M.singleton ni (0,so3 0), mempty))
           let
             niel = var ni nmap
             nels = fmap snd $ thisElement (fst niel) (snd niel)

@@ -192,7 +192,7 @@ prune g t = g {nodesFlow = out1nodes   <> nn  , links = out1links <> nt }
             | S.member h out1S= ((l,(h, t, [tubod 0.025 0.1])), (t,Open 0))
             | S.member t out1S= ((l,(h, t, [tubod 0.025 0.1])), (h,Open 0))
 
-renderModel regionRisk range (header,model) = do
+renderModel env regionRisk range (header,model) = do
   let fname  = baseFile header
       dxfname = fname <> ".DXF"
   Right f <- readDXF dxfname
@@ -205,7 +205,7 @@ renderModel regionRisk range (header,model) = do
   drawSCAD (baseFile header) (baseFile header) modelg
   renderDXF  (baseFile header) fname  (drawGrid  modelg)
   mapM (\r -> do
-     solveModel (header , initIter (fst $ upgradeGrid 0 1 $ filterBounded (regionBoundary r)  $ modelg ) $ defAmbient,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
+     solveModel (header , initIter (fst $ upgradeGrid 0 1 $ filterBounded (regionBoundary r)  $ modelg ) $ env,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
 
 
 solveModel (header ,model,region ) = do
@@ -245,8 +245,8 @@ reportIter header rinfo i iter@(Iteration f h e a)  = do
            recurse (\ni -> either (nmap ni) (lmap ni)) i (Left $ fromJustE "no node" $ M.lookup i nodemap )) (M.fromList $  findNodesLinks a (nodesFlow a) ,M.fromList $ links a )) (S.empty,S.empty))) <>
             "\n\n" <> "Relatório dos Links" <> "\n\n" <> L.intercalate "," linkHeader <>"\n" <> (L.intercalate "\n" $ lsmap <$> (links a)))
   where
-    residual = printResidual iter (jacobianEqNodeHeadGrid defAmbient)
-    reportEnviroment (Ambient f i j ) =
+    residual = printResidual iter (jacobianEqNodeHeadGrid (environment iter))
+    reportEnviroment (Ambient f i j _ ) =
        L.intercalate "\n" $ L.intercalate "," <$> [["Condições Ambiente"],["Fluído",show $ fluidName f],["Viscosidade Dinâmica", show $ viscosity f],["Densidade Fluído",show $ density f],["Gravidade",sf3 i],["Densidade Ar",sf3 j]]
     reportGrelha =
       let t  = L.filter (isGrelha.snd) (nodesFlow a)
@@ -254,15 +254,15 @@ reportIter header rinfo i iter@(Iteration f h e a)  = do
           header = ["Id","Vazao","Velocidade","Velocidade Min"]
           headerUnit =  ["", "L/min","m/s","m/s"]
           proj (i,Grelha h w a m ) =  [show i ,sf2 vazao  , sf2 (vazao/a/1000/60), sf2 m ]
-            where vazao = head $ (\i -> fromJustE "no flow for node 1 " $  join $ M.lookup i fm)<$>  (fst lks)
-                  lks = var i nlmap
+            where vazao =  justError "no flow for grelha" $ lks ^. _y
+                  lks = var i hm
 
       in [L.intercalate "\n" $ L.intercalate "," <$> (title : header : headerUnit : (proj <$> t))]
     reportResev =
       let t  = L.filter (isReservoir .snd) (nodesFlow a)
           proj (i,Reservatorio tempo) = "Reservatório\n" <> "Volume," <> sf2 (vazao * tempo) <> ",L\n" <> "Tempo de Duração," <> sf2 tempo<> ",min"
-            where vazao = head $ (\i -> fromJustE "no flow for node 1 " $  join $ M.lookup i fm)<$>  (fst lks)
-                  lks = var i nlmap
+            where vazao = justError "no flow for grelha" $ lks ^. _y
+                  lks = var i hm
 
       in (proj <$> t)
     nlmap = M.fromList (findNodesLinks a $   (nodesFlow a) )
@@ -287,7 +287,7 @@ reportIter header rinfo i iter@(Iteration f h e a)  = do
                 pressao = abs $ pipeElement (environment iter ) vazao bomba
                 vazao = fromJustE "no flow for node 1 " $ join $ M.lookup ix fm
 
-    sprinklers =  fmap (\(i,e) -> (i,fromJustE "no sprinkler" $ join $ M.lookup i  hm ,e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
+    sprinklers =  fmap (\(i,e) -> (i,  fromJustE "no sprinkler" $ M.lookup i  hm ,e)) $  L.filter (isSprinkler . snd) (nodesFlow a)
     addTee k = maybeToList (M.lookup k nodeLosses)
     sflow = signedFlow a  (justError "no flow " .runIdentity .getCompose <$> M.fromList f)
 
@@ -303,19 +303,19 @@ reportIter header rinfo i iter@(Iteration f h e a)  = do
               area = abs $ Polygon.area (convPoly $ regionBoundary r)
               density = regionRiskDensity r
               minimalFlow = density * area
-              spkReport = (\(ix,p,e@(Sprinkler ((d,k )) (dl) f a ))-> [show ix , sf2 p ,   sf2 $ genFlow p e , sf2 $ coverageArea f * density ,sf2 $ coverageArea f]  ) <$>    sprinklers
+              spkReport = (\(ix,p,e@(Sprinkler ((d,k )) (dl) f a ))-> [show ix , maybe  "" sf2 (p ^. _x) ,   maybe "" sf2 (p ^. _y)  , sf2 $ coverageArea f * density ,sf2 $ coverageArea f]  ) <$>    sprinklers
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTeeEl (fluido (environment iter))conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow a
 
 
     nmap = (\ni n@(_,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 4 $ maybe 0 id $p ni , formatFloatN 4 $h  ni,"",""] ++  expandNode (p ni) e )
-        where p ni =  join $ varM ni hm
+        where p ni =  join $ fmap (^._x)$ varM ni hm
               h ni =  fst ( (fromJustE $"no position pressure for node " <> show ni) (varM ni  pm)) ^. _z
     lmap = (\ni n@(h,t,e) ->  L.intercalate "," ["T-"<> show h <>  "-" <> show t ,"","",formatFloatN 2 $  maybe 0 id (abs <$> p ni) ,formatFloatN 2  $ abs (pr h - pr t),"Trecho"])
-        where pr ni =  maybe 0 id (join $ varM ni hm)
+        where pr ni =  maybe 0 id (join $ fmap (^._x)$ varM ni hm)
               p ni =  join $ varM ni fm
     lsmap n@(ni,(h,t,e)) = L.intercalate "\n" $ fmap (L.intercalate ",") $ (mainlink:) $ zipWith3 (expandLink (lname <>  "-") (p ni) ) [0..] dgrav els
         where p ni =  join $ varM ni fm
-              mainlink = [lname  , "", sf2 $ gravp  ,sf3 $ negate $ fromMaybe 0 (join $ varM h hm ) - fromMaybe 0 (join $ varM t hm) + gravDelta (var h pm ) (var t pm) ,"", ""]
+              mainlink = [lname  , "", sf2 $ gravp  ,sf3 $ negate $ fromMaybe 0 (join $ fmap (^._x)$varM h hm ) - fromMaybe 0 (join $ fmap (^._x)$ varM t hm) + gravDelta (var h pm ) (var t pm) ,"", ""]
                 where gravp =gravDelta (var h pm ) (var t pm)
               lname = "T-"<> show h <>  "-" <> show t
               grav =  (if isJust (M.lookup (h,ni) nodeLosses) then(var h pm :)else id ) (var ni lpos  <> [var t pm,var t pm])
@@ -323,7 +323,7 @@ reportIter header rinfo i iter@(Iteration f h e a)  = do
               gravDelta i j = gravityEffect (environment iter) (i ^. _1._z  - j ^. _1._z)
               els = addTee (h,ni) <> e <> addTee (t ,ni)
     fm = runIdentity . getCompose <$> M.fromList f
-    hm = runIdentity . getCompose <$> M.fromList h
+    hm = getCompose <$> M.fromList h
     pm = M.fromList (shead a )
     lpos = M.fromList (linksPosition a )
     nodeHeader = ["ID","Pressão (kpa)","Altura (m)","Vazão (L/min)","Perda (kpa)","Elemento"]
@@ -335,14 +335,14 @@ reportIter header rinfo i iter@(Iteration f h e a)  = do
     expandNode _ (Open i )  = ["Hidrante"]
     expandNode _ i = []
     linkHeader = ["SubTrecho","Diametro (m)","Gravidade(kpa)", "Atrito(kpa)","Elemento","Comprimento (m)"]
-    expandLink st (Just f) i dg t@(Tubo s dl  _) = [st <> show i ,  secao s , sf2 dg ,sf2$   Element.ktubo t*(abs f)**1.85,"Tubo " , sf3 dl ]
+    expandLink st (Just f) i dg t@(Tubo s dl  _) = [st <> show i ,  secao s , sf2 dg ,sf2$   ktubo joelhos t (abs f),"Tubo " , sf3 dl ]
       where
         secao (Rectangular h w ) = sf3 h <> "x" <> sf3 w
         secao (Circular d)  = sf3 d
     expandLink st (Just f) i dg t@(Turn   _) = [st <> show i ,   "" ,sf2 dg , "","Turn" , "" ]
     expandLink st (Just f) i dg b@(Bomba (d,_)  dl  ) = [st <> show i, "",sf2 dg , sf2 $ pipeElement (environment iter) f b,"Bomba"]
-    expandLink st (Just f) i dg j@(Joelho _(TabelaPerda (d)  (_,_,c)  _ ) )  = [st <> show i , sf3 d,sf2 dg , sf2 $Element.ktubo j*(abs f)**1.85,"Joelho " <> c]
-    expandLink st (Just f) i dg j@(Perda (TabelaPerda (d)  (s,m,c)   _) )  = [st <> show i , sf3 d,sf2 dg , sf2 $Tee.ktubo j (abs f/1000/60),s <> m <> c]
+    expandLink st (Just f) i dg j@(Joelho _(TabelaPerda (d)  (_,_,c)  _ ) )  = [st <> show i , sf3 d,sf2 dg , sf2 $ktubo joelhos j (abs f),"Joelho " <> c]
+    expandLink st (Just f) i dg j@(Perda (TabelaPerda (d)  (s,m,c)   _) )  = [st <> show i , sf3 d,sf2 dg , sf2 $ktubo joelhos j (abs f),s <> m <> c]
 
 
 

@@ -1,13 +1,11 @@
 module Lint where
-import Grid
+
 import Domains
 import Control.Monad
 import Control.Applicative
 import Control.Monad.Trans.Writer
 import Data.Functor.Identity
 import Data.Monoid
-import Element
-import Sprinkler
 import qualified Data.Map as M
 import qualified Data.Foldable as F
 import qualified Data.Set as S
@@ -20,8 +18,6 @@ lintLinks grid = mapM_ checkLinks (links grid)
              F.foldl' (\i j -> do
                    idia <- i
                    case j of
-                      -- (DiameterChange dii dio _ ) ->  when (diametroE idia /= dii ) $
-                          -- tell $ ["diametro elem " ++ show idia ++ " is different from "++ show j ]
                       i ->  when (diametroE idia /= diametroE j) $
                           tell $ ["diametro elem " ++ show idia ++ " is different from "++ show j ]
                    return j) (return $ head elems)  (tail elems)
@@ -34,6 +30,10 @@ nodeConnective grid = do
         orphanNodes = filter ((<1) . length  . snd ) (M.toList nodeUsage)
   mapM_ (\i -> tell $ ["No node for links" ++ show i ]) hasNodes
   mapM_ (\i -> tell $ ["OrphanNode " <> show i]) orphanNodes
+
+lintGridElements grid = snd $ runIdentity $ runWriterT $ do
+--    lintLinks grid
+    nodeConnective grid
 
 
 {-lintInitialConditions iter = snd $ runIdentity $ runWriterT $ do
@@ -61,12 +61,6 @@ lintInitTee flowMap  t =  do
           | bs > 0 && rrs > 0 && rls >0 = tell ["no case for all branch list positive " ++ show  t ++ show bl ]
           | bs == 0 && rrs == 0 && rls == 0 = tell ["no case for all branch list zero " ++ show  t ++ show bl]
           | otherwise =  tell ["no case for this branch list " ++ show  t ++ show bl ]
-
-
-lintGridElements grid = snd $ runIdentity $ runWriterT $ do
-    lintLinks grid
-    lintTee grid
-    nodeConnective grid
 
 
 -- lintTee :: (Show a,Ord a) => Grid a -> [String]

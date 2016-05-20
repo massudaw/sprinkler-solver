@@ -8,7 +8,7 @@ import Linear.Matrix
 import Debug.Trace
 import Numeric
 import Hydraulic
-import Position
+import Domains
 import Rotation.SO3
 import Exponential.SO3
 import Data.Maybe
@@ -79,7 +79,7 @@ testConv = (filter (not.(<= 1e-6 ). norm .(^-^ V3 10  9 2) . unconv ) $  conv <$
     angleSet = [pi/2,pi/3,pi/6]
     sym a = angle  a <> fmap negate (angle a)
     angle a = [(V3  a 0  0),(V3 0 a 0), (V3 0 0 a),(V3 a a 0),V3 0 a a,V3 a 0 a]
-    conv a = convert2 (V3 10 9 2, SO3 $ Position.rotM a)
+    conv a = convert2 (V3 10 9 2, SO3 $ rotM a)
     unconv = unconvert2
 
 unconvert2 (ax,p) =  distribute tr !* p

@@ -3,7 +3,7 @@ module Backend.Graphviz (renderGraph ) where
 
 import Eletric
 import Thermal
-import Position
+import Domains
 import qualified Data.Sequence as Seq
 
 import Data.GraphViz.Attributes (shape)
