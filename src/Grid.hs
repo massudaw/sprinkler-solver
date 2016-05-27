@@ -44,7 +44,7 @@ printResidual iter@(Iteration fl f e a) modeler = (prepareModel a modeler )   (i
     inLinks= (concat $ (catMaybes . F.toList . getCompose ) .  snd <$> fl )
 
 
-solveIter :: forall c . (Traversable (NodeDomain c) , Traversable (LinkDomain c) , PreSys c )=> (forall  a . (Show a , Ord a , Floating a ) => Iteration  c a ) -> (forall   b. (Show b, Ord b, Floating b) => Grid c b -> M.Map Int (LinkDomain c b) -> M.Map Int (NodeDomain c b) -> [b] ) -> Iteration c Double
+solveIter :: forall c . (Traversable (NodeDomain c) , Traversable (LinkDomain c) , PreSys c )=> (forall  a . (Show a , Ord a , Floating a ) => Iteration  c a ) -> (forall   b. (Show b, Ord b, Floating b,Real b) => Grid c b -> M.Map Int (LinkDomain c b) -> M.Map Int (NodeDomain c b) -> [b] ) -> Iteration c Double
 solveIter iter@(Iteration fl f e g) modeler =  Iteration outLinks outNodes e (grid iter)
   where
     (outNodes ,outLinks )= (fst $ runState  ((,) <$> nodesOutP g <*> linksOutP g) res)

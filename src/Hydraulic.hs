@@ -4,6 +4,7 @@ module Hydraulic where
 import Position hiding (rotM)
 import TBL.Parser
 import qualified Position as P
+import Linear.V2
 import Control.Lens ((^.))
 import Data.Monoid
 import Data.Functor.Identity
@@ -205,6 +206,18 @@ data Tree a
   { elements :: [Tree a]
   }
 
+data Ambient a
+  = Ambient
+  { fluido :: Fluido a
+  , ashrae :: M.Map String [(String,TableType a )]
+  , altitude :: a
+  , temperaturaAmbiente :: a
+  , pontoOrvalho :: a
+  , pressaoBarometrica :: a
+  , geoposition :: V2 a
+  }deriving(Eq,Ord,Functor,Show)
+
+
 data Fluido a
   = Fluido
   { viscosity :: a
@@ -213,8 +226,6 @@ data Fluido a
   }deriving(Eq,Ord,Show,Functor)
 
 kinematicViscosity f = viscosity f/density f
-
--- hydraulicDiameter e = 4*areaE e/perimeterE e
 
 hydraulicDiameter (Rectangular w h) = 1.30*(w*h)**0.625/(w+h)**0.25
 hydraulicDiameter (Circular d ) = d
@@ -228,7 +239,7 @@ areaE (Tubo (Rectangular i j) _ _ ) = i*j
 areaE e = pi*(( diametroE e)/2)^2
 
 perimeterE (Tubo (Rectangular i j) _ _) =  2*i+2*j
-roughnessE e = justError "no roughness" $ M.lookup (materialE e) (M.fromList [(100,0.09),(120,0.09)])
+roughnessE e = justError "no roughness" $ M.lookup (materialE e) (M.fromList [(100,0.045),(120,0.09)])
 
 sectionE  (Tubo d _ _ ) = d
 sectionE  i = errorWithStackTrace (show i)

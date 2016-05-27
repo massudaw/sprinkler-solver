@@ -159,7 +159,7 @@ drawGrid iter = statements  $ styleNodes iter <> styleLinks iter <> {- styleSurf
             let pres = 0
             return $ transformElement  pos $ renderNode  (fst i ) (snd i) ) (nodesFlow it)
       where
-        gridMap = (M.fromList (shead $ it))
+        gridMap = (M.fromList (nodesPosition $ it))
 
     styleLinks it = concat $ catMaybes $  fmap (\(l,(h,t,i))  -> do
                 pos <- varM l  posMap
@@ -174,7 +174,7 @@ styleSurfaces it = catMaybes $  fmap (\(n,(h,i))  -> do
                 return $ renderSurface paths (concat nodes)  i ) (surfaces it)
       where
         lEls = M.fromList $ links it
-        npos = M.fromList $ shead it
+        npos = M.fromList $ nodesPosition it
 
 styleSurfacesSolve iter@(Iteration l n e it) = catMaybes $  fmap (\(n,(h,i))  -> do
                 let paths = fmap (fmap (\l -> var l lEls)) h
@@ -185,7 +185,7 @@ styleSurfacesSolve iter@(Iteration l n e it) = catMaybes $  fmap (\(n,(h,i))  ->
         spos = M.fromList $ postprocess iter
 
         lEls = M.fromList $ links it
-        npos = M.fromList $ shead it
+        npos = M.fromList $ nodesPosition it
 
 
 styleVolume it = catMaybes $  fmap (\(n,(h,i))  -> do
@@ -198,7 +198,7 @@ styleVolume it = catMaybes $  fmap (\(n,(h,i))  -> do
         flip False = True
         lEls =  M.fromList $ links it
         lSurfs =  M.fromList $ surfaces it
-        npos = M.fromList $ shead it
+        npos = M.fromList $ nodesPosition it
 
 
 
@@ -214,7 +214,7 @@ drawIter iter = statements $ nds <> lds <> styleSurfaces (grid iter) <> styleVol
             let nstate = mergeStates (constrained (snd i))  pres
             return $ transformElement  pos $ (renderNode   (fst i) (snd i) <> renderNodeSolve nstate (fst i) (snd i) )) (nodesFlow (grid it))
       where
-        gridMap = (M.fromList (shead $ grid it))
+        gridMap = (M.fromList (nodesPosition $ grid it))
 
     styleLinks it = concat $ catMaybes $  fmap (\(l,(h,t,i))  -> do
                 pos <- varM l  posMap
@@ -231,7 +231,7 @@ drawIterGraph  iter = statements $ nds <> lds
         styleNodes  it = catMaybes $ fmap (\i -> do
                 return $ renderNode  (fst i) (snd i) ) (nodesFlow (it))
           where
-                gridMap = (M.fromList (shead $ it))
+                gridMap = (M.fromList (nodesPosition $ it))
 
         --styleLinks :: Iteration Double -> [Mecha.Solid]
         styleLinks it = concat $ catMaybes $  fmap (\(l,(h,t,i))  -> do
@@ -240,7 +240,7 @@ drawIterGraph  iter = statements $ nds <> lds
 
 
 upgradeGrid :: (Show (f Double) , Coord f (V3 Double)) => Int -> Int -> Grid f Double -> (Grid  f Double,Errors [(Int,Int,String,Double)] [(Int,Int,(V3 Double ,SO3 Double))])
-upgradeGrid ni li a = (a {shead = M.toList nodesPos, linksPosition = M.toList linksPos},err)
+upgradeGrid ni li a = (a {nodesPosition = M.toList nodesPos, linksPosition = M.toList linksPos},err)
   where
     (err,(nodesPos,linksPos)) =  runState (do
           modify (<> (M.singleton ni (0,so3 0), mempty))

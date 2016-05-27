@@ -160,11 +160,11 @@ filterBounded poly grid = prune (grid {nodesFlow =spks}) tar
     pcon = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a,b)) poly
     spks = fmap (\(i,v) ->
       let
-        (V3 x y _,_) = var i (M.fromList (shead grid))
+        (V3 x y _,_) = var i (M.fromList (nodesPosition grid))
       in (i,if Polygon.contains pcon (Point2 (x,y))   then v else if isSprinkler v then Open 0 else v )
         ) (nodesFlow grid)
 
-    tar = fst <$> filter (Polygon.contains pcon. (\(V3 x y z) -> Point2 (x,y)) . fst . snd) (shead grid)
+    tar = fst <$> filter (Polygon.contains pcon. (\(V3 x y z) -> Point2 (x,y)) . fst . snd) (nodesPosition grid)
 
 prune g t = g {nodesFlow = out1nodes   <> nn  , links = out1links <> nt }
     where
@@ -246,13 +246,17 @@ reportIter header rinfo i iter@(Iteration f h e a)  = do
             "\n\n" <> "Relatório dos Links" <> "\n\n" <> L.intercalate "," linkHeader <>"\n" <> (L.intercalate "\n" $ lsmap <$> (links a)))
   where
     residual = printResidual iter (jacobianEqNodeHeadGrid (environment iter))
-    reportEnviroment (Ambient f i j _ ) =
-       L.intercalate "\n" $ L.intercalate "," <$> [["Condições Ambiente"],["Fluído",show $ fluidName f],["Viscosidade Dinâmica", show $ viscosity f],["Densidade Fluído",show $ density f],["Gravidade",sf3 i],["Densidade Ar",sf3 j]]
+    reportEnviroment env =
+       L.intercalate "\n" $ L.intercalate "," <$> [["Condições Ambiente"],["Fluído",show $ fluidName f],["Viscosidade Dinâmica", show $ viscosity f],["Densidade Fluído",show $ density f],["Gravidade",sf3 (localGravity env) ,"m/s²"],["Densidade Ar",sf3 (densityAir env)]]
+         where f = fluido env
     reportGrelha =
-      let t  = L.filter (isGrelha.snd) (nodesFlow a)
+      let t  = L.filter (\e -> (isGrelha.snd $ e) || (isEntry . snd $ e)) (nodesFlow a)
           title = ["Grelhas"]
           header = ["Id","Vazao","Velocidade","Velocidade Min"]
-          headerUnit =  ["", "L/min","m/s","m/s"]
+          headerUnit =  ["", "L/min","m³/s","m/s"]
+          proj (i,Tee (TeeConfig _ [s] _  ) _ ) =  [show i ,sf2 vazao  , sf2 (vazao/areaS s/1000/60), sf2 0 ]
+            where vazao =  justError "no flow for grelha" $ lks ^. _y
+                  lks = var i hm
           proj (i,Grelha h w a m ) =  [show i ,sf2 vazao  , sf2 (vazao/a/1000/60), sf2 m ]
             where vazao =  justError "no flow for grelha" $ lks ^. _y
                   lks = var i hm
@@ -304,7 +308,7 @@ reportIter header rinfo i iter@(Iteration f h e a)  = do
               density = regionRiskDensity r
               minimalFlow = density * area
               spkReport = (\(ix,p,e@(Sprinkler ((d,k )) (dl) f a ))-> [show ix , maybe  "" sf2 (p ^. _x) ,   maybe "" sf2 (p ^. _y)  , sf2 $ coverageArea f * density ,sf2 $ coverageArea f]  ) <$>    sprinklers
-    nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> classifyTeeEl (fluido (environment iter))conf (fmap (\x -> x/1000/60) $ var n  sflow) t) .  filter (isTee .snd) $ nodesFlow a
+    nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> fittingsCoefficient (environment iter) sflow n  t )  .  filter (isTee .snd) $ nodesFlow a
 
 
     nmap = (\ni n@(_,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 4 $ maybe 0 id $p ni , formatFloatN 4 $h  ni,"",""] ++  expandNode (p ni) e )
@@ -321,10 +325,10 @@ reportIter header rinfo i iter@(Iteration f h e a)  = do
               grav =  (if isJust (M.lookup (h,ni) nodeLosses) then(var h pm :)else id ) (var ni lpos  <> [var t pm,var t pm])
               dgrav = zipWith gravDelta grav (drop 1 grav)
               gravDelta i j = gravityEffect (environment iter) (i ^. _1._z  - j ^. _1._z)
-              els = addTee (h,ni) <> e <> addTee (t ,ni)
+              els = e -- addTee (h,ni) <> e <> addTee (t ,ni)
     fm = runIdentity . getCompose <$> M.fromList f
     hm = getCompose <$> M.fromList h
-    pm = M.fromList (shead a )
+    pm = M.fromList (nodesPosition a )
     lpos = M.fromList (linksPosition a )
     nodeHeader = ["ID","Pressão (kpa)","Altura (m)","Vazão (L/min)","Perda (kpa)","Elemento"]
     expandNode (Just p) (Sprinkler ((d,k)) (dl) f a ) = ["Sprinkler"]
@@ -335,14 +339,14 @@ reportIter header rinfo i iter@(Iteration f h e a)  = do
     expandNode _ (Open i )  = ["Hidrante"]
     expandNode _ i = []
     linkHeader = ["SubTrecho","Diametro (m)","Gravidade(kpa)", "Atrito(kpa)","Elemento","Comprimento (m)"]
-    expandLink st (Just f) i dg t@(Tubo s dl  _) = [st <> show i ,  secao s , sf2 dg ,sf2$   ktubo joelhos t (abs f),"Tubo " , sf3 dl ]
+    expandLink st (Just f) i dg t@(Tubo s dl  _) = [st <> show i ,  secao s , sf2 dg ,sf2$   ktubo (environment iter) joelhos t (abs f),"Tubo " , sf3 dl ]
       where
         secao (Rectangular h w ) = sf3 h <> "x" <> sf3 w
         secao (Circular d)  = sf3 d
     expandLink st (Just f) i dg t@(Turn   _) = [st <> show i ,   "" ,sf2 dg , "","Turn" , "" ]
     expandLink st (Just f) i dg b@(Bomba (d,_)  dl  ) = [st <> show i, "",sf2 dg , sf2 $ pipeElement (environment iter) f b,"Bomba"]
-    expandLink st (Just f) i dg j@(Joelho _(TabelaPerda (d)  (_,_,c)  _ ) )  = [st <> show i , sf3 d,sf2 dg , sf2 $ktubo joelhos j (abs f),"Joelho " <> c]
-    expandLink st (Just f) i dg j@(Perda (TabelaPerda (d)  (s,m,c)   _) )  = [st <> show i , sf3 d,sf2 dg , sf2 $ktubo joelhos j (abs f),s <> m <> c]
+    expandLink st (Just f) i dg j@(Joelho _(TabelaPerda (d)  (_,_,c)  _ ) )  = [st <> show i , sf3 d,sf2 dg , sf2 $ktubo (environment iter) joelhos j (abs f),"Joelho " <> c]
+    expandLink st (Just f) i dg j@(Perda (TabelaPerda (d)  (s,m,c)   _) )  = [st <> show i , sf3 d,sf2 dg , sf2 $ktubo (environment iter) joelhos j (abs f),s <> m <> c]
 
 
 

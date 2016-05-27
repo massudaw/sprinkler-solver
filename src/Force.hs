@@ -199,15 +199,15 @@ linkForces g linkInPre nodesInPre
   = fmap (\(h,t,resh,rest,a) -> (norm resh , norm resh)) <$> M.toList lmap
   where
     lmap = M.fromList $ eqLink nvars <$> links g
-    nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip (M.toList nodesIn) (snd <$> shead g)
+    nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition g)
     nodesIn = unForces <$> nodesInPre
 
 
 bendIter iter@(Iteration r i e g)
-  =  Iteration r i e (g {shead = editNodes <$> shead g, linksPosition = editLinks <$> linksPosition g})
+  =  Iteration r i e (g {nodesPosition = editNodes <$> nodesPosition g, linksPosition = editLinks <$> linksPosition g})
     where
       lmap = M.fromList (links (grid iter))
-      npmap = M.fromList (shead (grid iter))
+      npmap = M.fromList (nodesPosition (grid iter))
       var2 i = fmap (fromMaybe 0) . (\(i,_,_,_) -> i). var i
       nmap = unForces. getCompose <$> M.fromList (pressures iter)
       editNodes (i,(np,nr)) =  (i, (np ^+^ d,nr))
@@ -308,10 +308,10 @@ eqLink nvars (i,(h,t,l)) =  (i,(h,t,( rtb !*  resh ,rtb !* mesh),( rtb !* rest,r
 forces  g linkInPre nodesInPre = sfmap
   where
     lmap = M.fromList $ eqLink nvars <$> links g
-    nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip (M.toList nodesIn) (snd <$> shead g)
+    nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition g)
     smap = M.fromList $ eqLink nvars <$> links g
     nodesIn = unForces <$> nodesInPre
-    sfmap = M.fromListWith (liftA2 (+)) $ concat $ surfaceStress nodesIn (M.fromList $ shead g) (M.fromList (links g)). snd <$>  surfaces g
+    sfmap = M.fromListWith (liftA2 (+)) $ concat $ surfaceStress nodesIn (M.fromList $ nodesPosition g) (M.fromList (links g)). snd <$>  surfaces g
 
 
 
@@ -319,7 +319,7 @@ forces  g linkInPre nodesInPre = sfmap
 momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
   where
     nodesIn = unForces <$> nodesInPre
-    nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip (M.toList nodesIn) (snd <$> shead g)
+    nvars = M.fromList $ fmap (\((ix,i),v) -> (ix,(i,v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition g)
     l = reverse $ links g
     nodeMerge (ix,(s,el)) = catMaybes . zipWith3 (\i f j -> if isNothing i  || isNothing f then Just j else Nothing) (F.toList a <> F.toList aa) (F.toList fv <> F.toList mv )  .zipWith (+) (F.toList m <> F.toList ma) . fmap sum .  L.transpose $ (linkEls <> sEls <>  vEls)
       where (_,_,m,ma) = var ix nodesIn
@@ -328,8 +328,8 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
             sEls = maybeToList ((<> replicate 4 0) . F.toList <$>  M.lookup ix smap)
             vEls = maybeToList ((<> replicate 3 0) . F.toList <$>  M.lookup ix cmap)
     lmap = M.fromList $ eqLink nvars <$> l
-    smap = M.fromListWith (liftA2 (+)) $ concat $ surfaceLink nodesIn (M.fromList $ shead g) (M.fromList l) . snd <$>  surfaces g
-    cmap = M.fromListWith (liftA2 (+) ) $ concat $ volumeLink nodesIn (M.fromList $ shead g) (M.fromList l) (M.fromList (surfaces g)). snd <$>  volumes g
+    smap = M.fromListWith (liftA2 (+)) $ concat $ surfaceLink nodesIn (M.fromList $ nodesPosition g) (M.fromList l) . snd <$>  surfaces g
+    cmap = M.fromListWith (liftA2 (+) ) $ concat $ volumeLink nodesIn (M.fromList $ nodesPosition g) (M.fromList l) (M.fromList (surfaces g)). snd <$>  volumes g
 
 
 

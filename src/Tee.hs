@@ -30,12 +30,14 @@ allMaybes i
 fromJustE e (Just i) = i
 fromJustE e i = errorWithStackTrace $ "fromJustE" <> e
 
-biinterp  j m = fromMaybe 0 {-fromJustE ("no bileniar interp" <> show j)-} $ bilinearInterp  j (buildTable2D m)
-liinterp  j m = fromMaybe 0 {-fromJustE ("no bileniar interp" <> show j)-} $ linearInterp j (buildTable1D m)
+biinterp  j m = fromMaybe 0 $ bilinearInterp  j (buildTable2D m)
+liinterp  j m = fromMaybe 0 $ linearInterp j (buildTable1D m)
 
 
-lossPa l fluid flowMap section = fmap (\(i,e) -> (i, density fluid *e / ((var i flowMap)^2/(var l flowMap)^2) * (abs (var i flowMap )/areaS (var i section))^2/2))
+lossPa l fluid flowMap section = fmap (pressureDrop fluid flowMap section. regularizeLoss l flowMap)
 
+pressureDrop fluid flowMap section = (\(i,e) -> (i, density fluid *e  * (abs (var i flowMap )/areaS (var i section))^2/2))
+regularizeLoss l  flowMap = (\(i,e)-> (i,e/ ((var i flowMap)^2/(var l flowMap)^2) ))
 
 sectionMap t = M.fromList $ zip (teeConfig t) (teeSection t)
 
@@ -44,7 +46,7 @@ fittingLosses
      Fluido a
      -> M.Map String [(String,TableType a )] -> M.Map Int a -> TeeConfig a -> [(Int, a)]
 fittingLosses fluid tblmap flowMap t@(TeeConfig [ix] [sec] int)
-    = lossPa ix fluid flowMap (sectionMap t) $ case int of
+    =  case int of
     RectangularEntry theta l wall ->
         case wall of
           False -> lossess "Er1-2" recentry
@@ -58,7 +60,7 @@ fittingLosses fluid tblmap flowMap t@(TeeConfig [ix] [sec] int)
         ductentry = [(ix,biinterp (len/hydraulicDiameter sec,th/hydraulicDiameter sec) )]
 
     RoundEntry r wall ->
-      case wall of
+      traceShowId $ case wall of
         True -> lossess "Ed1-2" roundentry
         False -> lossess "Ed1-3" roundentry
       where
@@ -66,7 +68,7 @@ fittingLosses fluid tblmap flowMap t@(TeeConfig [ix] [sec] int)
   where
     lossess elt fun = zipWith (\f e -> fmap ($f) e) (fmap snd $ var elt  tblmap) fun
 fittingLosses fluid tblmap flowMap t@(TeeConfig [ix,ox] [isec,osec] el )
-  = lossPa ix fluid flowMap (sectionMap t) $ case el of
+  =  case el of
     Screen n a1  -> lossess "Cd9-1" screen
       where
         screen = [(ox, biinterp (n, a1/areaS osec) )]
@@ -100,16 +102,18 @@ fittingLosses fluid tblmap flowMap t@(TeeConfig [ix,ox] [isec,osec] el )
     lossess elt fun = zipWith (\f e -> fmap ($f) e) (fmap snd $ var elt  tblmap) fun
 
 fittingLosses fluid tblmap flowMap t@(TeeConfig [rli,bi,rri] [amain , abranch ,aramal]  int )
-  = lossPa rli  fluid flowMap (sectionMap t) $ case int  of
+  = regularizeLoss rli flowMap <$> case int  of
      RectangularTee _ ->  classifyFlow
       where
         classifyFlow
           |  rls > 0 && bs <= 0 && rrs <= 0 = lossess "Sr5-5" rectee
+          |  otherwise  = []
         rectee = zip [rri,bi]  [liinterp (rrs/rls) , biinterp (bs/rls,areaS abranch /areaS amain)]
      RoundTee _ _ _ ->  classifyFlow
       where
         classifyFlow
           |  rls < 0 && bs <= 0 && rrs >= 0 = lossess "Ed5-1" roundtee
+          | otherwise = []
         roundtee = zip [rri,bi] [trilinear (bs/rls,areaS aramal /areaS amain  ,areaS abranch /areaS amain) , trilinear (abs $ rrs/rls,areaS abranch /areaS amain,areaS aramal /areaS amain  ) ]
   where
     [rls,bs,rrs]  = fmap (\i -> fromJustE ("no variable " ++ show i ++ " in m@ap " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
@@ -120,23 +124,8 @@ fittingLossesNFPA _ joelhos flowMap  t =  classifyFlow flow
   where flow = fmap (\i -> fromJustE ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
         classifyFlow bl =   classifyFlow' t flowMap bl
 
-{-
-classifyTeeEl _ tblmap flowMap t@(TeeConfig _ _  (RectangularTee _ )) = classifyFlow flow
-  where
-    [rli,bi,rri] = teeConfig t
-    flow = fmap (\i -> fromJustE ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
-    [(_,Table2D n arr tmap ),(_,TableArray (_,ax) (_,ay))] = fromJustE "no table sr5-5" $ M.lookup "Sr5-5" tblmap
-    -- cbm :: M.Map (a,a) a
-    cbm = M.fromList $ concat $ fmap (\(ix,l) -> zipWith (\cb i-> ((i,ix),cb) ) l (snd arr)) (snd tmap)
-    bbm = M.fromList $  zipWith (\i cb -> (i,cb) ) ax ay
-    classifyFlow bl@[rls,bs,rrs]
-          |  rls > 0 && bs <= 0 && rrs <= 0 = zip [rri,bi]  [] -- [fromJustE "no bilinear cb" $ bilinearInterp (bs/rls,teeBranchArea t /teeMainArea t ) cbm  ,fromJustE "no linear cs" $  linearInterp (rrs/rls) bbm ]
-          | otherwise = []-}
 
-classifyTeeEl _ Table flowMap  t =  classifyFlow flow
-  where flow = fmap (\i -> fromJustE ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
-        classifyFlow bl = classifyFlow' t flowMap bl
-classifyTeeEl _ _ _ _ = []
+
 
 classifyFlow' t flowMap bl@[rls,bs,rrs]
           |  rls > 0 && bs <= 0 && rrs <= 0 = zip [rri,bi]  [direct,lateral]

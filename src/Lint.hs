@@ -23,7 +23,7 @@ lintLinks grid = mapM_ checkLinks (links grid)
                    return j) (return $ head elems)  (tail elems)
 
 nodeConnective grid = do
-  let   nds =  (fst <$> nodesFlow grid )<>  (fst <$> shead grid)
+  let   nds =  (fst <$> nodesFlow grid )<>  (fst <$> nodesPosition grid)
         hasNodes = filter (not .(`S.member` S.fromList nds).fst) (M.toList $ nodeUsage)
         nodeMap = M.fromList (zip  nds (repeat []))
         nodeUsage = foldr (\(l,(h,t,_))-> M.insertWith mappend h [l] .M.insertWith mappend  t [l] ) M.empty (links grid)
