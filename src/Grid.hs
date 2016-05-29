@@ -49,7 +49,7 @@ solveIter iter@(Iteration fl f e g) modeler =  Iteration outLinks outNodes e (gr
   where
     (outNodes ,outLinks )= (fst $ runState  ((,) <$> nodesOutP g <*> linksOutP g) res)
     -- nodesOutP :: ( PreSys c ,Traversable (NodeDomain c) , Traversable (LinkDomain c)  )=> Grid c Double -> State [Double] [(Int,Compose (NodeDomain c) Maybe Double)]
-    nodesOutP g = traverse (traverse (fmap Compose . uarseT  .constrained) ) (nodesFlow g)
+    nodesOutP g = traverse (traverse (fmap Compose . uarseT  .constrained) ) (nodes g)
     -- linksOutP :: ( PreSys c ,Traversable (NodeDomain c) , Traversable (LinkDomain c) , Num a )=> Grid c Double -> State [Double] [(Int,Compose (LinkDomain c) Maybe Double )]
     linksOutP g = traverse (traverse ( fmap Compose . traverse uarse .lconstrained) ) (fmap (\(i,(_,_,p))-> (i,p)) $ links g)
     inNodes ,inLinks :: [Double]
@@ -58,7 +58,7 @@ solveIter iter@(Iteration fl f e g) modeler =  Iteration outLinks outNodes e (gr
     res = fst . rootJ HybridsJ 1e-3 1000 mod  (jacobian ( prepareModel (grid iter) modeler) )  $ inNodes <> inLinks
     mod = prepareModel (grid iter) modeler
 
-{-solveIter iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid iter) $ take fl res) (zip (fmap fst $ nodesFlow $ grid iter)  $ drop fl res) (grid iter)
+{-solveIter iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid iter) $ take fl res) (zip (fmap fst $ nodes $ grid iter)  $ drop fl res) (grid iter)
   where
     fl = length (flows iter)
     res = fst . rootJ HybridsJ 1e-7 1000 (modeler (grid iter) ) (jacobian (modeler (grid iter)  ) )  $ (snd <$> flows iter <> pressures iter )

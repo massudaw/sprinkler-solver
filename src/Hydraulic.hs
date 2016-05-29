@@ -220,12 +220,13 @@ data Ambient a
 
 data Fluido a
   = Fluido
-  { viscosity :: a
-  , density :: a
+  { viscosity :: [((a,a),a)]
+  , density :: [((a,a),a)]
   , fluidName :: String
   }deriving(Eq,Ord,Show,Functor)
 
-kinematicViscosity f = viscosity f/density f
+
+kinematicViscosity p t f = justError "no interp" $ (/) <$> bilinearInterp (p,t) (M.fromList $ viscosity f) <*> bilinearInterp (p,t) (M.fromList $ density  f)
 
 hydraulicDiameter (Rectangular w h) = 1.30*(w*h)**0.625/(w+h)**0.25
 hydraulicDiameter (Circular d ) = d

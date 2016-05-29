@@ -23,7 +23,7 @@ lintLinks grid = mapM_ checkLinks (links grid)
                    return j) (return $ head elems)  (tail elems)
 
 nodeConnective grid = do
-  let   nds =  (fst <$> nodesFlow grid )<>  (fst <$> nodesPosition grid)
+  let   nds =  (fst <$> nodes grid )<>  (fst <$> nodesPosition grid)
         hasNodes = filter (not .(`S.member` S.fromList nds).fst) (M.toList $ nodeUsage)
         nodeMap = M.fromList (zip  nds (repeat []))
         nodeUsage = foldr (\(l,(h,t,_))-> M.insertWith mappend h [l] .M.insertWith mappend  t [l] ) M.empty (links grid)
@@ -43,7 +43,7 @@ lintGridElements grid = snd $ runIdentity $ runWriterT $ do
 {-
 lintInitialTee  iter  = do
   let fl = ((/(1000*60)) <$> M.fromList (flows iter))
-  mapM_ (\(n,Tee config conf )-> lintInitTee (var n $ signedFlow (grid iter) fl) config) ( filter (isTee .snd ) $  (nodesFlow (grid iter)))
+  mapM_ (\(n,Tee config conf )-> lintInitTee (var n $ signedFlow (grid iter) fl) config) ( filter (isTee .snd ) $  (nodes (grid iter)))
 
 lintInitTee flowMap  t =  do
   let flow = fmap (\i -> maybe (error ("no variable " ++ show i ++ " in map " ++ show flowMap ))  id  $ M.lookup  i flowMap) (teeConfig t)
@@ -65,7 +65,7 @@ lintInitTee flowMap  t =  do
 
 -- lintTee :: (Show a,Ord a) => Grid a -> [String]
 lintTee grid =   mapM_ checkLinks tees
-  where tees = filter (isTee .snd) (nodesFlow grid)
+  where tees = filter (isTee .snd) (nodes grid)
         checkLinks c@(n,Tee (TeeConfig tc@[rl,b,rr] r db dr m) ty ) = do
             let lks@[lrl,lb,lrr] = fmap (\i -> head . (\(h,t,e) -> if n == h then e else reverse e ) $ var  i linkMap)  tc
             when (diametroE lrr /= Just dr ) $

@@ -34,9 +34,9 @@ biinterp  j m = fromMaybe 0 $ bilinearInterp  j (buildTable2D m)
 liinterp  j m = fromMaybe 0 $ linearInterp j (buildTable1D m)
 
 
-lossPa l fluid flowMap section = fmap (pressureDrop fluid flowMap section. regularizeLoss l flowMap)
+lossPa p t l fluid flowMap section = fmap (pressureDrop p t fluid flowMap section. regularizeLoss l flowMap)
 
-pressureDrop fluid flowMap section = (\(i,e) -> (i, density fluid *e  * (abs (var i flowMap )/areaS (var i section))^2/2))
+pressureDrop p t fluid flowMap section = (\(i,e) -> (i, justError "no bilinear" (bilinearInterp (p,t) (M.fromList $ density fluid ))*e  * (abs (var i flowMap )/areaS (var i section))^2/2))
 regularizeLoss l  flowMap = (\(i,e)-> (i,e/ ((var i flowMap)^2/(var l flowMap)^2) ))
 
 sectionMap t = M.fromList $ zip (teeConfig t) (teeSection t)

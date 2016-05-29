@@ -157,7 +157,7 @@ drawGrid iter = statements  $ styleNodes iter <> styleLinks iter <> {- styleSurf
     styleNodes  it = catMaybes $ fmap (\i -> do
             pos <- varM (fst i) gridMap
             let pres = 0
-            return $ transformElement  pos $ renderNode  (fst i ) (snd i) ) (nodesFlow it)
+            return $ transformElement  pos $ renderNode  (fst i ) (snd i) ) (nodes it)
       where
         gridMap = (M.fromList (nodesPosition $ it))
 
@@ -212,7 +212,7 @@ drawIter iter = statements $ nds <> lds <> styleSurfaces (grid iter) <> styleVol
             pos <- varM (fst i) gridMap
             pres <- varM (fst i) (M.fromList (pressures it))
             let nstate = mergeStates (constrained (snd i))  pres
-            return $ transformElement  pos $ (renderNode   (fst i) (snd i) <> renderNodeSolve nstate (fst i) (snd i) )) (nodesFlow (grid it))
+            return $ transformElement  pos $ (renderNode   (fst i) (snd i) <> renderNodeSolve nstate (fst i) (snd i) )) (nodes (grid it))
       where
         gridMap = (M.fromList (nodesPosition $ grid it))
 
@@ -229,7 +229,7 @@ drawIterGraph  iter = statements $ nds <> lds
   where nds = styleNodes iter
         lds = styleLinks iter
         styleNodes  it = catMaybes $ fmap (\i -> do
-                return $ renderNode  (fst i) (snd i) ) (nodesFlow (it))
+                return $ renderNode  (fst i) (snd i) ) (nodes (it))
           where
                 gridMap = (M.fromList (nodesPosition $ it))
 
@@ -252,7 +252,7 @@ upgradeGrid ni li a = (a {nodesPosition = M.toList nodesPos, linksPosition = M.t
           j <- mapM (\(inx,ie) -> locateGrid lmap nmap ni ie inx (Left $ var inx lmap) ) (filter ((/=li).fst) $ M.toList nels)
           return $ mappend <$> i <*> (foldr (liftA2 mappend ) (pure []) j))  (mempty,mempty)
     lmap = M.fromList (links a)
-    nmap = M.fromList (findNodesLinks a $   (nodesFlow a) )
+    nmap = M.fromList (findNodesLinks a $   (nodes a) )
 
 recurse render ni r@(Right l@(h,t,e)) = do
   lift $ modify (<> (S.empty,S.singleton ni))

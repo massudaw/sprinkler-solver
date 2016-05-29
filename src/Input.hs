@@ -43,12 +43,12 @@ vo (_,_,_,i) = i
 node'  efun  = do
   un <-  getUniqueN
   let e = efun un
-  modify (\(g,i) -> (g {nodesFlow = (un,e): nodesFlow g} ,i))
+  modify (\(g,i) -> (g {nodes = (un,e): nodes g} ,i))
   return (un,e)
 
 node  e = do
   un <-  getUniqueN
-  modify (\(g,i) -> (g {nodesFlow = (un,e): nodesFlow g} ,i))
+  modify (\(g,i) -> (g {nodes = (un,e): nodes g} ,i))
   return (un,e)
 
 link' e  (h,_) (t,_) = do
@@ -81,7 +81,7 @@ unroll l = do
   (g,(a,b,c)) <- get
   -- runState (unrollNode (0,Open 0) l  )
   let ((_,st),((_,ai),(_,ao))) = runState (unrollNode (0,Open 0) (Origem l) ) ((Open 0,a),(Open 0 ,b))
-  put (Grid [] (fmap (\(i,h,t,e) -> (i,(h,t,e))) (snd st) <> links g)[]  [] (  fst st <> nodesFlow g),(ai,ao))
+  put (Grid [] (fmap (\(i,h,t,e) -> (i,(h,t,e))) (snd st) <> links g)[]  [] (  fst st <> nodes g),(ai,ao))
 -}
 
 (>~>)

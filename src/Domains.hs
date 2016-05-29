@@ -38,7 +38,7 @@ data Grid  b a
   , surfaces :: [(Int,([(Bool,Int)],b a))]
   , volumes :: [(Int,([(Bool,Int)],b a))]
   , nodesPosition :: [(Int,(V3 a,SO3 a))]
-  , nodesFlow :: [(Int,b a)]
+  , nodes :: [(Int,b a)]
   }deriving(Functor,Show)
 
 
@@ -50,7 +50,7 @@ class PreSys sys  where
   initIter :: (Functor (LinkDomain sys),Traversable (NodeDomain sys),Fractional a) => Grid sys a -> (Enviroment sys a -> Iteration sys a)
   initIter g = (\e -> Iteration  (fmap Compose <$> varsL) (fmap Compose <$> varsN)  e g)
     where
-      varsN = fst  $ runState (((traverse (traverse (traverse conv  . constrained )))) $ nodesFlow g) 1
+      varsN = fst  $ runState (((traverse (traverse (traverse conv  . constrained )))) $ nodes g) 1
       conv (Just i) = return Nothing
       conv Nothing = do
         i <- get
@@ -132,10 +132,10 @@ prepareModel l model vh = model l v h
       v = M.fromList linksIn
       h = M.fromList nodesIn
       (nodesIn,linksIn) = fst $ runState ((,) <$> nodesInP <*> linksInP ) (vh  <> replicate 10 100)
-      nodesInP = traverse (traverse (traverse parse .constrained)) (nodesFlow l)
+      nodesInP = traverse (traverse (traverse parse .constrained)) (nodes l)
       linksInP = traverse (traverse (traverse parse .lconstrained)) (fmap (\(i,(_,_,j)) -> (i,j)) $ links l)
 
-nodesSet grid = fmap (\(i,n) -> (i,(var i nodeMapSet,n))) (nodesFlow grid)
+nodesSet grid = fmap (\(i,n) -> (i,(var i nodeMapSet,n))) (nodes grid)
     where nodeMapSet =  M.fromListWith mappend $ concat $ (\(l,(h,t,_)) -> [(h,[l ]),(t,[l ])]) <$> links grid
 
 

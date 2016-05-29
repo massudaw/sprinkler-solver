@@ -37,26 +37,33 @@ import Linear.V3
 import Rotation.SO3 hiding (rotM)
 
 
-water = Fluido 1.0e-3 997 "Água"
-air = Fluido 1.983e-5 air700mDensity "Ar"
+water = Fluido [((25,101.325),1.0e-30)] [((25,101.325),997)]  "Água"
+air = Fluido [((25,101.325),1.983e-5)] [((25,101.325),air700mDensity)] "Ar"
+
+fluidDensity p t _ (Fluido _ d "Água") =  justError "no bilinear" $ bilinearInterp (p,t) $M.fromList  d
+fluidDensity p t flu (Fluido _ d "Ar") =  densityAir flu
 
 air700mDensity = 0.9
+-- Pressure kpa ->  Temperature ºC ->  Density
+idealGasDensity :: Fractional a => a -> a -> a
+idealGasDensity p t = p*1000/rAirConstant/tk
+  where  tk = t + 273.15
 
 densityAir  amb = airDensity  (pontoOrvalho amb) (temperaturaAmbiente amb) (pressaoBarometrica amb) (altitude amb)
 
 defAmbient f a
-  = Ambient f a 700 25 15 1103 (V2  (16.605621)(-49.3481687))
+  = Ambient f a 700 25 15 1103 (V2 (16.605621)(-49.3481687))
 
 instance PreSys Element  where
   -- Global Variables
   type Enviroment Element = Ambient
   -- Node Variables
-  type NodeDomain Element = V2
+  type NodeDomain Element = V3
   -- Link Variables
   type LinkDomain Element = Identity
   initIter g = (\e -> Iteration  (fmap Compose <$> varsL) (fmap Compose <$> varsN) e g)
     where
-      varsN = fst  $ runState (((traverse (traverse (traverse conv  . constrained )))) $ nodesFlow g) 50
+      varsN = fst  $ runState (((traverse (traverse (traverse conv  . constrained )))) $ nodes g) 50
       conv (Just i) = return Nothing
       conv Nothing = do
         i <- get
@@ -65,14 +72,14 @@ instance PreSys Element  where
       convL (Just i) = Nothing
       convL Nothing = (Just 98)
       varsL = fmap (fmap ((fmap convL . lconstrained ))) $ (fmap (\(i,(_,_,l))-> (i,l)) $  links g)
-  constrained (Tee (TeeConfig _ _ (DuctEntry _ _ )) _ ) = V2 Nothing Nothing
-  constrained (Tee (TeeConfig _ _ (RectangularEntry _ _ _ )) _ ) = V2 Nothing Nothing
-  constrained (Tee (TeeConfig _ _ (RoundEntry _ _  )) _ ) = V2 Nothing Nothing
-  constrained (Reservatorio i) = V2 0 Nothing
-  constrained (Grelha _ _ _ _ ) = V2 Nothing Nothing
-  constrained (Open i ) = V2 Nothing (Just i)
-  constrained (Sprinkler (_,k) _ _ _  ) = V2 Nothing Nothing
-  constrained i = V2 Nothing 0
+  constrained (Tee (TeeConfig _ _ (DuctEntry _ _ )) _ ) = V3 Nothing Nothing Nothing
+  constrained (Tee (TeeConfig _ _ (RectangularEntry _ _ _ )) _ ) = V3 Nothing Nothing Nothing
+  constrained (Tee (TeeConfig _ _ (RoundEntry _ _  )) _ ) = V3 Nothing Nothing Nothing
+  constrained (Reservatorio i) = V3 Nothing Nothing Nothing
+  constrained (Grelha _ _ _ _ ) = V3 Nothing Nothing Nothing
+  constrained (Open i ) = V3 Nothing (Just i) Nothing
+  constrained (Sprinkler (_,k) _ _ _  ) = V3 Nothing Nothing Nothing
+  constrained i = V3 Nothing 0 Nothing
   lconstrained i = Identity $ Nothing
 
 
@@ -92,13 +99,17 @@ geoPotential z =  ((r*z)/(r+z))
   where
    r=6369E3;
 
-airPressure h = p0 * (1 -  g*h/cp/t0)**(cp*mair/r)
+rGasConstant ,airMolarApproximate,rAirConstant :: Fractional a => a
+rGasConstant =   8.31447
+airMolarApproximate = 2.8964425307777524e-2 --- kg/mol
+rAirConstant = rGasConstant/airMolarApproximate -- 287.058
+
+airPressure h = p0 * (1 -  g*h/cp/t0)**(cp*mair/rGasConstant)
   where t0 = 288.15
         p0 = 101.325
         cp = 1007
         g = 9.80665
         mair = 0.0289644
-        r =   8.31447
 
 airDensity :: Floating a => a -> a -> a -> a -> a
 airDensity  tdew temp pressure height =  rho*100
@@ -155,28 +166,28 @@ instance Coord Element (V3 Double) where
             =  [(a,0)]
           els i = errorWithStackTrace $ show ("thisElement",i)
 
-pipeElement am v e | v < 0 = negate $ pipeElement am (abs v) e
-pipeElement am v (Bomba  ((pn,vn)) (Poly l ) ) = negate $ (*pn) $ (/100)  $foldr1 (+) (polyTerm <$> l)
+pipeElement am ps v e | v < 0 = negate $ pipeElement am ps (abs v) e
+pipeElement am ps v (Bomba  ((pn,vn)) (Poly l ) ) = negate $ (*pn) $ (/100)  $foldr1 (+) (polyTerm <$> l)
       where polyTerm (0,c) =   c
             polyTerm (p,c) =   c*(100*v/vn)**p
-pipeElement am v e@(Tubo _ _ _)
+pipeElement am ps v e@(Tubo _ _ _)
   = case fluidName $ fluido am of
-      "Água" ->  ktubo am joelhos e v
-      "Ar" -> darcy e am v
-pipeElement am v e@(Joelho  _ _)  = ktubo am joelhos e v
-pipeElement am v e@(Perda  _)  = ktubo am joelhos e v
-pipeElement am v (Turn _)   = 0
+      "Água" ->  ktubo am ps joelhos e v
+      "Ar" -> darcy ps e am v
+pipeElement am ps v e@(Joelho  _ _)  = ktubo am ps joelhos e v
+pipeElement am ps v e@(Perda  _)  = ktubo am ps joelhos e v
+pipeElement am ps v (Turn _)   = 0
 
 
 signedFlow :: (Show a,Floating a )=> Grid Element a -> M.Map Int a ->M.Map Int (M.Map Int a)
-signedFlow g v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromList $  ( sumn $ flipped i $ links g) ++   ((suma $ correct i $ links g)) ) (nodesFlow g)
+signedFlow g v = M.fromList $  fmap (\(i,_) ->  (i,) $ M.fromList $  ( sumn $ flipped i $ links g) ++   ((suma $ correct i $ links g)) ) (nodes g)
   where flipped i=  filter (\(_,(h,t,_)) -> h == i )
         correct i= filter (\(_,(h,t,_)) -> t == i )
         suma =  fmap (\(li,_) -> (li,var li v ))
         sumn =  fmap (\(li,_) ->  (li,negate $ var li v))
 
-jacobianContinuity :: (Show a,Ord a,Floating a )=> Grid Element a -> M.Map Int a -> M.Map Int (V2 a) -> [a]
-jacobianContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( correct i $ links g))  - nflow i e) $  nodesFlow g
+jacobianContinuity :: (Show a,Ord a,Floating a )=> Grid Element a -> M.Map Int a -> M.Map Int (V3 a) -> [a]
+jacobianContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( correct i $ links g))  - nflow i e) $  nodes g
   where
         -- pipeFlow
         flipped i=  sumn . filter (\(_,(h,t,_)) -> h == i )
@@ -185,74 +196,89 @@ jacobianContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( 
         sumn =  fmap negate . suma
         -- nodeFlow
         nflow i e = var i pm ^. _y
-zoneEquations am g pm  =  catMaybes $ uncurry nflow <$>  nodesFlow g
+
+
+zoneEquations am g pm  =  catMaybes $ uncurry nflow <$>  nodes g
   where
     nflow i e = do
       fl <- genFlow (var i (M.fromList (nodesPosition g)) ^. _1._z) e
       return $ var i pm ^. _x - fl
-    genFlow idf (Grelha  _ _ _ _) = Just $ airPressure (traceShowId $ idf + altitude am)
+    genFlow idf (Grelha  _ _ _ _) = Just $ airPressure (idf + altitude am)
     genFlow idf (Tee  (TeeConfig _ _  (RoundEntry  _ _)) _ ) = Just $ airPressure (idf + altitude am)
     genFlow idf (Tee  (TeeConfig _ _  (DuctEntry _ _)) _ ) = Just $ airPressure (idf + altitude am)
     genFlow idf (Tee  (TeeConfig _ _  (RectangularEntry  _ _ _)) _ ) = Just $ airPressure (idf + altitude am)
+    genFlow idf (Reservatorio _  ) = Just $ airPressure (idf + altitude am)
     genFlow _ i = Nothing
 
-leakEquations g pm  =  catMaybes $ uncurry nflow <$>  nodesFlow g
+thermalEquations am g pm  =  catMaybes $ uncurry nflow <$>  nodes g
   where
     nflow i e = do
-      fl <- genFlow (var i pm ^. _x) e
-      return $ var i pm ^. _y - fl
-    genFlow idf (Sprinkler (_,k) _ _ _) = Just $ if idf <= 0 then negate k*sqrt (abs idf) else k*sqrt(abs idf)
-    genFlow _ i = Nothing
+      fl <- genFlow (var i (M.fromList (nodesPosition g)) ^. _1._z) (var i pm ^. _x) e
+      return $ var i pm ^. _z - fl
+    genFlow _  _ i = Just $ temperaturaAmbiente am
 
-fittingsCoefficient am sflow n t = case fluidName (fluido am) of
-          "Água" -> (\(ix,l) -> (ix,ktubo am joelhos l (abs $ var ix flowMap   ))) <$> fittingLossesNFPA (fluido am) joelhos flowMap t
-          "Ar" -> pressureDrop (fluido am) flowMap (sectionMap t) <$> fittingLosses (fluido am) (ashrae am) flowMap  t
+
+leakEquations am g pm  =  catMaybes $ uncurry nflow <$>  nodes g
+  where
+    nflow i e = do
+      fl <- genFlow (var i (M.fromList (nodesPosition g)) ^. _1._z) (var i pm ^. _x) e
+      return $ var i pm ^. _y - fl
+    genFlow h idf (Sprinkler (_,k) _ _ _) = Just $ (if idf <= 0 then negate else id ) flow
+      where flow = k*sqrt (abs (idf - airPressure (h + altitude am)))
+    genFlow _  _ i = Nothing
+
+fittingsCoefficient am nh sflow n t = case fluidName (fluido am) of
+          "Água" -> (\(ix,l) -> (ix,ktubo am (nstate,nstate) joelhos l (abs $ var ix flowMap   ))) <$> fittingLossesNFPA (fluido am) joelhos flowMap t
+          "Ar" -> pressureDrop (nstate ^._x) (nstate ^. _z) (fluido am) flowMap (sectionMap t) <$> fittingLosses (fluido am) (ashrae am) flowMap  t
         where
           flowMap = (fmap (\x -> x/1000/60) $ var n  sflow)
+          nstate = var n nh
+
 
 
 -- Generic Solver | Node + Head Method
-jacobianNodeHeadEquation :: (Show a,Ord a,Floating a,Real  a) => Ambient a -> Grid Element a -> M.Map Int a ->M.Map Int (V2 a) -> [a]
+jacobianNodeHeadEquation :: (Show a,Ord a,Floating a,Real  a) => Ambient a -> Grid Element a -> M.Map Int a ->M.Map Int (V3 a) -> [a]
 jacobianNodeHeadEquation am grid  vm nh =  term <$> l
   where
     l = links grid
     sflow = signedFlow grid vm
     fittings n t = case fluidName (fluido am) of
-          "Água" -> (\(ix,l) -> (ix,ktubo am joelhos l (abs $ var ix flowMap   ))) <$> fittingLossesNFPA (fluido am) joelhos flowMap t
-          "Ar" -> pressureDrop (fluido am) flowMap (sectionMap t) <$> fittingLosses (fluido am) (ashrae am) flowMap  t
+          "Água" -> (\(ix,l) -> (ix,ktubo am  (nstate ,nstate) joelhos l (abs $ var ix flowMap   ))) <$> fittingLossesNFPA (fluido am) joelhos flowMap t
+          "Ar" -> pressureDrop (nstate ^. _x) (nstate ^. _z) (fluido am) flowMap (sectionMap t) <$> fittingLosses (fluido am) (ashrae am) flowMap  t
         where
+          nstate = var n nh
           flowMap = (fmap (\x -> x/1000/60) $ var n  sflow)
-    nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> fittings n t ) .  filter (isTee .snd) $ nodesFlow grid
+    nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> fittings n t ) .  filter (isTee .snd) $ nodes grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,(h,t,e)) =   sum (pipeElement am (var l vm) <$> e)  + gravityEffect am (var t nhs ^. _z - var h nhs ^. _z)  + (var t nh ^. _x - var h nh ^. _x )  +  addTee (h,l) + addTee (t,l)
+    term (l,(h,t,e)) =   sum (pipeElement am  (var h nh ,var  t nh )  (var l vm) <$> e)  + gravityEffect (var h nh ,var  t nh ) am (var t nhs ^. _z - var h nhs ^. _z)  + (var t nh ^. _x - var h nh ^. _x )  +  addTee (h,l) + addTee (t,l)
       where
          nhs = fmap fst (M.fromList $ nodesPosition  grid)
 
-gravityEffect am dh = density (fluido am)*dh*(localGravity am)/1000
+gravityEffect (V3 p _ t,_) am dh = fluidDensity p t am (fluido am)*dh*(localGravity am)/1000
 
-testEquations = (darcy t am q , ktubo am joelhos t  q)
+{-testEquations = (darcy t am q , ktubo am joelhos t  q)
   where  t = Tubo (Circular 0.315) 1 100
          q = 1000*60
          am = defAmbient water undefined
+         -}
 
 -- System Equations
-reinolds v d f  = traceShowId $ v*d/kinematicViscosity f
+reinolds p t v d f  = v*d/kinematicViscosity p t f
 -- Multiple fluid equations , input Flow;L/min , output Pressure;kPA
 
-darcy :: (Ord a,Show a,Floating a,Real a ) => Element a -> Ambient a -> a -> a
-darcy e flu q = f*l/d*ve^2/2*density (fluido flu)/1000
+darcy :: (Ord a,Show a,Floating a,Real a ) => (V3 a , V3 a) ->  Element a -> Ambient a -> a -> a
+darcy (V3 p _ t ,_) e flu q = f*l/d*ve^2/2*fluidDensity p t flu (fluido flu)/1000
   where
     l = distanciaE e
     d =  diametroE e
     g = localGravity flu
-    vis = kinematicViscosity (fluido flu)
-    re = reinolds ve d (fluido flu)
+    re = reinolds  p t ve d (fluido flu)
     qm3s = q/1000/60
     ve = qm3s/areaE e
     f
-      | re < 4000  = traceShowId $ 64 /re
-      | 4000 < re && re <= 10^8 = traceShowId $ colebrook re d (roughnessE e)
-      | otherwise = errorWithStackTrace $ "no equation for this condition" <> show (qm3s,ve,vis,re,roughnessE e,d)
+      | re < 4000  = 64 /re
+      | 4000 < re && re <= 10^8 = colebrook re d (roughnessE e)
+      | otherwise = errorWithStackTrace $ "no equation for this condition" <> show (qm3s,ve,re,roughnessE e,d)
 
 -- Aproximate Colebrook Equation
 colebrookAprox re dh rough = (6.4/ (log re  - log (1 + 0.01*re*rough /dh *(1+ 10*sqrt(rough /dh))))**2.4)
@@ -275,7 +301,7 @@ manning t  = perda*10/(1000*60)**1.85
 
 
 -- Hazen Willians water equations , input (flow;L/min) ; output (Pressure;KPA )
-ktubo env joelhos t q = perda/1000*(density (fluido env)) *(localGravity env)*(q/1000/60)**1.85
+ktubo  env (V3 p _ tk ,_) joelhos t q = perda/1000*(justError "no bilinear" $ bilinearInterp (p,tk) $ M.fromList $ density (fluido env)) *(localGravity env)*(q/1000/60)**1.85
   where
     d = diametroE t
     c = materialE t
@@ -283,7 +309,7 @@ ktubo env joelhos t q = perda/1000*(density (fluido env)) *(localGravity env)*(q
     perda = 10.67*(distanciaE t)/(c**1.85)/(d**4.87)
 
 jacobianEqNodeHeadGrid :: (Show a , Ord a ,Floating a,Real a ) => Ambient a -> Grid Element a -> M.Map Int (LinkDomain Element a) -> M.Map Int (NodeDomain Element  a) -> [a]
-jacobianEqNodeHeadGrid e = (\l v h -> jacobianNodeHeadEquation e l (runIdentity <$> v) h <> jacobianContinuity l (runIdentity <$> v) h <> leakEquations l h <> zoneEquations e l h )
+jacobianEqNodeHeadGrid e l v h =  jacobianNodeHeadEquation e l (runIdentity <$> v) h <> jacobianContinuity l (runIdentity <$> v) h <> leakEquations e l h <> zoneEquations e l h <> thermalEquations e l h
 
 
 

@@ -42,7 +42,7 @@ circuitPotential grid  vm nh =  term <$> l
   where
     l = links grid
     term (l,(h,t,e)) =   sum (circuitElement (var l vm) <$> e) - lookNode h   +  lookNode t
-    lookNode h = justError "cant find node " $ (join $ fmap (\i -> if isGround i then (\(Ground ) -> Just 0) $ i else Nothing) $ varM h (M.fromList $ nodesFlow grid)) <|> varM h nh
+    lookNode h = justError "cant find node " $ (join $ fmap (\i -> if isGround i then (\(Ground ) -> Just 0) $ i else Nothing) $ varM h (M.fromList $ nodes grid)) <|> varM h nh
       where
         varM h = M.lookup h
 
@@ -51,7 +51,7 @@ isGround Ground = True
 isGround i = False
 
 circuitContinuity :: (Show a,Ord a,Floating a )=> Grid Eletric a -> M.Map Int a -> M.Map Int a -> [a]
-circuitContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( correct i $ links g))  - nflow i e) $ filter (not . isGround . snd) $ nodesFlow g
+circuitContinuity g v pm = fmap (\(i,e) -> sum (flipped i $ links g) +  (sum ( correct i $ links g))  - nflow i e) $ filter (not . isGround . snd) $ nodes g
   where
         -- pipeFlow
         flipped i=  sumn . filter (\(_,(h,t,_)) -> h == i )
