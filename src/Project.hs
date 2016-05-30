@@ -242,7 +242,7 @@ reportIter header rinfo i env a  f h    = do
     let name = regionFile $ rinfo
     writeFile (name <> ".csv")  $(headerCalculo <> "\n\n" <> "Relatório dos Nós" <> "\n\n" <>( L.intercalate "\n"    $ (L.intercalate ","  nodeHeader :) (evalState (runReaderT (do
            nodemap  <- fst <$> ask
-           recurse (\ni -> either (nmap ni) (lmap ni)) i (Left $ fromJustE "no node" $ M.lookup i nodemap )) (M.fromList $  findNodesLinks a (nodes a) ,M.fromList $ links a )) (S.empty,S.empty))) <>
+           recurse (\ni -> either (nmap ni) (lmap ni)) i (Left $ var i nodemap )) (M.fromList $  findNodesLinks a (nodes a) ,M.fromList $ links a )) (S.empty,S.empty))) <>
             "\n\n" <> "Relatório dos Links" <> "\n\n" <> L.intercalate "," linkHeader <>"\n" <> (L.intercalate "\n" $ lsmap <$> (links a)))
   where
     residual = jacobianEqNodeHeadGrid env a f h
@@ -278,7 +278,6 @@ reportIter header rinfo i env a  f h    = do
     resc= res "Resíduo Node Head" (L.take (M.size (f)) residual)
     resnh = res "Resíduo Continuity" (L.drop (M.size (f)) residual)
     residuos = "Dados Solução\n\n" <> resnh <> "\n"  <>resc
-    vazao = fromJustE "no flow for node 1 " $ M.lookup 1 fm
     display (i,l ) = i <> "\n" <> L.intercalate "\n" (L.intercalate "," <$> l)
     bomba :: Maybe (String ,[[String]])
     bomba = fmap result $  join $ (\(i,(_,_,l)) -> (i,) <$> L.find isBomba l)<$> L.find (\(_,(_,_,l)) -> L.any isBomba l ) (links a)
@@ -289,9 +288,9 @@ reportIter header rinfo i env a  f h    = do
                 kwtocv = 1.36
                 dbomba = M.lookup ((pn/10,fromIntegral  $ round$ vn*3/50)) dadosBomba
                 pressao = abs $ pipeElement env  undefined vazao bomba
-                vazao = fromJustE "no flow for node 1 " $ M.lookup ix fm
+                vazao = var  ix fm
 
-    sprinklers =  fmap (\(i,e) -> (i,  fromJustE "no sprinkler" $ M.lookup i  hm ,e)) $  L.filter (isSprinkler . snd) (nodes a)
+    sprinklers =  fmap (\(i,e) -> (i,   var  i  hm ,e)) $  L.filter (isSprinkler . snd) (nodes a)
     addTee k = maybeToList (M.lookup k nodeLosses)
     sflow = signedFlow a  (runIdentity <$> f)
 
@@ -311,16 +310,16 @@ reportIter header rinfo i env a  f h    = do
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> fittingsCoefficient env hm sflow n  t )  .  filter (isTee .snd) $ nodes a
 
 
-    nmap = (\ni n@(_,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 4 $ maybe 0 id $p ni , formatFloatN 4 $h  ni,"",""] ++  expandNode (p ni) e )
-        where p ni =  fmap (^._x)$ varM ni hm
-              h ni =  fst ( (fromJustE $"no position pressure for node " <> show ni) (varM ni  pm)) ^. _z
-    lmap = (\ni n@(h,t,e) ->  L.intercalate "," ["T-"<> show h <>  "-" <> show t ,"","",formatFloatN 2 $  maybe 0 id (abs <$> p ni) ,formatFloatN 2  $ abs (pr h - pr t),"Trecho"])
-        where pr ni =  maybe 0 id (fmap (^._x)$ varM ni hm)
-              p ni =  varM ni fm
+    nmap = (\ni n@(_,e) -> L.intercalate "," $ ["N-"<> show ni,formatFloatN 4 $ p ni , formatFloatN 4 $h  ni,"",""] ++  expandNode (p ni) e )
+        where p ni =  var ni hm ^. _x
+              h ni =  var ni pm ^. _1. _z
+    lmap = (\ni n@(h,t,e) ->  L.intercalate "," ["T-"<> show h <>  "-" <> show t ,"","",formatFloatN 2 $  (abs $ p ni) ,formatFloatN 2  $ abs (pr h - pr t),"Trecho"])
+        where pr ni = var ni hm ^._x
+              p ni =  var ni fm
     lsmap n@(ni,(h,t,e)) = L.intercalate "\n" $ fmap (L.intercalate ",") $ (mainlink:) $ zipWith3 (expandLink ps  (lname <>  "-") (p ni) ) [0..] dgrav els
-        where p ni =  varM ni fm
+        where p ni =  var ni fm
               ps = (var h hm,var t hm)
-              mainlink = [lname  , "", sf2 $ gravp  ,sf3 $ negate $ fromMaybe 0 (fmap (^._x)$varM h hm ) - fromMaybe 0 (fmap (^._x)$ varM t hm) + gravDelta (var h pm ) (var t pm) ,"", ""]
+              mainlink = [lname  , "", sf2 $ gravp  ,sf3 $ negate $ (var h hm ^. _x) -  (var t hm ^._x) + gravDelta (var h pm ) (var t pm) ,"", ""]
                 where gravp =gravDelta (var h pm ) (var t pm)
               lname = "T-"<> show h <>  "-" <> show t
               grav =  (if isJust (M.lookup (h,ni) nodeLosses) then(var h pm :)else id ) (var ni lpos  <> [var t pm,var t pm])
@@ -332,7 +331,7 @@ reportIter header rinfo i env a  f h    = do
     pm = M.fromList (nodesPosition a )
     lpos = M.fromList (linksPosition a )
     nodeHeader = ["ID","Pressão (kpa)","Altura (m)","Vazão (L/min)","Perda (kpa)","Elemento"]
-    expandNode (Just p) (Sprinkler ((d,k)) (dl) f a ) = ["Sprinkler"]
+    expandNode p (Sprinkler ((d,k)) (dl) f a ) = ["Sprinkler"]
     expandNode _ (Reservatorio  _ )  = ["Reservatorio"]
     expandNode _ (Grelha _ _ _ _ )  = ["Grelha"]
     expandNode _ (Tee (TeeConfig i r c) _ )  = [show c]
@@ -340,15 +339,15 @@ reportIter header rinfo i env a  f h    = do
     expandNode _ (Open i )  = ["Hidrante"]
     expandNode _ i = []
     linkHeader = ["SubTrecho","Diametro (m)","Gravidade(kpa)", "Atrito(kpa)","Elemento","Comprimento (m)"]
-    expandLink ps st (Just f) i dg t@(Tubo s dl  _) = [st <> show i ,  secao s , sf2 dg ,sf2$   ktubo env ps joelhos t (abs f),"Tubo " , sf3 dl ]
+    expandLink ps st f i dg t@(Tubo s dl  _) = [st <> show i ,  secao s , sf2 dg ,sf2$   ktubo env ps joelhos t (abs f),"Tubo " , sf3 dl ]
       where
         secao (Rectangular h w ) = sf3 h <> "x" <> sf3 w
         secao (Circular d)  = sf3 d
-    expandLink _ st (Just f) i dg t@(Turn   _) = [st <> show i ,   "" ,sf2 dg , "","Turn" , "" ]
-    expandLink ps st (Just f) i dg b@(Bomba (d,_)  dl  ) = [st <> show i, "",sf2 dg , sf2 $ pipeElement env ps f b,"Bomba"]
-    {- expandLink st (Just f) i dg j@(Joelho _(TabelaPerda (d)  (_,_,c)  _ ) )  = [st <> show i , sf3 d,sf2 dg , sf2 $ktubo (environment iter) joelhos j (abs f),"Joelho " <> c]
-    expandLink st (Just f) i dg j@(Perda (TabelaPerda (d)  (s,m,c)   _) )  = [st <> show i , sf3 d,sf2 dg , sf2 $ktubo (environment iter) joelhos j (abs f),s <> m <> c]
-    -}
+    expandLink _ st f i dg t@(Turn   _) = [st <> show i ,   "" ,sf2 dg , "","Turn" , "" ]
+    expandLink ps st f i dg b@(Bomba (d,_)  dl  ) = [st <> show i, "",sf2 dg , sf2 $ pipeElement env ps f b,"Bomba"]
+    expandLink ps st f i dg j@(Joelho _(TabelaPerda (d)  (_,_,c)  _ ) )  = [st <> show i , sf3 d,sf2 dg , sf2 $ktubo env ps joelhos j (abs f),"Joelho " <> c]
+    expandLink ps st f i dg j@(Perda (TabelaPerda (d)  (s,m,c)   _) )  = [st <> show i , sf3 d,sf2 dg , sf2 $ktubo env ps joelhos j (abs f),s <> m <> c]
+
 
 
 
