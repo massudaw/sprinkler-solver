@@ -1,28 +1,18 @@
 {-# LANGUAGE FlexibleContexts,DeriveFunctor,NoMonomorphismRestriction,TypeFamilies,TupleSections ,RankNTypes #-}
 module Grid where
 
-import qualified Data.List as L
 import Data.Functor.Compose
 import Domains
-import System.Random
-import Control.Arrow
-import Debug.Trace
 import Data.Maybe
 import qualified Data.Foldable as F
-import Linear.Vector
-import Control.Monad.State
-import Control.Applicative
-import Linear.Matrix
-import Control.Monad
-import Rotation.SO3
 import Data.Monoid
+-- import Debug.Trace
 import GHC.Stack
+import Control.Monad.State
 import Numeric.GSL.Root
 import qualified Data.Map as M
 
 import Numeric.AD
-import Control.Lens
-import Linear.V3
 
 
 
@@ -36,8 +26,16 @@ printJacobian iter@(Iteration fl f e a) modeler = jacobian (prepareModel (grid i
 
 
 
--- printResidual iter@(ForceIter f fl a) modeler = modeler a  (concat $ (\(i,j) ->  catMaybes $ F.toList i <> F.toList j). snd <$> f )
--- printResidual :: forall m c . (Show m, Ord m, Floating m, Traversable (NodeDomain c) , Traversable (LinkDomain c) , PreSys c )=> (forall  a . (Show a , Ord a , Floating a ) => Iteration  c a ) -> (forall   b. (Show b, Ord b, Floating b) => Grid c b -> M.Map Int (LinkDomain c b) -> M.Map Int (NodeDomain c b) -> [b] ) -> ([m],[[m]])
+printResidual
+  :: (Num b, Show b, Foldable t1, Foldable t2,
+      Traversable (LinkDomain sys), Traversable (NodeDomain sys),
+      PreSys sys) =>
+     FIteration t2 t1 t sys b
+     -> (Grid sys b
+         -> M.Map Int (LinkDomain sys b)
+         -> M.Map Int (NodeDomain sys b)
+         -> t3)
+     -> t3
 printResidual iter@(Iteration fl f e a) modeler = (prepareModel a modeler )   (inNodes <> inLinks)
   where
     inNodes = (concat $ ( catMaybes . F.toList . getCompose ). snd <$> f )
@@ -48,24 +46,57 @@ solveIter :: forall c . (Traversable (NodeDomain c) , Traversable (LinkDomain c)
 solveIter iter@(Iteration fl f e g) modeler =  Iteration outLinks outNodes e (grid iter)
   where
     (outNodes ,outLinks )= (fst $ runState  ((,) <$> nodesOutP g <*> linksOutP g) res)
-    -- nodesOutP :: ( PreSys c ,Traversable (NodeDomain c) , Traversable (LinkDomain c)  )=> Grid c Double -> State [Double] [(Int,Compose (NodeDomain c) Maybe Double)]
     nodesOutP g = traverse (traverse (fmap Compose . uarseT  .constrained) ) (nodes g)
-    -- linksOutP :: ( PreSys c ,Traversable (NodeDomain c) , Traversable (LinkDomain c) , Num a )=> Grid c Double -> State [Double] [(Int,Compose (LinkDomain c) Maybe Double )]
     linksOutP g = traverse (traverse ( fmap Compose . traverse uarse .lconstrained) ) (fmap (\(i,(_,_,p))-> (i,p)) $ links g)
     inNodes ,inLinks :: [Double]
-    inNodes = (concat $ ( catMaybes . F.toList . getCompose ). snd <$> f )
+    inNodes = (concat $ (catMaybes . F.toList . getCompose ). snd <$> f )
     inLinks= (concat $ (catMaybes . F.toList . getCompose ) .  snd <$> fl )
-    res = fst . rootJ HybridsJ 1e-3 1000 mod  (jacobian ( prepareModel (grid iter) modeler) )  $ inNodes <> inLinks
+    res = fst . rootJ HybridsJ 1e-3 1000 mod jmod $ inNodes <> inLinks
     mod = prepareModel (grid iter) modeler
-
-{-solveIter iter modeler =  Iteration (zip (fmap (\(i,_,_,_) -> i) $ links $ grid iter) $ take fl res) (zip (fmap fst $ nodes $ grid iter)  $ drop fl res) (grid iter)
-  where
-    fl = length (flows iter)
-    res = fst . rootJ HybridsJ 1e-7 1000 (modeler (grid iter) ) (jacobian (modeler (grid iter)  ) )  $ (snd <$> flows iter <> pressures iter )
--}
+    jmod =jacobian (prepareModel (grid iter) modeler)
 
 
 -- Rendering System Equations
 printMatrix :: Show a => [a] -> IO ()
 printMatrix  = putStr . unlines . fmap show
+
+prepareModel l model vh = model l v h
+    where
+      v = M.fromList linksIn
+      h = M.fromList nodesIn
+      (nodesIn,linksIn) = fst $ runState ((,) <$> nodesInP <*> linksInP ) (vh  <> replicate 10 100)
+      nodesInP = traverse (traverse (traverse parse .constrained)) (nodes l)
+      linksInP = traverse (traverse (traverse parse .lconstrained)) (fmap (\(i,(_,_,j)) -> (i,j)) $ links l)
+
+uarse :: Maybe a -> State [a] (Maybe a)
+uarse  (Just i) = do
+  return $ Nothing
+uarse Nothing = do
+  i:l <- get
+  put l
+  return $ Just  i
+
+uarseTup (x,v) = do
+  (,) <$> uarseT  x <*>  uarseT  v
+
+uarseT :: Traversable f => f (Maybe a) -> State [a] (f (Maybe a))
+uarseT  v =  traverse uarse  v
+
+
+parse  (Just i) = do
+  return i
+parse Nothing = do
+  v <- get
+  case v of
+    i:l -> do
+      put l
+      return i
+    l -> errorWithStackTrace ("parseError" <>  show l)
+
+parseTup (x,v) = do
+  (,) <$> parseT  x <*>  parseT v
+
+parseT  v = do
+  traverse parse  v
+
 

@@ -30,7 +30,7 @@ library
     ,Tee
     ,Position
     ,Backend.Graphviz
-    ,Backend.Diagram
+    -- ,Backend.Diagram
     ,Backend.Mecha
     ,Backend.DXF
     ,Lint
@@ -44,19 +44,19 @@ library
                       , text
                       , tbl
                       , dxf
-                      , triangulate
                       , array
                       , containers
                       , distributive
+                      , triangulate
                       , ad 
                       , semigroups
                       , comonad 
                       , reflection 
                       , mtl
                       , transformers 
-                      , diagrams-core
-                      , diagrams-svg
-                      , diagrams-lib
+                      -- , diagrams-core
+                      -- , diagrams-svg
+                      -- , diagrams-lib
                       , mecha 
                       , transformers
                       , lens 
@@ -70,6 +70,7 @@ library
   -- hs-source-dirs:      
   default-language:    Haskell2010
   hs-source-dirs: src
+
 executable Simple 
   main-is:             Simple.hs
   ghc-options :   -O0 
@@ -121,10 +122,20 @@ executable Test
                       ,async
                       ,incendio
                       ,text
-                      ,diagrams-lib
                       ,mtl
   default-language:    Haskell2010
   hs-source-dirs: example
+
+executable Boungaville 
+  main-is:             Bouganville.hs
+  ghc-options :   -O2 -threaded
+  build-depends:       base >=4.7 && <4.9
+                      ,async
+                      ,incendio
+                      ,text
+  default-language:    Haskell2010
+  hs-source-dirs: example
+
 
 executable MBTextil 
   main-is:             MBTextil.hs

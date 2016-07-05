@@ -29,15 +29,9 @@ import qualified Data.List as L
 import qualified Data.Foldable as F
 import qualified Data.Text as T
 import Debug.Trace
-import Numeric.GSL.ODE
 import Numeric.LinearAlgebra (linspace)
 import Control.Lens
 
-xdot t [x,v] = [v, -0.95*x - 0.1*v]
-
-ts = linspace 100 (0,20 :: Double)
-
-sol = odeSolve xdot [10,0] ts
 
 
 data Support a

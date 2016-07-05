@@ -9,13 +9,40 @@ import Control.Concurrent.Async (mapConcurrently)
 import Position
 import Sprinkler
 import Element
+import Hydraulic
+import Data.Semigroup
 
-import Mecha
-import Diagram
-import Diagrams.Prelude hiding(end)
+import Domains
+import Backend.Mecha
 import Control.Monad.State
 
 import Input
+
+(bouganvillePav2,bouganvilleSub2) =
+  let
+      top = [tubod 0.2 0.1 ,Turn (-1/4) ,joelhoL dtop ,tubod dtop 0.5,tubod dtop 1,joelhoR dtop , Turn (1/4),tubod dtop 2.726 ,joelhoL dtop ,tubod dtop 1.0,Bomba (600,1833) bombaSF ,tubod 0.2 1,Turn (-1/4) , joelhoR dtop  ,tubod 0.2 1,joelhoL dtop ,Turn (1/4) ,tubod 0.2 0.76,joelhoL dtop ,tubod 0.2 3.72,Turn (-1/4),joelhoR dtop,tubod 0.2 1,joelhoL dtop,Turn (1/4),tubod 0.2 0.1,joelhoL dtop , Turn (1/4) ,tubod 0.2 1,Turn (-1/4) , joelhoR 0.2  ,tubod 0.2 0.2,joelhoL dtop ,tubod 0.2 1.56,joelhoL dtop,tubod 0.2 4.2 ,joelho dtop,tubod 0.2 23.584,joelhoL dtop,tubod 0.2 50.026 ,joelho45R dtop, tubod 0.2 2.94, Turn (-1/4),joelhoR dtop, Turn (3/8) ,tubod 0.2 0.5 ]
+        where dtop = 0.2
+      pav2 = Origem $  top <> [Turn  (-1/4),joelhoL 0.2 ] <> rpav2
+      rpav2 = [tubod 0.2 4.54, Turn $ 1/2 ,joelhoR ,  tubod 0.2 4.18,joelhoL , tubod 0.2 13.79,tubod 0.15 25.396,Turn $ 1/2 , joelhoL,tubod 0.125 13.775 ,tubod 0.1 22.354,tubod 0.065 7.793 , tee TeBranch rb lb ]
+        where
+          lb = [tubod 0.05 1.593 , tee TeRunL  [tubod  0.025 3.11, tee TeRunL  ([tubod 0.025 3.11 ,Turn $ 1/2 ,joelhoR] <>  l3) l2 ] l1 ]
+          l1 = [tubod 0.032 1.325,sp,tubod 0.025 3.8,sp,tubod 0.025 3.8 ,sp] <> end
+          l2 = [tubod 0.032 1.325,sp,tubod 0.025 3.8,sp] <> end
+          l3 = [tubod 0.025 1.325,sp] <> end
+          rb = [tubod 0.05 1.518,tee TeRunR l1 ([tubod 0.025 3.11,joelho 0.025] <>  l1)]
+      sub2 = Origem $ top <> [ tubod 0.2  23.243 , joelhoL 0.2 ,Turn  (1/4) ,tubod 0.2 0.534,joelhoL 0.2 ,tubod 0.2 3.055,tubod 0.2 3.055 ,joelho45L 0.2 ,tubod 0.2 1.1 ,Turn (-1/4),joelhoR 0.2 ,tubod 0.2 3.95 , joelhoL 0.2 ,Turn (1/4)] <> rsub2
+      rsub2 = [tubod 0.2 29.45,tubod 0.125 2.953, Turn (-1/2) ,joelhoR 0.125 , tubod 0.125 23.054,tubod 0.1 24.47, tubod 0.08 3.47, joelho45L 0.08 , tubod 0.08 0.347,joelho45R 0.08 ,tubod 0.08 6.166,tee TeRunR r3 [tubod 0.065  3.5, tee TeRunR  r3 r2 ]]
+        where
+          r3 =  [tubod  0.05 8.332,tubod 0.04 6.85,sp,tubod 0.032 3.45,sp,tubod 0.025 4.19,sp, tubod 0.025 3.35,sp] <> end
+          r2 =  [tubod 0.05 3.5,joelho 0.05 ,tubod  0.05 4.932,tubod 0.04 6.8,sp,tubod 0.032 3.45,sp,tubod 0.025 3.45,sp, tubod 0.025 1.94,sp] <> end
+      sp = Sprinkler (13,5.8) 0 12.0 6.1
+      tubod di d = Tubo (Circular d) d 100
+      st = snd $ fst $ runState (unrollNode (0,Open 0) pav2) ((Open 0,0),(Open 0 ,0))
+      stsub  = snd $ fst $ runState (unrollNode (0,Open 0) sub2 ) ((Open 0,0),(Open 0 ,0))
+      grid st = Grid [] (fmap (\(l,h,t,e)-> (l,h,t, e)) $ snd st) [] (fst st <> [(0,Reservatorio 0 )])
+  in (grid st
+     ,grid stsub)
+
 
 
 {-
@@ -216,7 +243,7 @@ casaMaquina pru bomba  = [tubod pru 0.1 ,joelhoD,tubod pru 0.5,tubod pru 1,joelh
 -}
 replcomp x m = foldl1 (.)   (replicate x m)
 
-
+{-
 gridInput  = [(ph (rteto "teto-grid-80-limite-minimo"), pregrid  bombamin ),(ph (rteto "teto-grid-80"), pregrid  bombareal )]
       where
         ph = ProjectHeader  "Depósito Armazém Johnson & Johnson - Galpão 01"  "\"RODOVIA BR-153, QUADRA CH, JARDIM GUANABARA, GALPÃO 01, GOIÂNIA, GOIÁS\"" "ATLAS LOGÍSTICA LTDA" (Author "Priscila Sathler Garcia" "13.524/ - GO" "Engenheira" "Guava Engenharia")
@@ -310,6 +337,7 @@ gridInput  = [(ph (rteto "teto-grid-80-limite-minimo"), pregrid  bombamin ),(ph 
           where
             dm = dj
             tubod l d = Tubo (Just d) l 100
+            -}
 {-
 
 johnson :: (Enum a,Show a,RealFloat a )=> [(ProjectHeader,Grid a)]
@@ -355,7 +383,7 @@ johnson =   conjb "in-rack-conjunto-b-limite-minimo" conjbomba
           dr = 0.08
           dj = 0.1
           db = 0.025
-          tubod  d l  = Tubo (Just d) l 100
+          tubod  d l  = Tubo (Circular d) l 100
           sp = Sprinkler (Just (25,11.5)) Nothing 12.1  ( 0.10490627622503315*60)
           pav2 = Origem $  vga3   bomba rpav2
           cross o l = [tee TeRunL [tubod dr 0.01,tee TeRunR end (o <> l) ]end ]
@@ -392,30 +420,6 @@ terraAtacado =
   in [("VG1",grid st)]
 
 
-
-(bouganvillePav2,bouganvilleSub2) =
-  let
-      top = [tubod 0.2 0.1 ,joelhoD,tubod 0.2 0.5,tubod 0.2 1,joelhoU0,tubod 0.2 2.726 ,joelhoL,tubod 0.2 1.0,Bomba (600,1833) bombaSF ,tubod 0.2 1,joelhoUV (-1/4),tubod 0.2 1,joelhoD ,tubod 0.2 0.76,joelhoL,tubod 0.2 3.72,joelhoD,tubod 0.2 1,joelhoU0,tubod 0.2 0.1,joelhoU0,tubod 0.2 1,joelhoD ,tubod 0.2 0.2,joelhoL,tubod 0.2 1.56,joelhoL ,tubod 0.2 4.2 ,joelho,tubod 0.2 23.584,joelhoL,tubod 0.2 50.026 ,joelho45R, tubod 0.2 2.94, joelhoDV (3/8) ,tubod 0.2 0.5 ]
-      pav2 = Origem $  top <> [joelhoUV $ -1/4 ] <> rpav2
-      rpav2 = [tubod 0.2 4.54, Turn $ 1/2 ,joelhoR ,  tubod 0.2 4.18,joelhoL , tubod 0.2 13.79,tubod 0.15 25.396,Turn $ 1/2 , joelhoL,tubod 0.125 13.775 ,tubod 0.1 22.354,tubod 0.065 7.793 , tee TeBranch rb lb ]
-        where
-          lb = [tubod 0.05 1.593 , tee TeRunL  [tubod  0.025 3.11, tee TeRunL  ([tubod 0.025 3.11 ,Turn $ 1/2 ,joelhoR] <>  l3) l2 ] l1 ]
-          l1 = [tubod 0.032 1.325,sp,tubod 0.025 3.8,sp,tubod 0.025 3.8 ,sp] <> end
-          l2 = [tubod 0.032 1.325,sp,tubod 0.025 3.8,sp] <> end
-          l3 = [tubod 0.025 1.325,sp] <> end
-          rb = [tubod 0.05 1.518,tee TeRunR l1 ([tubod 0.025 3.11,joelho] <>  l1)]
-      sub2 = Origem $ top <> [ tubod 0.2  23.243 , joelhoUV $ 1/4 ,tubod 0.2 0.534,joelhoL,tubod 0.2 3.055,tubod 0.2 3.055 ,joelho45L,tubod 0.2 1.1 ,joelhoDV (-1/8),tubod 0.2 3.95 , joelhoUV $ 0 ] <> rsub2
-      rsub2 = [tubod 0.2 29.45,tubod 0.125 2.953, Turn (-1/2) ,joelhoR, tubod 0.125 23.054,tubod 0.1 24.47, tubod 0.08 3.47, joelho45L , tubod 0.08 0.347,joelho45R,tubod 0.08 6.166,tee TeRunR r3 [tubod 0.065  3.5, tee TeRunR  r3 r2 ]]
-        where
-          r3 =  [tubod  0.05 8.332,tubod 0.04 6.85,sp,tubod 0.032 3.45,sp,tubod 0.025 4.19,sp, tubod 0.025 3.35,sp] <> end
-          r2 =  [tubod 0.05 3.5,joelho,tubod  0.05 4.932,tubod 0.04 6.8,sp,tubod 0.032 3.45,sp,tubod 0.025 3.45,sp, tubod 0.025 1.94,sp] <> end
-      sp = Sprinkler (Just (13,5.8)) Nothing 12.0 6.1
-      tubod di d = Tubo (Just di) d 100
-      st = snd $ fst $ runState (unrollNode (0,Open 0) pav2) ((Open 0,0),(Open 0 ,0))
-      stsub  = snd $ fst $ runState (unrollNode (0,Open 0) sub2 ) ((Open 0,0),(Open 0 ,0))
-      grid st = Grid [] (fmap (\(l,h,t,e)-> (l,h,t, e)) $ snd st) [] (fst st <> [(0,Reservatorio 0 )])
-  in (grid st
-     ,grid stsub)
 
 
 
@@ -502,5 +506,5 @@ sanmarino = do
   writeFile "sanmarino.scad" $ openSCAD     (t1 <> t2)
 -}
 
-main = mapConcurrently solveModel (gridInput)
+-- main = mapConcurrently solveModel (gridInput)
 

@@ -47,7 +47,9 @@ data TeTipo
   | TeRunR
   deriving(Eq,Show)
 
-data Curva a = Poly [(a,a)] deriving(Eq,Show,Functor)
+data Curva a
+  = Poly [(a,a)]
+  deriving(Eq,Show,Functor)
 
 
 data SPKCoverage a = SPKCoverage
@@ -159,6 +161,10 @@ data Element a
   , comprimento :: a
   , atrito :: a
   }
+  | PowerLawFlow
+  { flowexpn :: a
+  , flowcoef :: a
+  }
   | Reservatorio
   { tempo :: a
   }
@@ -226,7 +232,6 @@ data Fluido a
   }deriving(Eq,Ord,Show,Functor)
 
 
-kinematicViscosity p t f = justError "no interp" $ (/) <$> bilinearInterp (p,t) (M.fromList $ viscosity f) <*> bilinearInterp (p,t) (M.fromList $ density  f)
 
 hydraulicDiameter (Rectangular w h) = 1.30*(w*h)**0.625/(w+h)**0.25
 hydraulicDiameter (Circular d ) = d
@@ -240,6 +245,7 @@ areaE (Tubo (Rectangular i j) _ _ ) = i*j
 areaE e = pi*(( diametroE e)/2)^2
 
 perimeterE (Tubo (Rectangular i j) _ _) =  2*i+2*j
+
 roughnessE e = justError "no roughness" $ M.lookup (materialE e) (M.fromList [(100,0.045),(120,0.09)])
 
 sectionE  (Tubo d _ _ ) = d

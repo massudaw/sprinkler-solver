@@ -16,22 +16,14 @@ import GHC.Stack
 --
 -- From Pipe Flow A Pratical and Comprehensive Guide - Chapter Tee - page 170 to 199
 --
-eps = 1e-12
 
 -- g =  32.174
-g =  9.81
 
-trilinear  i j = fromMaybe 0 $ trilinearInterp i (buildTable3D j)
 
-allMaybes i
-  | all isJust i = fmap fromJust i
-  | otherwise = []
-
-fromJustE e (Just i) = i
-fromJustE e i = errorWithStackTrace $ "fromJustE" <> e
 
 biinterp  j m = fromMaybe 0 $ bilinearInterp  j (buildTable2D m)
 liinterp  j m = fromMaybe 0 $ linearInterp j (buildTable1D m)
+trilinear  i j = fromMaybe 0 $ trilinearInterp i (buildTable3D j)
 
 
 lossPa p t l fluid flowMap section = fmap (pressureDrop p t fluid flowMap section. regularizeLoss l flowMap)
@@ -60,7 +52,7 @@ fittingLosses fluid tblmap flowMap t@(TeeConfig [ix] [sec] int)
         ductentry = [(ix,biinterp (len/hydraulicDiameter sec,th/hydraulicDiameter sec) )]
 
     RoundEntry r wall ->
-      traceShowId $ case wall of
+      case wall of
         True -> lossess "Ed1-2" roundentry
         False -> lossess "Ed1-3" roundentry
       where
@@ -108,7 +100,7 @@ fittingLosses fluid tblmap flowMap t@(TeeConfig [rli,bi,rri] [amain , abranch ,a
         classifyFlow
           |  rls > 0 && bs <= 0 && rrs <= 0 = lossess "Sr5-5" rectee
           |  otherwise  = []
-        rectee = zip [rri,bi]  [liinterp (rrs/rls) , biinterp (bs/rls,areaS abranch /areaS amain)]
+        rectee = zip [rri,bi]  [ biinterp (bs/rls,areaS abranch /areaS amain), liinterp (rrs/rls) ]
      RoundTee _ _ _ ->  classifyFlow
       where
         classifyFlow
@@ -116,12 +108,12 @@ fittingLosses fluid tblmap flowMap t@(TeeConfig [rli,bi,rri] [amain , abranch ,a
           | otherwise = []
         roundtee = zip [rri,bi] [trilinear (bs/rls,areaS aramal /areaS amain  ,areaS abranch /areaS amain) , trilinear (abs $ rrs/rls,areaS abranch /areaS amain,areaS aramal /areaS amain  ) ]
   where
-    [rls,bs,rrs]  = fmap (\i -> fromJustE ("no variable " ++ show i ++ " in m@ap " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
+    [rls,bs,rrs]  = fmap (\i -> justError ("no variable " ++ show i ++ " in m@ap " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
     lossess elt fun = zipWith (\f e -> fmap ($f) e) (fmap snd $ var elt  tblmap) fun
 
 
 fittingLossesNFPA _ joelhos flowMap  t =  classifyFlow flow
-  where flow = fmap (\i -> fromJustE ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
+  where flow = fmap (\i -> justError ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
         classifyFlow bl =   classifyFlow' t flowMap bl
 
 

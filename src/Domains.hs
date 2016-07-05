@@ -7,13 +7,6 @@ module Domains
   ,Iteration
   ,FIteration (..)
   ,runState
-  ,uarse
-  ,uarseTup
-  ,uarseT
-  ,parse
-  ,parseTup
-  ,parseT
-  ,prepareModel
   ,nodesSet
   ,justError
   ,PreCoord(..)
@@ -39,6 +32,8 @@ data Grid  b a
   , volumes :: [(Int,([(Bool,Int)],b a))]
   , nodesPosition :: [(Int,(V3 a,SO3 a))]
   , nodes :: [(Int,b a)]
+  , enviroment :: [(Int,b a)]
+  , enviromentPosition :: [(Int ,(V3 a ,SO3 a))]
   }deriving(Functor,Show)
 
 
@@ -65,6 +60,7 @@ class PreSys sys  where
   postprocess _ = []
 
 type Iteration sys  a =  FIteration (NodeDomain sys ) (LinkDomain sys) (Enviroment sys) sys a
+
 data FIteration n l o b a
   = Iteration
   { flows :: [(Int,Compose l Maybe a)]
@@ -92,48 +88,9 @@ var i m = case M.lookup i m of
                Just i -> i
                Nothing -> errorWithStackTrace $ "no variable " ++ show i  ++ " " ++ show m
 
-uarse :: Maybe a -> State [a] (Maybe a)
-uarse  (Just i) = do
-  return $ Nothing
-uarse Nothing = do
-  i:l <- get
-  put l
-  return $ Just  i
-
-uarseTup (x,v) = do
-  (,) <$> uarseT  x <*>  uarseT  v
-
-uarseT :: Traversable f => f (Maybe a) -> State [a] (f (Maybe a))
-uarseT  v =  traverse uarse  v
-
-
-parse  (Just i) = do
-  return i
-parse Nothing = do
-  v <- get
-  case v of
-    i:l -> do
-      put l
-      return i
-    l -> errorWithStackTrace ("parseError" <>  show l)
-
-parseTup (x,v) = do
-  (,) <$> parseT  x <*>  parseT v
-
-parseT  v = do
-  traverse parse  v
-
 
 justError e Nothing = errorWithStackTrace ("justError" <> e)
 justError _ (Just i) = i
-
-prepareModel l model vh = model l v h
-    where
-      v = M.fromList linksIn
-      h = M.fromList nodesIn
-      (nodesIn,linksIn) = fst $ runState ((,) <$> nodesInP <*> linksInP ) (vh  <> replicate 10 100)
-      nodesInP = traverse (traverse (traverse parse .constrained)) (nodes l)
-      linksInP = traverse (traverse (traverse parse .lconstrained)) (fmap (\(i,(_,_,j)) -> (i,j)) $ links l)
 
 nodesSet grid = fmap (\(i,n) -> (i,(var i nodeMapSet,n))) (nodes grid)
     where nodeMapSet =  M.fromListWith mappend $ concat $ (\(l,(h,t,_)) -> [(h,[l ]),(t,[l ])]) <$> links grid

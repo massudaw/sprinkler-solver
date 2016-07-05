@@ -33,15 +33,22 @@ import qualified Data.Foldable as F
 import Control.Applicative
 import qualified Numeric.AD as AD
 
-import Linear.V3
 import Rotation.SO3 hiding (rotM)
 
 
 water = Fluido [((25,101.325),1.0e-30)] [((25,101.325),997)]  "Água"
-air = Fluido [((25,101.325),1.983e-5)] [((25,101.325),air700mDensity)] "Ar"
+air = Fluido [((20,101.325),1.8e-5),((50,101.325),1.95e-5),((0,101.325),1.71e-5)] [((25,101.325),air700mDensity)] "Ar"
 
 fluidDensity p t _ (Fluido _ d "Água") =  justError "no bilinear" $ bilinearInterp (p,t) $M.fromList  d
-fluidDensity p t flu (Fluido _ d "Ar") =  densityAir flu
+fluidDensity p t amb (Fluido _ d "Ar") =  airDensity  (pontoOrvalho amb) t (1000*p) (altitude amb)
+
+fluidViscosity p t f = justError "no biliinterp" $ bilinearInterp (p,t) (M.fromList $ viscosity f)
+
+kinematicViscosity env p t f@(Fluido _ d "Ar")  =  airViscosity t / fluidDensity p t env f
+kinematicViscosity env p t f =  fluidViscosity p t f  / fluidDensity p t env f
+
+airDensity2  pb tdb dw =  pb / ( 287.0 * ( tdb + 273.15 ) * ( 1.0 + 1.6077687 * max  dw 1.0e-5  ) )
+airViscosity tz = 1.71432e-5 + 4.828e-8 *tz
 
 air700mDensity = 0.9
 -- Pressure kpa ->  Temperature ºC ->  Density
@@ -49,7 +56,6 @@ idealGasDensity :: Fractional a => a -> a -> a
 idealGasDensity p t = p*1000/rAirConstant/tk
   where  tk = t + 273.15
 
-densityAir  amb = airDensity  (pontoOrvalho amb) (temperaturaAmbiente amb) (pressaoBarometrica amb) (altitude amb)
 
 defAmbient f a
   = Ambient f a 700 25 15 1103 (V2 (16.605621)(-49.3481687))
@@ -82,18 +88,22 @@ instance PreSys Element  where
   constrained i = V3 Nothing 0 Nothing
   lconstrained i = Identity $ Nothing
 
+idealGasLaw p t d =  p - t*rGasConstant*d
 
-airActualPressure as h =  p
-  where
-    k1=0.190263;
-    k2=8.417286E-5;
-    p=((as**k1)-(k2*geoPotential h))**(1/k1)
 
+-- Earth Gravity Equations
 gravitySea  phi = 9.7803253359 *(1+0.00193185265241*(sin phi)^2/(sqrt(1-0.00669437999013*(sin phi)^2)))
 
 gravityHeight lat h = gravitySea lat  - 3.155e-7*h
 
 localGravity am = gravityHeight (geoposition am ^. _x) (altitude am)
+
+-- Gravity Field Pressure Correction
+airActualPressure as h =  p
+  where
+    k1=0.190263;
+    k2=8.417286E-5;
+    p=((as**k1)-(k2*geoPotential h))**(1/k1)
 
 geoPotential z =  ((r*z)/(r+z))
   where
@@ -221,18 +231,32 @@ thermalEquations am g pm  =  catMaybes $ uncurry nflow <$>  nodes g
 leakEquations am g pm  =  catMaybes $ uncurry nflow <$>  nodes g
   where
     nflow i e = do
-      fl <- genFlow (var i (M.fromList (nodesPosition g)) ^. _1._z) (var i pm ^. _x) e
+      fl <- genFlow (var i (M.fromList (nodesPosition g)) ^. _1._z) (var i pm ) e
       return $ var i pm ^. _y - fl
-    genFlow h idf (Sprinkler (_,k) _ _ _) = Just $ (if idf <= 0 then negate else id ) flow
-      where flow = k*sqrt (abs (idf - airPressure (h + altitude am)))
+    genFlow h (V3 p v t ) (Sprinkler (_,k) _ _ _) = Just $ (if p <= 0 then negate else id ) flow
+      where flow = k*sqrt (abs pdrop)
+            pdrop = p - airPressure (h + altitude am)
+    genFlow h (V3 p v t) (PowerLawFlow expn coef)
+      | laminar && p >= 0 =  Just $ coef*rho/visc*(rhoNorm/rho)**(expn -1)*(viscNorm/visc)**(2*expn -1)*pdrop
+      | laminar && p < 0 =  Just $ coef*rho2/visc2*(rhoNorm/rho2)**(expn -1)*(viscNorm/visc2)**(2*expn -1)*pdrop
+      | p >= 0 = Just $ coef * sqrt rho * (abs pdrop)**expn
+      | p < 0 = Just $ -coef * sqrt rho2 * (abs pdrop)**expn
+      where viscNorm  = fluidViscosity 101.325 20  (fluido am)
+            rhoNorm = fluidDensity 101.325 20 am (fluido am)
+            rho = fluidDensity  p t am (fluido am)
+            rho2 = fluidDensity (airPressure (h + altitude am)) (temperaturaAmbiente am) am (fluido am)
+            visc = fluidViscosity p t (fluido am)
+            visc2 = fluidViscosity (airPressure (h + altitude am)) (temperaturaAmbiente am)  (fluido am)
+            laminar = False
+            pdrop = p - airPressure (h + altitude am)
     genFlow _  _ i = Nothing
 
 fittingsCoefficient am nh sflow n t = case fluidName (fluido am) of
           "Água" -> (\(ix,l) -> (ix,ktubo am (nstate,nstate) joelhos l (abs $ var ix flowMap   ))) <$> fittingLossesNFPA (fluido am) joelhos flowMap t
           "Ar" -> pressureDrop (nstate ^._x) (nstate ^. _z) (fluido am) flowMap (sectionMap t) <$> fittingLosses (fluido am) (ashrae am) flowMap  t
         where
-          flowMap = (fmap (\x -> x/1000/60) $ var n  sflow)
           nstate = var n nh
+          flowMap = (fmap (\x -> x/1000/60) $ var n  sflow)
 
 
 
@@ -242,28 +266,25 @@ jacobianNodeHeadEquation am grid  vm nh =  term <$> l
   where
     l = links grid
     sflow = signedFlow grid vm
-    fittings n t = case fluidName (fluido am) of
-          "Água" -> (\(ix,l) -> (ix,ktubo am  (nstate ,nstate) joelhos l (abs $ var ix flowMap   ))) <$> fittingLossesNFPA (fluido am) joelhos flowMap t
-          "Ar" -> pressureDrop (nstate ^. _x) (nstate ^. _z) (fluido am) flowMap (sectionMap t) <$> fittingLosses (fluido am) (ashrae am) flowMap  t
-        where
-          nstate = var n nh
-          flowMap = (fmap (\x -> x/1000/60) $ var n  sflow)
+    fittings n t = fittingsCoefficient am nh  sflow n t
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> fittings n t ) .  filter (isTee .snd) $ nodes grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,(h,t,e)) =   sum (pipeElement am  (var h nh ,var  t nh )  (var l vm) <$> e)  + gravityEffect (var h nh ,var  t nh ) am (var t nhs ^. _z - var h nhs ^. _z)  + (var t nh ^. _x - var h nh ^. _x )  +  addTee (h,l) + addTee (t,l)
+    term (l,(h,t,e)) =   sum (pipeElement am  (var h nh ,var  t nh )  (var l vm) <$> e)  + stackEffect (var h nh ,var  t nh ) am (var t nhs ^. _z ) ( var h nhs ^. _z)  (var l vm) + (var t nh ^. _x - var h nh ^. _x )  +  addTee (h,l) + addTee (t,l)
       where
          nhs = fmap fst (M.fromList $ nodesPosition  grid)
 
 gravityEffect (V3 p _ t,_) am dh = fluidDensity p t am (fluido am)*dh*(localGravity am)/1000
 
-{-testEquations = (darcy t am q , ktubo am joelhos t  q)
-  where  t = Tubo (Circular 0.315) 1 100
-         q = 1000*60
-         am = defAmbient water undefined
-         -}
+stackEffect (V3 p1 _ t1 , V3 p2 _ t2 ) am h1 h2 f
+  | f > 0  =  localGravity am * (fluidDensity p1 t1 am (fluido am) * (h1 - h2)  + h2 * drho )
+  | f < 0  =  localGravity am * (fluidDensity p2 t2 am (fluido am) *  (h1 - h2)  + h1 * drho )
+  | otherwise = localGravity am * (fluidDensity p2 t2 am (fluido am) + fluidDensity p2 t2 am (fluido am) * dh  + (h1+h2) * drho)/2
+    where
+      dh = h1 - h2
+      drho = fluidDensity p2 t2 am (fluido am) - fluidDensity p1 t1 am (fluido am)
 
 -- System Equations
-reinolds p t v d f  = v*d/kinematicViscosity p t f
+reinolds env p t v d f  = v*d/kinematicViscosity env p t f
 -- Multiple fluid equations , input Flow;L/min , output Pressure;kPA
 
 darcy :: (Ord a,Show a,Floating a,Real a ) => (V3 a , V3 a) ->  Element a -> Ambient a -> a -> a
@@ -272,7 +293,7 @@ darcy (V3 p _ t ,_) e flu q = f*l/d*ve^2/2*fluidDensity p t flu (fluido flu)/100
     l = distanciaE e
     d =  diametroE e
     g = localGravity flu
-    re = reinolds  p t ve d (fluido flu)
+    re = reinolds  flu p t ve d (fluido flu)
     qm3s = q/1000/60
     ve = qm3s/areaE e
     f
@@ -301,7 +322,7 @@ manning t  = perda*10/(1000*60)**1.85
 
 
 -- Hazen Willians water equations , input (flow;L/min) ; output (Pressure;KPA )
-ktubo  env (V3 p _ tk ,_) joelhos t q = perda/1000*(justError "no bilinear" $ bilinearInterp (p,tk) $ M.fromList $ density (fluido env)) *(localGravity env)*(q/1000/60)**1.85
+ktubo  env (V3 p _ tk ,_) joelhos t q = perda/1000 * fluidDensity p tk  env (fluido env)*localGravity env*(q/1000/60)**1.85
   where
     d = diametroE t
     c = materialE t

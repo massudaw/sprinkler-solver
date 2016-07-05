@@ -192,14 +192,16 @@ prune g t = g {nodes = out1nodes   <> nn  , links = out1links <> nt }
             | S.member h out1S= ((l,(h, t, [tubod 0.025 0.1])), (t,Open 0))
             | S.member t out1S= ((l,(h, t, [tubod 0.025 0.1])), (h,Open 0))
 
+
+
 renderModel env regionRisk range (header,model) = do
   let fname  = baseFile header
       dxfname = fname <> ".DXF"
   Right f <- readDXF dxfname
   let calc_bounds  = filter ((== "calc_area").layer. eref) $ entities f
-      projBounds (Entity n o (LWPOLYLINE _ _ _ polygon _ _ )) = fmap fst polygon
-      regions (i,b) =  Region name (baseFile header  <> "-" <> name ) [] ( b)  (regionRisk !! i)
-        where label =  L.find (\(Entity  _ _ (TEXT (V3 x y _)  _ _ _ _)) -> Polygon.contains  (PolygonCW $ fmap (\(V2 i j) -> Point2 (i,j)) b) (Point2 (x,y)))$  filter ((== "area_label").layer. eref) $ entities f
+      projBounds (Entity n o (LWPOLYLINE _ _ z polygon _ _ )) = (fromMaybe 0 z,fmap fst polygon)
+      regions (i,(z,b)) =  Region name (baseFile header  <> "-" <> name ) [] ( b)  (regionRisk !! i)
+        where label =  L.find (\(Entity  _ _ (TEXT (V3 x y zt)  _ _ _ _)) -> Polygon.contains  (PolygonCW $ fmap (\(V2 i j) -> Point2 (i,j)) b) (Point2 (x,y)) && (zt < z + 1 || zt > z-1) )$  filter ((== "area_label").layer. eref) $ entities f
               name = maybe (show i) (\(Entity _ _ (TEXT _ _ l   _ _)) -> l) label
       modelg = fst $ upgradeGrid 0 1 $ model
   drawSCAD (baseFile header) (baseFile header) modelg
@@ -247,7 +249,16 @@ reportIter header rinfo i env a  f h    = do
   where
     residual = jacobianEqNodeHeadGrid env a f h
     reportEnviroment env =
-       L.intercalate "\n" $ L.intercalate "," <$> [["Condições Ambiente"],["Fluído",show $ fluidName f],["Viscosidade Dinâmica", show $ viscosity f],["Densidade Fluído",show $ density f],["Gravidade",sf3 (localGravity env) ,"m/s²"],["Densidade Ar",sf3 (densityAir env)]]
+       L.intercalate "\n" $ L.intercalate "," <$> [["Condições Ambiente"]
+       ,["Fluído",show $ fluidName f]
+       ,["Viscosidade Dinâmica", show $ fluidViscosity (pressaoBarometrica env/1000) (temperaturaAmbiente env) f]
+       ,["Densidade Fluído",show $ fluidDensity (pressaoBarometrica env/1000) (temperaturaAmbiente env) env f,"kg/m³"]
+       ,["Gravidade",sf3 (localGravity env) ,"m/s²"]
+       ,["Densidade Ar",sf3 (fluidDensity (pressaoBarometrica env /1000) (temperaturaAmbiente env ) env air ),"kg/m³"]
+       ,["Pressão Barométrica" ,sf3 (pressaoBarometrica env/1000),"kpa"]
+       ,["Temperatura" ,sf3 (temperaturaAmbiente env),"ºC"]
+       ,["Ponto de Orvalho", sf3 (pontoOrvalho env),"ºC"]
+       ,["Altura", sf3  (altitude env),"m"]]
          where f = fluido env
     reportGrelha =
       let t  = L.filter (\e -> (isGrelha.snd $ e) || (isEntry . snd $ e)) (nodes a)
