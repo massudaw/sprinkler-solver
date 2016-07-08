@@ -177,9 +177,10 @@ instance Coord Element (V3 Double) where
           els i = errorWithStackTrace $ show ("thisElement",i)
 
 pipeElement am ps v e | v < 0 = negate $ pipeElement am ps (abs v) e
-pipeElement am ps v (Bomba  ((pn,vn)) (Poly l ) ) = negate $ (*pn) $ (/100)  $foldr1 (+) (polyTerm <$> l)
+pipeElement am ps v (Bomba  (pn,vn) (Poly l ) ) = res
       where polyTerm (0,c) =   c
             polyTerm (p,c) =   c*(100*v/vn)**p
+            res =  negate $ (*pn) $ (/100)  $foldr1 (+) (polyTerm <$> l)
 pipeElement am ps v e@(Tubo _ _ _)
   = case fluidName $ fluido am of
       "Água" ->  ktubo am ps joelhos e v
@@ -269,7 +270,7 @@ jacobianNodeHeadEquation am grid  vm nh =  term <$> l
     fittings n t = fittingsCoefficient am nh  sflow n t
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> fittings n t ) .  filter (isTee .snd) $ nodes grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,(h,t,e)) =   sum (pipeElement am  (var h nh ,var  t nh )  (var l vm) <$> e)  + stackEffect (var h nh ,var  t nh ) am (var t nhs ^. _z ) ( var h nhs ^. _z)  (var l vm) + (var t nh ^. _x - var h nh ^. _x )  +  addTee (h,l) + addTee (t,l)
+    term (l,(h,t,e)) =   sum (pipeElement am  (var h nh ,var  t nh )  (var l vm) <$> e)  + {-  stackEffect (var h nh ,var  t nh ) am (var t nhs ^. _z ) ( var h nhs ^. _z)  (var l vm) -} gravityEffect  (var h nh,var t nh) am  ((var t nhs ^. _z ) - ( var h nhs ^. _z) ) + (var t nh ^. _x - var h nh ^. _x )  +  addTee (h,l) + addTee (t,l)
       where
          nhs = fmap fst (M.fromList $ nodesPosition  grid)
 
@@ -339,7 +340,7 @@ jacobianEqNodeHeadGrid e l v h =  jacobianNodeHeadEquation e l (runIdentity <$> 
 --------------------------
 
 
-renderElemMecha   ni (Open i) = Mecha.color (0,1,0,1) $ Mecha.sphere 0.1
+renderElemMecha   ni (Open i) = (Mecha.color (0,1,0,1) $ Mecha.sphere 0.1) <>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
 
 renderElemMecha   ni (Reservatorio  i) = (Mecha.color (1,1,1,1) $ Mecha.sphere 0.5 )<>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
 renderElemMecha   ni (Grelha _ _ _ _ ) = (Mecha.color (1,1,1,1) $ Mecha.sphere 0.5 )<>  ( Mecha.moveY 0.2 $ Mecha.scale (0.03,0.03,0.03) (Mecha.text (show ni)))
@@ -361,9 +362,9 @@ renderElemMecha   ni (Sprinkler ((d,k)) _ fa@(SPKCoverage sx sy sz (SPKGoods g _
 renderElemMecha   ni i = errorWithStackTrace  $ show ("renderElemMecha",ni,i)
 
 renderLinkMecha   _ ni (Tubo s c _ )
-  = case s of
+  = (case s of
     Circular d -> (Mecha.color (0.2,0.2,1, 1 ) $ Mecha.rotateY (pi/2) $ Mecha.cylinder d (c*0.9999))
-    Rectangular h w  -> Mecha.color (0.2,0.2,1, 1 ) $ Mecha.scale  (c,w,h) $ Mecha.move (0.5,0,0) $  Mecha.cube 1
+    Rectangular h w  -> Mecha.color (0.2,0.2,1, 1 ) $ Mecha.scale  (c,w,h) $ Mecha.move (0.5,0,0) $  Mecha.cube 1)
 
 renderLinkMecha   nis ni (Joelho _ (TabelaPerda (d)  c _  )  ) = Mecha.sphere (hydraulicDiameter d) -- <> (Mecha.scale (0.03,0.03,0.03) $ Mecha.text (show ni <> "-" <> show nis ))
 renderLinkMecha   nis ni  (Bomba i  v ) = Mecha.moveX (0.03/2) $ Mecha.sphere 0.4 -- <> (Mecha.scale (0.03,0.03,0.03) $ Mecha.text (show ni <> "-" <> show nis ))

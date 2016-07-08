@@ -99,19 +99,19 @@ locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
     modify (<> (mempty ,M.singleton l i))
     return err
   | n == tn = do
-    (i,err) <- revpath hn ( e)
+  {-  (i,err) <- revpath hn ( e)
     modify (<> (mempty ,M.singleton l i))
-    return err
+    return err-}
     return (pure [])
   | otherwise = error $ "wrong back element " <> show n  <> " " <> show ll
   where
 
-    revpath  nn e = do
+    {-revpath  nn e = do
       let
         es =justError "no element" .  M.lookup hn . M.fromList . nextE tn [hn,tn] <$> e
         sn =  scanr transElemr r es
       err <- nextNode  (head sn) nn
-      return (init $ reverse sn,err)
+      return (init $ reverse sn,err)-}
     path  nn e = do
       let
         es =justError "no element" .  M.lookup tn . M.fromList . nextE hn [hn,tn] <$> e

@@ -1,9 +1,10 @@
-{-# LANGUAGE RecursiveDo,OverloadedStrings ,TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
+{-# LANGUAGE BangPatterns,RecursiveDo,OverloadedStrings ,TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
 module Project where
 
 import Grid
 import qualified Data.Set as S
 import Search
+import qualified Data.Foldable as F
 import GHC.Stack
 import Debug.Trace
 import Control.Applicative.Lift
@@ -155,7 +156,7 @@ joelho45L e = Joelho left45 (pj45 e)
 
 -- testResistor :: SR.Expr
 
-filterBounded poly grid = prune (grid {nodes =spks}) tar
+filterBounded poly grid = fst $ upgradeGrid 0 1 $(compactNodes $ grid {nodes =spks})-- prune (compactNodes $ grid {nodes =spks}) tar
   where
     pcon = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a,b)) poly
     spks = fmap (\(i,v) ->
@@ -166,17 +167,68 @@ filterBounded poly grid = prune (grid {nodes =spks}) tar
 
     tar = fst <$> filter (Polygon.contains pcon. (\(V3 x y z) -> Point2 (x,y)) . fst . snd) (nodesPosition grid)
 
-prune g t = g {nodes = out1nodes   <> nn  , links = out1links <> nt }
+gridSize g =  (length (nodes g), length (links g))
+
+recursiveSubs  m l =  join (recursiveSubs m <$> lk ) <|> lk
+  where lk =M.lookup l m
+
+compactNodes g =  res
+    where
+      res = g {nodes =  fmap (substitute subs) <$>  filter (not . flip S.member removed . fst ) (nodes g) , links = fmap (\(l,h,t,e) -> (l,(h,t,e))) (F.toList lks ),nodesPosition = [] , linksPosition = []}
+      substitute subs (Tee (TeeConfig a b c  ) t) = (Tee (TeeConfig ((\i -> fromMaybe i . recursiveSubs subs  $ i )<$> a) b c  ) t)
+      substitute subs i = i
+      (_,_,subs,removed,lks) = execState (edit (0,2)) (S.singleton 0 ,L.maximum $ fst <$> links g ,M.empty, S.empty, M.fromList $ fmap (\(l,(h,t,e)) -> ((h,t),(l,h,t,e))) (links g))
+      edit ini@(a,i) = do
+        (visited,n,subs,removed,st) <-  get
+        put (visited <> S.singleton i,n,subs,removed,st)
+        let
+            next =  L.delete a  (lg A.! i)
+            isOpen (Open _ ) = True
+            isOpen _ = False
+            lidx (ix,_ ,_,_) = ix
+            lrev (ix,a ,b,e) = (ix,b,a,e)
+            el = head next
+            cond  = length next == 1 && isOpen (var i (M.fromList (nodes g)))
+        if  cond
+           then do
+             (visited,n,subs,removed,st) <- get
+             if isJust (M.lookup (i,el) st)
+             then do
+               let
+                 st1 = M.delete (i,el)  $ M.delete (a,i) $ st
+                 st2 = M.insert  (a,el) (mergeEl (lookFlip (a,i)) (lookFlip (i,el)) ) st1
+                 lookFlip ix = justError ("no lookFlip " <> show (ix,ini,next))$ M.lookup ix st
+                 mergeEl (_,h,_,e) (_,_,t,a)  = (n+1,h,t,e <> a)
+               put $ traceShow ("replace",(a,i,el)) (visited,n+1,M.insert (lidx $ lookFlip (a,i)) (n+1) $ M.insert  ( lidx $ lookFlip (i,el)) (n+1) subs,S.insert i removed ,st2)
+             else do
+               put$ traceShow  ("inverse",i,el) (visited,n , subs ,removed ,st)
+               return ()
+
+             when (not $ S.member el visited) $
+                   edit (a,el)
+
+            else traceShow  ("keep",a,i,next) $do
+              mapM (\j -> do
+                  (_,_,_,_,st) <- get
+                  when ( not ( S.member j visited ) && isJust (M.lookup (i,j) st )) $
+                   edit (i,j))  next
+
+              return ()
+
+      lg = buildG (0,maximum (fst <$> nodes g)) $ fmap (\(l,(h,t,e)) -> (h,t)) (links g)
+
+prune g nodeSet = g {nodes = out1nodes   <> nn  , links = out1links <> nt }
     where
       l = concat $ (\(h,t,v)-> [(h,t)] <> (if L.any isValvulaGoverno v then [] else [(t,h)])) . snd <$> links g
-      r = concat $ (\(h,t,v)->  (if L.any isValvulaGoverno v then [] else [(h,t)] <>[(t,h)])) . snd <$> links g
-      reach = S.fromList $  concat $ fmap (\(i,j) -> [i,j]) $ concat $ concat $ fmap (flip (connected 0) graph) t
-      graph = L.nub <$> buildG (0,length l) (L.sort rl)
-      reachS =  S.fromList $ (t <>  reachable  (buildG (0,length l) l) (head t))
+      r = concat $ (\(h,t,v)->  (if L.any isValvulaGoverno v then [] else [(h,t),(t,h)])) . snd <$> links g
+      reach = S.fromList $  concat $ fmap (\(i,j) -> [i,j]) $ concat $ concat $ fmap (flip (connected 0) graph) nodeSet
+      maxn = maximum (fst <$> nodes g)
+      graph = L.nub <$> buildG (0,maxn  ) (L.sort rl)
+      reachS =  S.fromList $ (nodeSet  <>  reachable  (buildG (0,maxn ) l) (head nodeSet))
       rl = filter (\(h,t) -> S.member h reachP || S.member t reachP) l
       reachP = reachS <> reachRoot
 
-      reachRoot = S.fromList $ (reachable  (buildG (0,length l) r) 0)
+      reachRoot = S.fromList $ (reachable  (buildG (0,maxn) r) 0)
       -- Output reachable nodes
       out1nodes = filter (\(i,_)-> S.member i reach) (nodes g)
       -- Output reachable links
@@ -207,7 +259,7 @@ renderModel env regionRisk range (header,model) = do
   drawSCAD (baseFile header) (baseFile header) modelg
   renderDXF  (baseFile header) fname  (drawGrid  modelg)
   mapM (\r -> do
-     solveModel (header , initIter (fst $ upgradeGrid 0 1 $ filterBounded (regionBoundary r)  $ modelg ) $ env,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
+     solveModel (header , initIter ( filterBounded (regionBoundary r)  $ modelg ) $ env,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
 
 
 solveModel (header ,model,region ) = do
