@@ -156,7 +156,7 @@ joelho45L e = Joelho left45 (pj45 e)
 
 -- testResistor :: SR.Expr
 
-filterBounded poly grid = fst $ upgradeGrid 0 1 $(compactNodes $ grid {nodes =spks})-- prune (compactNodes $ grid {nodes =spks}) tar
+filterBounded poly grid = prune (fst $ upgradeGrid 0 1 $(compactNodes $ grid {nodes =spks})) tar
   where
     pcon = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a,b)) poly
     spks = fmap (\(i,v) ->
@@ -167,11 +167,14 @@ filterBounded poly grid = fst $ upgradeGrid 0 1 $(compactNodes $ grid {nodes =sp
 
     tar = fst <$> filter (Polygon.contains pcon. (\(V3 x y z) -> Point2 (x,y)) . fst . snd) (nodesPosition grid)
 
+
 gridSize g =  (length (nodes g), length (links g))
 
+-- Substitute old indexes
 recursiveSubs  m l =  join (recursiveSubs m <$> lk ) <|> lk
   where lk =M.lookup l m
 
+-- Compact links with open nodes
 compactNodes g =  res
     where
       res = g {nodes =  fmap (substitute subs) <$>  filter (not . flip S.member removed . fst ) (nodes g) , links = fmap (\(l,h,t,e) -> (l,(h,t,e))) (F.toList lks ),nodesPosition = [] , linksPosition = []}
@@ -217,14 +220,20 @@ compactNodes g =  res
 
       lg = buildG (0,maximum (fst <$> nodes g)) $ fmap (\(l,(h,t,e)) -> (h,t)) (links g)
 
+-- Search incrementally for new connected nodes
+process maxn (b,o) n = (filter (\(i,b) -> not (S.member i sc && S.member b sc)) b  , L.nub $ o <> nc)
+  where nc = concat $ fmap (\(i,j) -> [i,j]) $concat $ concat $ (\i -> connected i n (buildG (0,maxn) b)  ) <$> o
+        sc = S.fromList (o <> nc)
+
+-- Filter connected
 prune g nodeSet = g {nodes = out1nodes   <> nn  , links = out1links <> nt }
     where
       l = concat $ (\(h,t,v)-> [(h,t)] <> (if L.any isValvulaGoverno v then [] else [(t,h)])) . snd <$> links g
       r = concat $ (\(h,t,v)->  (if L.any isValvulaGoverno v then [] else [(h,t),(t,h)])) . snd <$> links g
-      reach = S.fromList $  concat $ fmap (\(i,j) -> [i,j]) $ concat $ concat $ fmap (flip (connected 0) graph) nodeSet
+      reach = S.fromList $  snd $ foldl (process maxn) (rl,[0])  nodeSet
       maxn = maximum (fst <$> nodes g)
-      graph = L.nub <$> buildG (0,maxn  ) (L.sort rl)
-      reachS =  S.fromList $ (nodeSet  <>  reachable  (buildG (0,maxn ) l) (head nodeSet))
+      graph = L.nub <$> buildG (0,maxn) (L.sort rl)
+      reachS =  S.fromList (nodeSet  <>  reachable  (buildG (0,maxn ) l) (head nodeSet))
       rl = filter (\(h,t) -> S.member h reachP || S.member t reachP) l
       reachP = reachS <> reachRoot
 
@@ -259,7 +268,7 @@ renderModel env regionRisk range (header,model) = do
   drawSCAD (baseFile header) (baseFile header) modelg
   renderDXF  (baseFile header) fname  (drawGrid  modelg)
   mapM (\r -> do
-     solveModel (header , initIter ( filterBounded (regionBoundary r)  $ modelg ) $ env,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
+     solveModel (header , initIter (filterBounded (regionBoundary r)  $ modelg ) $ env,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
 
 
 solveModel (header ,model,region ) = do
