@@ -155,7 +155,7 @@ joelho45L e = Joelho left45 (pj45 e)
 
 -- testResistor :: SR.Expr
 
-filterBounded poly grid = prune (fst $ upgradeGrid 0 1 (compactNodes $ grid {nodes =spks})) tar
+filterBounded poly grid = fst $ upgradeGrid 0 1 $ prune (fst $ upgradeGrid 0 1 (compactNodes $ grid {nodes =spks})) tar
   where
     pcon = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a,b)) poly
     spks = fmap (\(i,v) ->
@@ -234,23 +234,21 @@ prune g nodeSet = g {nodes = out1nodes   <> nn  , links = out1links <> nt }
       r = concat $ (\(h,t,v)->  (if L.any isValvulaGoverno v then [] else [(h,t),(t,h)])) . snd <$> links g
       reach =  snd $ foldr (process maxn) (rl,S.singleton 0)  nodeSet
       maxn = maximum (fst <$> nodes g)
-      graph = L.nub <$> buildG (0,maxn) (L.sort rl)
       reachS =   S.fromList nodeSet  <>  snd (foldr (processG maxn ) (l,S.empty) nodeSet)
       rl = filter (\(h,t) -> S.member h reachP || S.member t reachP) l
       reachP = reachS <> reachRoot
 
       reachRoot = S.fromList $ (reachable  (buildG (0,maxn) r) 0)
       -- Output reachable nodes
-      out1nodes = filter (\(i,_)-> S.member i reach) (nodes g)
+      out1nodes = filter (\(i,_)-> S.member i reach ) (nodes g)
       -- Output reachable links
       out1links = filter (\(l,(h,t,_)) -> S.member h reach && S.member t reach ) (links g)
       -- Output reachable set
       out1S = S.fromList $ fst <$> out1nodes
-
       -- Extra nodes to close the pruned the circuit
       (nt,nn) = unzip $ generate <$>  openN
         where
-          openN = filter (\(l,(h,t,v)) -> (S.member h out1S||  S.member t out1S)&& not (S.member t out1S&& S.member h out1S)) (links g)
+          openN = filter (\(l,(h,t,v)) -> (S.member h out1S||  S.member t out1S) && not (S.member t out1S&& S.member h out1S)) (links g)
           generate  (l,(h,t,v))
             | S.member h out1S= ((l,(h, t, [tubod 0.025 0.1])), (t,Open 0))
             | S.member t out1S= ((l,(h, t, [tubod 0.025 0.1])), (h,Open 0))
