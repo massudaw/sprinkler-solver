@@ -129,7 +129,6 @@ data Author
     }
 
 
-
 rightC d = d
 right90  = rightC $ 1/4
 right45  = rightC $ 1/8
@@ -156,7 +155,7 @@ joelho45L e = Joelho left45 (pj45 e)
 
 -- testResistor :: SR.Expr
 
-filterBounded poly grid = prune (fst $ upgradeGrid 0 1 $(compactNodes $ grid {nodes =spks})) tar
+filterBounded poly grid = prune (fst $ upgradeGrid 0 1 (compactNodes $ grid {nodes =spks})) tar
   where
     pcon = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a,b)) poly
     spks = fmap (\(i,v) ->
@@ -166,7 +165,6 @@ filterBounded poly grid = prune (fst $ upgradeGrid 0 1 $(compactNodes $ grid {no
         ) (nodes grid)
 
     tar = fst <$> filter (Polygon.contains pcon. (\(V3 x y z) -> Point2 (x,y)) . fst . snd) (nodesPosition grid)
-
 
 gridSize g =  (length (nodes g), length (links g))
 
@@ -202,38 +200,42 @@ compactNodes g =  res
                  st2 = M.insert  (a,el) (mergeEl (lookFlip (a,i)) (lookFlip (i,el)) ) st1
                  lookFlip ix = justError ("no lookFlip " <> show (ix,ini,next))$ M.lookup ix st
                  mergeEl (_,h,_,e) (_,_,t,a)  = (n+1,h,t,e <> a)
-               put $ traceShow ("replace",(a,i,el)) (visited,n+1,M.insert (lidx $ lookFlip (a,i)) (n+1) $ M.insert  ( lidx $ lookFlip (i,el)) (n+1) subs,S.insert i removed ,st2)
+               put  (visited,n+1,M.insert (lidx $ lookFlip (a,i)) (n+1) $ M.insert  ( lidx $ lookFlip (i,el)) (n+1) subs,S.insert i removed ,st2)
              else do
-               put$ traceShow  ("inverse",i,el) (visited,n , subs ,removed ,st)
+               put  (visited,n , subs ,removed ,st)
                return ()
-
              when (not $ S.member el visited) $
                    edit (a,el)
 
-            else traceShow  ("keep",a,i,next) $do
+            else do
               mapM (\j -> do
                   (_,_,_,_,st) <- get
                   when ( not ( S.member j visited ) && isJust (M.lookup (i,j) st )) $
                    edit (i,j))  next
-
               return ()
 
       lg = buildG (0,maximum (fst <$> nodes g)) $ fmap (\(l,(h,t,e)) -> (h,t)) (links g)
 
 -- Search incrementally for new connected nodes
-process maxn (b,o) n = (filter (\(i,b) -> not (S.member i sc && S.member b sc)) b  , L.nub $ o <> nc)
-  where nc = concat $ fmap (\(i,j) -> [i,j]) $concat $ concat $ (\i -> connected i n (buildG (0,maxn) b)  ) <$> o
-        sc = S.fromList (o <> nc)
+process maxn n (b,o)  = (filter (\(i,b) -> not (S.member i sc && S.member b sc)) b  , sc)
+  where nc = concat $ fmap (\(i,j) -> [i,j]) $ concat $ concat $ (\i -> connected i n (buildG (0,maxn) b)  ) <$> S.toList o
+
+        sc = o <> S.fromList  nc
+
+processG maxn n (b,o)  = (filter (\(i,b) -> not (S.member i sc && S.member b sc)) b  , sc)
+  where nc = reachable (buildG (0,maxn) b) n
+        sc =  o <> S.fromList nc
+
 
 -- Filter connected
 prune g nodeSet = g {nodes = out1nodes   <> nn  , links = out1links <> nt }
     where
       l = concat $ (\(h,t,v)-> [(h,t)] <> (if L.any isValvulaGoverno v then [] else [(t,h)])) . snd <$> links g
       r = concat $ (\(h,t,v)->  (if L.any isValvulaGoverno v then [] else [(h,t),(t,h)])) . snd <$> links g
-      reach = S.fromList $  snd $ foldl (process maxn) (rl,[0])  nodeSet
+      reach =  snd $ foldr (process maxn) (rl,S.singleton 0)  nodeSet
       maxn = maximum (fst <$> nodes g)
       graph = L.nub <$> buildG (0,maxn) (L.sort rl)
-      reachS =  S.fromList (nodeSet  <>  reachable  (buildG (0,maxn ) l) (head nodeSet))
+      reachS =   S.fromList nodeSet  <>  snd (foldr (processG maxn ) (l,S.empty) nodeSet)
       rl = filter (\(h,t) -> S.member h reachP || S.member t reachP) l
       reachP = reachS <> reachRoot
 
@@ -259,16 +261,17 @@ renderModel env regionRisk range (header,model) = do
   let fname  = baseFile header
       dxfname = fname <> ".DXF"
   Right f <- readDXF dxfname
-  let calc_bounds  = filter ((== "calc_area").layer. eref) $ entities f
-      projBounds (Entity n o (LWPOLYLINE _ _ z polygon _ _ )) = (fromMaybe 0 z,fmap fst polygon)
-      regions (i,(z,b)) =  Region name (baseFile header  <> "-" <> name ) [] ( b)  (regionRisk !! i)
+  let
+    calc_bounds  = filter ((== "calc_area").layer. eref) $ entities f
+    projBounds (Entity n o (LWPOLYLINE _ _ z polygon _ _ )) = (fromMaybe 0 z,fmap fst polygon)
+    regions (i,(z,b)) =  Region name (baseFile header  <> "-" <> name ) [] ( b)  (regionRisk !! i)
         where label =  L.find (\(Entity  _ _ (TEXT (V3 x y zt)  _ _ _ _)) -> Polygon.contains  (PolygonCW $ fmap (\(V2 i j) -> Point2 (i,j)) b) (Point2 (x,y)) && (zt < z + 1 || zt > z-1) )$  filter ((== "area_label").layer. eref) $ entities f
               name = maybe (show i) (\(Entity _ _ (TEXT _ _ l   _ _)) -> l) label
-      modelg = fst $ upgradeGrid 0 1 $ model
+    modelg = fst $ upgradeGrid 0 1 $ model
   drawSCAD (baseFile header) (baseFile header) modelg
   renderDXF  (baseFile header) fname  (drawGrid  modelg)
   mapM (\r -> do
-     solveModel (header , initIter (filterBounded (regionBoundary r)  $ modelg ) $ env,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
+     solveModel (header , initIter (filterBounded (regionBoundary r) modelg) env,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
 
 
 solveModel (header ,model,region ) = do
@@ -347,7 +350,7 @@ reportIter header rinfo i env a  f h    = do
         ["Máximo", show (L.maximum $ abs <$> residual)],
         ["Mínimo",show (L.minimum $ abs <$> residual)],
         ["Norma", show (sqrt $ sum $ fmap (^2) residual)]]
-    resc= res "Resíduo Node Head" (L.take (M.size (f)) residual)
+    resc= res "Resíduo Node Head" (L.take (M.size f) residual)
     resnh = res "Resíduo Continuity" (L.drop (M.size (f)) residual)
     residuos = "Dados Solução\n\n" <> resnh <> "\n"  <>resc
     display (i,l ) = i <> "\n" <> L.intercalate "\n" (L.intercalate "," <$> l)
