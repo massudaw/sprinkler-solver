@@ -233,7 +233,12 @@ drawIterGraph  iter = statements $ nds <> lds
                       return $ renderLink   ix  l n ) [0..] [0..] i ) (links (it))
 
 
-upgradeGrid :: (Show (f Double) , Coord f (V3 Double)) => Int -> Int -> Grid f Double -> (Grid  f Double,Errors [(Int,Int,String,Double)] [(Int,Int,(V3 Double ,SO3 Double))])
+upgradeGrid
+  :: (Show (f Double) , Coord f (V3 Double)) =>
+  Int ->
+  Int ->
+  Grid f Double ->
+  (Grid  f Double,Errors [(Int,Int,String,Double)] [(Int,Int,(V3 Double ,SO3 Double))])
 upgradeGrid ni li a = (a {nodesPosition = M.toList nodesPos, linksPosition = M.toList linksPos},err)
   where
     (err,(nodesPos,linksPos)) =  runState (do
@@ -255,7 +260,7 @@ recurse render ni r@(Right l@(h,t,e)) = do
   let nexts = S.toList $ S.difference (S.fromList [h,t]) i
   ti <- mapM (\i -> recurse render i . Left . flip var linkmap $ i ) nexts
   return $ render ni r  : concat ti
-recurse render ni r@(Left n@((lks,e))) = do
+recurse render ni r@(Left n@(lks,e)) = do
   lift $ modify (<>(S.singleton ni,S.empty))
   s <- snd <$> lift  get
   nodemap <- snd <$> ask
