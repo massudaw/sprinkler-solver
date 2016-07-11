@@ -94,30 +94,28 @@ locateGrid lmap nmap l r n (Right oe@(s,e)) = do
   return (foldl (liftA2 mappend) (pure []) l )
 
 locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
+  -- render Link Forward
   | n == hn =  do
-    (i,err) <- path tn e
-    modify (<> (mempty ,M.singleton l i))
-    return err
-  | n == tn = do
-    (i,err) <- revpath hn  e
-    modify (<> (mempty ,M.singleton l i))
-    return err
-    return (pure [])
-  | otherwise = error $ "wrong back element " <> show n  <> " " <> show ll
-  where
-
-    revpath  nn e = do
-      let
-        es =justError "no element" .  M.lookup hn . M.fromList . nextE tn [hn,tn] <$> e
-        sn =  scanr transElemr r es
-      err <- nextNode  (head sn) nn
-      return (tail sn,err)
-    path  nn e = do
+    (i,err) <- do
       let
         es =justError "no element" .  M.lookup tn . M.fromList . nextE hn [hn,tn] <$> e
         sn =   scanl transEleml r es
-      err <- nextNode  (last sn) nn
+      err <- nextNode  (last sn) tn
       return (init sn,err)
+    modify (<> (mempty ,M.singleton l i))
+    return err
+  -- render Link Reverse
+  | n == tn = do
+    (i,err) <-  do
+      let
+        es =justError "no element" .  M.lookup hn . M.fromList . nextE tn [hn,tn] <$> e
+        sn =  scanr transElemr r es
+      err <- nextNode  (head sn) hn
+      return (tail sn,err)
+    modify (<> (mempty ,M.singleton l i))
+    return err
+  | otherwise = error $ "wrong back element " <> show n  <> " " <> show ll
+  where
     nextNode  pos@(dt ,a) nn  = do
         (visitedNode,_) <- get
         if  not $ M.member nn  visitedNode
