@@ -35,6 +35,41 @@ import qualified Numeric.AD as AD
 
 import Rotation.SO3 hiding (rotM)
 
+data Region
+  = Region
+    { regionName :: String
+    , regionFile :: String
+    , regionView :: [(String,String)]
+    , regionBoundary :: ([V2  Double],Double)
+    , regionRisk :: RegionRisk
+    }
+data RiskClass
+   = Light
+   | OrdinaryI
+   | OrdinaryII
+   | ExtraOrdinaryI
+   | ExtraOrdinaryII
+   deriving (Eq,Show,Ord)
+data ComodityClass
+   = ComodityI
+   | ComodityII
+   | ComodityIII
+   deriving(Eq,Show,Ord)
+
+data RegionRisk
+  = Standard
+  { stdrisk ::  RiskClass
+  }
+  | MiscelaneousStorage
+  { stdrisk :: RiskClass
+  , storageHeight :: Double
+  }
+  | HighpilledStorage
+  { commodityClass :: ComodityClass
+  , storageHeight :: Double
+  }deriving(Eq,Show,Ord)
+
+
 
 water = Fluido [((25,101.325),1.0e-30)] [((25,101.325),997)]  "Água"
 air = Fluido [((20,101.325),1.8e-5),((50,101.325),1.95e-5),((0,101.325),1.71e-5)] [((25,101.325),air700mDensity)] "Ar"
@@ -270,18 +305,20 @@ jacobianNodeHeadEquation am grid  vm nh =  term <$> l
     fittings n t = fittingsCoefficient am nh  sflow n t
     nodeLosses = M.fromList . concat .fmap (\(n,Tee t conf ) -> (\(ti,v)-> ((n,ti),v)) <$> fittings n t ) .  filter (isTee .snd) $ nodes grid
     addTee k = maybe 0 id (M.lookup k nodeLosses)
-    term (l,(h,t,e)) =   sum (pipeElement am  (var h nh ,var  t nh )  (var l vm) <$> e)  + {-  stackEffect (var h nh ,var  t nh ) am (var t nhs ^. _z ) ( var h nhs ^. _z)  (var l vm) -} gravityEffect  (var h nh,var t nh) am  ((var t nhs ^. _z ) - ( var h nhs ^. _z) ) + (var t nh ^. _x - var h nh ^. _x )  +  addTee (h,l) + addTee (t,l)
+    term (l,(h,t,e)) =   sum (pipeElement am  (var h nh ,var  t nh )  (var l vm) <$> e)  +   stackEffect (var h nh ,var  t nh ) am (var t nhs ^. _z ) ( var h nhs ^. _z)  (var l vm)   + (var t nh ^. _x - var h nh ^. _x )  +  addTee (h,l) + addTee (t,l)
       where
          nhs = fmap fst (M.fromList $ nodesPosition  grid)
+
+testStack i am h1 h2 f  = (gravityEffect i am (h2 - h1), stackEffect i am h1 h2 f)
 
 gravityEffect (V3 p _ t,_) am dh = fluidDensity p t am (fluido am)*dh*(localGravity am)/1000
 
 stackEffect (V3 p1 _ t1 , V3 p2 _ t2 ) am h1 h2 f
-  | f > 0  =  localGravity am * (fluidDensity p1 t1 am (fluido am) * (h1 - h2)  + h2 * drho )
-  | f < 0  =  localGravity am * (fluidDensity p2 t2 am (fluido am) *  (h1 - h2)  + h1 * drho )
-  | otherwise = localGravity am * (fluidDensity p2 t2 am (fluido am) + fluidDensity p2 t2 am (fluido am) * dh  + (h1+h2) * drho)/2
+  | f > 0  =  localGravity am * (fluidDensity p1 t1 am (fluido am) * dh  + h2 * drho )/1000
+  | f < 0  =  localGravity am * (fluidDensity p2 t2 am (fluido am) * dh  + h1 * drho )/1000
+  | otherwise = localGravity am * ((fluidDensity p2 t2 am (fluido am) + fluidDensity p2 t2 am (fluido am) )* dh + (h1+h2) * drho)/2/1000
     where
-      dh = h1 - h2
+      dh = h2 - h1
       drho = fluidDensity p2 t2 am (fluido am) - fluidDensity p1 t1 am (fluido am)
 
 -- System Equations
@@ -374,6 +411,9 @@ instance Target Element Mecha.Solid  where
   renderNode = renderElemMecha
   renderLink = renderLinkMecha
 
+
+drawRegion (Region n _ _ (i,h) _) =   moveZ h  (color (1,0,0,0.1) $extrude (Mecha.polygon ((\(V2 i j) -> [i,j]) <$> i) [[0..(length i)]]) 1 )<> tpos (text n)
+  where tpos = move (head i ^. _x,head i ^._y,h) . scale (0.09 ,0.09,0.09)
 
 ----
 -- DXF Backend

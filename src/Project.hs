@@ -47,10 +47,6 @@ path i h t  l = (i,h,t,  l)
 
 jd dir d = Joelho dir (TabelaPerda (Circular d) ("Conexao","Joelho","90")  100)
 
--- makeIter :: (Coord f (V3 Double),PreSys f ,Show (f Double),Functor f, Functor (NodeDomain f ) ,Functor (LinkDomain f), Floating a )=> Int -> Int -> Grid f Double -> Iteration f a
-makeIter i j g = initIter (realToFrac  <$>  fst (upgradeGrid i j g))
-
-
 data ProjectHeader
   = ProjectHeader { projectName :: String
     , endereco :: String
@@ -59,41 +55,6 @@ data ProjectHeader
     , baseFile :: String
     , regionInfo :: [Region]
     }
-
-data Region
-  = Region
-    { regionName :: String
-    , regionFile :: String
-    , regionView :: [(String,String)]
-    , regionBoundary :: [V2  Double]
-    , regionRisk :: RegionRisk
-    }
-data RiskClass
-   = Light
-   | OrdinaryI
-   | OrdinaryII
-   | ExtraOrdinaryI
-   | ExtraOrdinaryII
-   deriving (Eq,Show,Ord)
-data ComodityClass
-   = ComodityI
-   | ComodityII
-   | ComodityIII
-   deriving(Eq,Show,Ord)
-
-data RegionRisk
-  = Standard
-  { stdrisk ::  RiskClass
-  }
-  | MiscelaneousStorage
-  { stdrisk :: RiskClass
-  , storageHeight :: Double
-  }
-  | HighpilledStorage
-  { commodityClass :: ComodityClass
-  , storageHeight :: Double
-  }deriving(Eq,Show,Ord)
-
 interp ((a1,a2),(b1,b2)) =   (c,a1 - b1*c)
     where
       c = (a2 - a1)/(b2 - b1)
@@ -112,12 +73,12 @@ stdCurves Light = light
 
 comodityCurves  _ = undefined
 
-regionRiskDensity (Region _ _ _ b (Standard i ))
+regionRiskDensity (Region _ _ _ (b ,_) (Standard i ))
   = eval   (abs $ Polygon.area (convPoly b)) (stdCurves i)
-regionRiskDensity (Region _ _ _ b (MiscelaneousStorage i h ))
+regionRiskDensity (Region _ _ _ (b,_) (MiscelaneousStorage i h ))
   | h > 3.7   = errorWithStackTrace "altura maior que 3.7"
   | otherwise =  eval (abs $ Polygon.area (convPoly b)) (stdCurves i)
-regionRiskDensity (Region _ _ _ b (HighpilledStorage i h )) = errorWithStackTrace "not implemented"
+regionRiskDensity (Region _ _ _ (b,_) (HighpilledStorage i h )) = errorWithStackTrace "not implemented"
   -- | h >= 3.7   = errorWithStackTrace "altura maior que 3.7"
   -- | otherwise =  eval (abs $ Polygon.area (convPoly b)) (stdCurves i)
 
@@ -155,7 +116,7 @@ joelho45L e = Joelho left45 (pj45 e)
 
 -- testResistor :: SR.Expr
 
-filterBounded poly grid = fst $ upgradeGrid 0 1 $ prune (fst $ upgradeGrid 0 1 (compactNodes $ grid {nodes =spks})) tar
+filterBounded (poly ,_) grid = fst $ upgradeGrid 0 1 $ prune (fst $ upgradeGrid 0 1 (compactNodes $ grid {nodes =spks})) tar
   where
     pcon = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a,b)) poly
     spks = fmap (\(i,v) ->
@@ -262,30 +223,29 @@ renderModel env regionRisk range (header,model) = do
   let
     calc_bounds  = filter ((== "calc_area").layer. eref) $ entities f
     projBounds (Entity n o (LWPOLYLINE _ _ z polygon _ _ )) = (fromMaybe 0 z,fmap fst polygon)
-    regions (i,(z,b)) =  Region name (baseFile header  <> "-" <> name ) [] ( b)  (regionRisk !! i)
+    regions (i,(z,b)) =  Region name (baseFile header  <> "-" <> name ) [] ( b,z)  (regionRisk !! i)
         where label =  L.find (\(Entity  _ _ (TEXT (V3 x y zt)  _ _ _ _)) -> Polygon.contains  (PolygonCW $ fmap (\(V2 i j) -> Point2 (i,j)) b) (Point2 (x,y)) && (zt < z + 1 || zt > z-1) )$  filter ((== "area_label").layer. eref) $ entities f
               name = maybe (show i) (\(Entity _ _ (TEXT _ _ l   _ _)) -> l) label
     modelg = fst $ upgradeGrid 0 1 $ model
-  drawSCAD (baseFile header) (baseFile header) modelg
-  renderDXF  (baseFile header) fname  (drawGrid  modelg)
+  drawSCAD  (baseFile header) (drawGrid modelg)
+  renderDXF  (baseFile header) fname  (drawGrid  modelg  )
   mapM (\r -> do
      solveModel (header , initIter (filterBounded (regionBoundary r) modelg) env,r))  (  regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
 
 
 solveModel (header ,model,region ) = do
   let fname  = regionFile region
-  let
-       iter = solveIter (fmap realToFrac model ) (jacobianEqNodeHeadGrid (fmap realToFrac $ environment model) )
+      iter = solveIter (fmap realToFrac model ) (jacobianEqNodeHeadGrid (fmap realToFrac $ environment model) )
   printResidual iter (reportIter header region 0 (environment iter))
   print $ "renderReport: " <> (fname <> ".csv")
   let sofficec = "soffice --convert-to xls --infilter=csv:\"Text - txt - csv (StarCalc)\":59/44,34,0,1,,1033,true,true  " <> fname <> ".csv"
   putStrLn sofficec
   callCommand sofficec
   print $ "renderReport: " <> fname <> ".xls"
-  drawSCAD (baseFile header) fname (grid iter)
+  drawSCAD  fname (drawGrid (grid iter) <> drawRegion region )
 
-drawSCAD base fname  grid = do
-  let scadFile = openSCAD (drawGrid $ grid ) <> "import(\"" <> T.pack base <> ".DXF\");"
+drawSCAD fname  grid = do
+  let scadFile = openSCAD grid
   T.writeFile (fname <> "-temp.scad") scadFile
   let movefile = "mv " <> (fname <> "-temp.scad") <>  "  " <> (fname <> ".scad")
   callCommand movefile
@@ -376,7 +336,7 @@ reportIter header rinfo i env a  f h    = do
         where riskName (Standard i) =  show i
               riskName (MiscelaneousStorage i _) = show i
               nspk = L.length sprinklers
-              area = abs $ Polygon.area (convPoly $ regionBoundary r)
+              area = abs $ Polygon.area (convPoly $ fst $ regionBoundary r)
               density = regionRiskDensity r
               minimalFlow = density * area
               spkReport = (\(ix,p,e@(Sprinkler ((d,k )) (dl) f a ))-> [show ix , sf2 (p ^. _x) ,   sf2 (p ^. _y)  , sf2 $ coverageArea f * density ,sf2 $ coverageArea f]  ) <$>    sprinklers
