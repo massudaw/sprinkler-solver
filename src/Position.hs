@@ -92,14 +92,13 @@ locateGrid lmap nmap l r n (Right oe@(s,e)) = do
         locateGrid lmap nmap n  pos i (Left $ var i lmap )
   l <- mapM trav  (nextS l s e)
   return (foldl (liftA2 mappend) (pure []) l )
-
 locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
   -- render Link Forward
   | n == hn =  do
     (i,err) <- do
       let
-        es =justError "no element" .  M.lookup tn . M.fromList . nextE hn [hn,tn] <$> e
-        sn =   scanl transEleml r es
+        es =var tn . M.fromList . nextE hn [hn,tn] <$> e
+        sn =   scanl trans r es
       err <- nextNode  (last sn) tn
       return (init sn,err)
     modify (<> (mempty ,M.singleton l i))
@@ -108,13 +107,13 @@ locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
   | n == tn = do
     (i,err) <-  do
       let
-        es =justError "no element" .  M.lookup hn . M.fromList . nextE tn [hn,tn] <$> e
-        sn =  scanr transElemr r es
+        es =var hn . M.fromList . nextE tn [hn,tn] <$> e
+        sn =  scanr (flip untrans) r es
       err <- nextNode  (head sn) hn
       return (tail sn,err)
     modify (<> (mempty ,M.singleton l i))
     return err
-  | otherwise = error $ "wrong back element " <> show n  <> " " <> show ll
+  | otherwise = return $ failure [(l,n,"cant find element " <> show n  <> " " <> show ll,0)]
   where
     nextNode  pos@(dt ,a) nn  = do
         (visitedNode,_) <- get
@@ -142,9 +141,6 @@ locateGrid lmap nmap n r l ll@(Left (hn,tn,e))
 
 
 rotM = rotD
-
-transElemr e =  flip untrans e
-transEleml i e =  trans i e
 
 drawGrid
   :: (Show (sys Double), Target sys a, TCoord a ~ V3 Double,
