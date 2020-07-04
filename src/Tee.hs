@@ -1,154 +1,157 @@
-{-# LANGUAGE TupleSections,NoMonomorphismRestriction #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+
 module Tee where
 
-import Debug.Trace
-import Linear.Metric
-import Data.Monoid
-import Domains
 import Control.Applicative
 import qualified Data.Map as M
-import Linear.V2
-import Linear.Matrix
-import Hydraulic
-import TBL.Parser
 import Data.Maybe
+import Data.Monoid
+import Debug.Trace
+import Domains
 import GHC.Stack
+import Hydraulic
+import Linear.Matrix
+import Linear.Metric
+import Linear.V2
+import TBL.Parser
+
 --
 -- From Pipe Flow A Pratical and Comprehensive Guide - Chapter Tee - page 170 to 199
 --
 
 -- g =  32.174
 
+biinterp j m = fromMaybe 0 $ bilinearInterp j (buildTable2D m)
 
+liinterp j m = fromMaybe 0 $ linearInterp j (buildTable1D m)
 
-biinterp  j m = fromMaybe 0 $ bilinearInterp  j (buildTable2D m)
-liinterp  j m = fromMaybe 0 $ linearInterp j (buildTable1D m)
-trilinear  i j = fromMaybe 0 $ trilinearInterp i (buildTable3D j)
+trilinear i j = fromMaybe 0 $ trilinearInterp i (buildTable3D j)
 
+lossPa p t l fluid flowMap section = fmap (pressureDrop p t fluid flowMap section . regularizeLoss l flowMap)
 
-lossPa p t l fluid flowMap section = fmap (pressureDrop p t fluid flowMap section. regularizeLoss l flowMap)
+pressureDrop p t fluid flowMap section = (\(i, e) -> (i, justError "no bilinear" (bilinearInterp (p, t) (M.fromList $ density fluid)) * e * (abs (var i flowMap) / areaS (var i section)) ^ 2 / 2))
 
-pressureDrop p t fluid flowMap section = (\(i,e) -> (i, justError "no bilinear" (bilinearInterp (p,t) (M.fromList $ density fluid ))*e  * (abs (var i flowMap )/areaS (var i section))^2/2))
-regularizeLoss l  flowMap = (\(i,e)-> (i,e/ ((var i flowMap)^2/(var l flowMap)^2) ))
+regularizeLoss l flowMap = (\(i, e) -> (i, e / ((var i flowMap) ^ 2 / (var l flowMap) ^ 2)))
 
 sectionMap t = M.fromList $ zip (teeConfig t) (teeSection t)
 
-fittingLosses
-  :: (Floating a, Ord a, Show a) =>
-     Fluido a
-     -> M.Map String [(String,TableType a )] -> M.Map Int a -> TeeConfig a -> [(Int, a)]
-fittingLosses fluid tblmap flowMap t@(TeeConfig [ix] [sec] int)
-    =  case int of
+fittingLosses ::
+  (Floating a, Ord a, Show a) =>
+  Fluido a ->
+  M.Map String [(String, TableType a)] ->
+  M.Map Int a ->
+  TeeConfig a ->
+  [(Int, a)]
+fittingLosses fluid tblmap flowMap t@(TeeConfig [ix] [sec] int) =
+  case int of
     RectangularEntry theta l wall ->
-        case wall of
-          False -> lossess "Er1-2" recentry
-          True -> lossess "Er1-3" recentry
+      case wall of
+        False -> lossess "Er1-2" recentry
+        True -> lossess "Er1-3" recentry
       where
-        recentry  = [(ix,biinterp (theta,l/hydraulicDiameter sec))]
-    DuctEntry len th -> case sec  of
-       Rectangular _ _  -> lossess "Er1-1" ductentry
-       Circular _ -> lossess "Ed1-1" ductentry
+        recentry = [(ix, biinterp (theta, l / hydraulicDiameter sec))]
+    DuctEntry len th -> case sec of
+      Rectangular _ _ -> lossess "Er1-1" ductentry
+      Circular _ -> lossess "Ed1-1" ductentry
       where
-        ductentry = [(ix,biinterp (len/hydraulicDiameter sec,th/hydraulicDiameter sec) )]
-
+        ductentry = [(ix, biinterp (len / hydraulicDiameter sec, th / hydraulicDiameter sec))]
     RoundEntry r wall ->
       case wall of
         True -> lossess "Ed1-2" roundentry
         False -> lossess "Ed1-3" roundentry
       where
-        roundentry =  [(ix,liinterp (r/hydraulicDiameter sec))]
+        roundentry = [(ix, liinterp (r / hydraulicDiameter sec))]
   where
-    lossess elt fun = zipWith (\f e -> fmap ($f) e) (fmap snd $ var elt  tblmap) fun
-fittingLosses fluid tblmap flowMap t@(TeeConfig [ix,ox] [isec,osec] el )
-  =  case el of
-    Screen n a1  -> lossess "Cd9-1" screen
+    lossess elt fun = zipWith (\f e -> fmap ($f) e) (fmap snd $ var elt tblmap) fun
+fittingLosses fluid tblmap flowMap t@(TeeConfig [ix, ox] [isec, osec] el) =
+  case el of
+    Screen n a1 -> lossess "Cd9-1" screen
       where
-        screen = [(ox, biinterp (n, a1/areaS osec) )]
-    Transition theta -> case (osec,isec) of
-      (Circular _ ,Rectangular _ _ )->  lossess "Er4-3" transition
-      (Rectangular _ _ ,Circular  _ )->  lossess "Er4-3" transition
+        screen = [(ox, biinterp (n, a1 / areaS osec))]
+    Transition theta -> case (osec, isec) of
+      (Circular _, Rectangular _ _) -> lossess "Er4-3" transition
+      (Rectangular _ _, Circular _) -> lossess "Er4-3" transition
       i -> errorWithStackTrace $ "no transition " <> show i
       where
-        transition = [(ox, biinterp (theta,areaS osec/areaS isec) )]
-    FireDamper -> lossess "Cd9-3" [(ox, constantInterp .buildTable0D)]
-    Damper theta d  ->  case osec of
-          Circular _ ->  lossess "Cd9-1" damper
-          Rectangular _ _ ->  lossess "Cr9-4" damper
+        transition = [(ox, biinterp (theta, areaS osec / areaS isec))]
+    FireDamper -> lossess "Cd9-3" [(ox, constantInterp . buildTable0D)]
+    Damper theta d -> case osec of
+      Circular _ -> lossess "Cd9-1" damper
+      Rectangular _ _ -> lossess "Cr9-4" damper
       where
-        damper = [(ox,biinterp (theta,d/hydraulicDiameter osec))]
+        damper = [(ox, biinterp (theta, d / hydraulicDiameter osec))]
     Elbow ang radius constr ->
-      case (ang,constr) of
-        (45,Pleated) -> lossess "Cd3-7" elbow
-        (45,Mitted) -> lossess "Cd3-17" elbow
-        (90,Gored 5) -> lossess "Cd3-9" elbow
-        (90,Gored 3) -> lossess "Cd3-12" elbow
-        (60,Gored 3) -> lossess "Cd3-13" elbow
-        (45,Gored 3) -> lossess "Cd3-14" elbow
+      case (ang, constr) of
+        (45, Pleated) -> lossess "Cd3-7" elbow
+        (45, Mitted) -> lossess "Cd3-17" elbow
+        (90, Gored 5) -> lossess "Cd3-9" elbow
+        (90, Gored 3) -> lossess "Cd3-12" elbow
+        (60, Gored 3) -> lossess "Cd3-13" elbow
+        (45, Gored 3) -> lossess "Cd3-14" elbow
         i -> errorWithStackTrace $ "elbow not implemented" <> show i
-      where elbow = [(ox,liinterp (hydraulicDiameter osec *1000) )]
+      where
+        elbow = [(ox, liinterp (hydraulicDiameter osec * 1000))]
     FanSystemInteraction (Elbow ang radius constr) len fan ->
-      case (fan,ang ,constr) of
-        (Centrifugal,90,Gored 4 ) -> lossess "Ed7-2" fanE
-      where fanE = [(ox,biinterp (len/hydraulicDiameter osec ,radius/hydraulicDiameter osec ) )]
+      case (fan, ang, constr) of
+        (Centrifugal, 90, Gored 4) -> lossess "Ed7-2" fanE
+      where
+        fanE = [(ox, biinterp (len / hydraulicDiameter osec, radius / hydraulicDiameter osec))]
   where
-    lossess elt fun = zipWith (\f e -> fmap ($f) e) (fmap snd $ var elt  tblmap) fun
-
-fittingLosses fluid tblmap flowMap t@(TeeConfig [rli,bi,rri] [amain , abranch ,aramal]  int )
-  = regularizeLoss rli flowMap <$> case int  of
-     RectangularTee _ ->  classifyFlow
+    lossess elt fun = zipWith (\f e -> fmap ($f) e) (fmap snd $ var elt tblmap) fun
+fittingLosses fluid tblmap flowMap t@(TeeConfig [rli, bi, rri] [amain, abranch, aramal] int) =
+  regularizeLoss rli flowMap <$> case int of
+    RectangularTee _ -> classifyFlow
       where
         classifyFlow
-          |  rls > 0 && bs <= 0 && rrs <= 0 = lossess "Sr5-5" rectee
-          |  otherwise  = []
-        rectee = zip [rri,bi]  [ biinterp (bs/rls,areaS abranch /areaS amain), liinterp (rrs/rls) ]
-     RoundTee _ _ _ ->  classifyFlow
-      where
-        classifyFlow
-          |  rls < 0 && bs <= 0 && rrs >= 0 = lossess "Ed5-1" roundtee
+          | rls > 0 && bs <= 0 && rrs <= 0 = lossess "Sr5-5" rectee
           | otherwise = []
-        roundtee = zip [rri,bi] [trilinear (bs/rls,areaS aramal /areaS amain  ,areaS abranch /areaS amain) , trilinear (abs $ rrs/rls,areaS abranch /areaS amain,areaS aramal /areaS amain  ) ]
+        rectee = zip [rri, bi] [biinterp (bs / rls, areaS abranch / areaS amain), liinterp (rrs / rls)]
+    RoundTee _ _ _ -> classifyFlow
+      where
+        classifyFlow
+          | rls < 0 && bs <= 0 && rrs >= 0 = lossess "Ed5-1" roundtee
+          | otherwise = []
+        roundtee = zip [rri, bi] [trilinear (bs / rls, areaS aramal / areaS amain, areaS abranch / areaS amain), trilinear (abs $ rrs / rls, areaS abranch / areaS amain, areaS aramal / areaS amain)]
   where
-    [rls,bs,rrs]  = fmap (\i -> justError ("no variable " ++ show i ++ " in m@ap " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
-    lossess elt fun = zipWith (\f e -> fmap ($f) e) (fmap snd $ var elt  tblmap) fun
+    [rls, bs, rrs] = fmap (\i -> justError ("no variable " ++ show i ++ " in m@ap " ++ show flowMap) $ M.lookup i flowMap) (teeConfig t)
+    lossess elt fun = zipWith (\f e -> fmap ($f) e) (fmap snd $ var elt tblmap) fun
 
+fittingLossesNFPA _ joelhos flowMap t = classifyFlow flow
+  where
+    flow = fmap (\i -> justError ("no variable " ++ show i ++ " in map " ++ show flowMap) $ M.lookup i flowMap) (teeConfig t)
+    classifyFlow bl = classifyFlow' t flowMap bl
 
-fittingLossesNFPA _ joelhos flowMap  t =  classifyFlow flow
-  where flow = fmap (\i -> justError ("no variable " ++ show i ++ " in map " ++ show flowMap ) $ M.lookup  i flowMap) (teeConfig t)
-        classifyFlow bl =   classifyFlow' t flowMap bl
-
-
-
-
-classifyFlow' t flowMap bl@[rls,bs,rrs]
-          |  rls > 0 && bs <= 0 && rrs <= 0 = zip [rri,bi]  [direct,lateral]
-          |  rrs > 0 && bs <= 0 && rls <= 0 = zip [rli,bi]  [direct ,lateral]
-          |  rls >= 0 && bs >= 0 && rrs < 0 = zip [rli,bi]  [direct ,lateral]
-          |  rrs >= 0 && bs >= 0 && rls < 0 = zip [rri,bi]  [direct ,lateral]
-          |  bs > 0 && rrs <= 0 && rls <= 0 = zip [rli,rri] [lateral ,lateral]
-          |  bs < 0 && rrs >= 0 && rls >= 0 = zip [rli,rri] [lateral ,lateral]
-          | otherwise =  traceShow ("no case for branch list " ++ show  t ++ show flowMap) []
-        where
-              [rli,bi,rri] = teeConfig t
-              [dr,db,_] = teeSection t
-              rho = teeMaterial (teeInternal t)
-              direct = Perda $TabelaPerda (dr) ("Conexao","Te","Direta")  rho
-              lateral = Perda $TabelaPerda (db) ("Conexao","Te","Lateral")  rho
-classifyFlow' t flowMap bl@[rls,bs,bo,rrs]
-          |  rls > 0 && bs <= 0 && rrs <= 0 = zip [rri,bi,bu]  [direct,lateral,lateral]
-          |  rrs > 0 && bs <= 0 && rls <= 0 = zip [rli,bi,bu]  [direct ,lateral,lateral]
-          |  rls >= 0 && bs >= 0 && rrs < 0 = zip [rli,bi,bu]  [direct ,lateral,lateral]
-          |  rrs >= 0 && bs >= 0 && rls < 0 = zip [rri,bi,bu]  [direct ,lateral,lateral]
-          |  bs > 0 && rrs <= 0 && rls <= 0 = zip [rli,rri,bu] [lateral ,lateral,direct]
-          |  bs < 0 && rrs >= 0 && rls >= 0 = zip [rli,rri,bu] [lateral ,lateral,direct]
-          |  bo > 0 && rrs <= 0 && rls <= 0 = zip [rli,rri,bi] [lateral ,lateral,direct]
-          |  bo < 0 && rrs >= 0 && rls >= 0 = zip [rli,rri,bi] [lateral ,lateral,direct]
-          | otherwise =  traceShow ("no case for branch list " ++ show  t ++ show flowMap) []
-          where
-              [rli,bi,bu,rri] = teeConfig t
-              [dr,db,_] = teeSection t
-              rho = teeMaterial (teeInternal t)
-              direct = Perda $TabelaPerda (dr) ("Conexao","Te","Direta")  rho
-              lateral = Perda $TabelaPerda (db) ("Conexao","Te","Lateral")  rho
+classifyFlow' t flowMap bl@[rls, bs, rrs]
+  | rls > 0 && bs <= 0 && rrs <= 0 = zip [rri, bi] [direct, lateral]
+  | rrs > 0 && bs <= 0 && rls <= 0 = zip [rli, bi] [direct, lateral]
+  | rls >= 0 && bs >= 0 && rrs < 0 = zip [rli, bi] [direct, lateral]
+  | rrs >= 0 && bs >= 0 && rls < 0 = zip [rri, bi] [direct, lateral]
+  | bs > 0 && rrs <= 0 && rls <= 0 = zip [rli, rri] [lateral, lateral]
+  | bs < 0 && rrs >= 0 && rls >= 0 = zip [rli, rri] [lateral, lateral]
+  | otherwise = traceShow ("no case for branch list " ++ show t ++ show flowMap) []
+  where
+    [rli, bi, rri] = teeConfig t
+    [dr, db, _] = teeSection t
+    rho = teeMaterial (teeInternal t)
+    direct = Perda $ TabelaPerda (dr) ("Conexao", "Te", "Direta") rho
+    lateral = Perda $ TabelaPerda (db) ("Conexao", "Te", "Lateral") rho
+classifyFlow' t flowMap bl@[rls, bs, bo, rrs]
+  | rls > 0 && bs <= 0 && rrs <= 0 = zip [rri, bi, bu] [direct, lateral, lateral]
+  | rrs > 0 && bs <= 0 && rls <= 0 = zip [rli, bi, bu] [direct, lateral, lateral]
+  | rls >= 0 && bs >= 0 && rrs < 0 = zip [rli, bi, bu] [direct, lateral, lateral]
+  | rrs >= 0 && bs >= 0 && rls < 0 = zip [rri, bi, bu] [direct, lateral, lateral]
+  | bs > 0 && rrs <= 0 && rls <= 0 = zip [rli, rri, bu] [lateral, lateral, direct]
+  | bs < 0 && rrs >= 0 && rls >= 0 = zip [rli, rri, bu] [lateral, lateral, direct]
+  | bo > 0 && rrs <= 0 && rls <= 0 = zip [rli, rri, bi] [lateral, lateral, direct]
+  | bo < 0 && rrs >= 0 && rls >= 0 = zip [rli, rri, bi] [lateral, lateral, direct]
+  | otherwise = traceShow ("no case for branch list " ++ show t ++ show flowMap) []
+  where
+    [rli, bi, bu, rri] = teeConfig t
+    [dr, db, _] = teeSection t
+    rho = teeMaterial (teeInternal t)
+    direct = Perda $ TabelaPerda (dr) ("Conexao", "Te", "Direta") rho
+    lateral = Perda $ TabelaPerda (db) ("Conexao", "Te", "Lateral") rho
 
 {-
 fittingLosses fluid Formula flowMap  t@(TeeConfig _ [Circular dr,Circular db,_]  (RoundTee _  _ _)) =  fmap (/1000) <$> classifyFlow flow
@@ -167,8 +170,6 @@ fittingLosses fluid Formula flowMap  t@(TeeConfig _ [Circular dr,Circular db,_] 
           where rl = abs rls
                 rr = abs rrs
                 b = abs bs
-
-
 
 divergingFlowThroughRun :: (Ord a,Floating a) => a -> a -> a -> a -> a -> a -> a -> a -> a
 divergingFlowThroughRun  w3 0 w1  d3 d2 d1 rho  r  = 0

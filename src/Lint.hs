@@ -1,44 +1,48 @@
 module Lint where
 
-import Domains
-import Control.Monad
 import Control.Applicative
+import Control.Monad
 import Control.Monad.Trans.Writer
-import Data.Functor.Identity
-import Data.Monoid
-import qualified Data.Map as M
 import qualified Data.Foldable as F
+import Data.Functor.Identity
+import qualified Data.Map as M
+import Data.Monoid
 import qualified Data.Set as S
+import Domains
 import Hydraulic
 
 --lintLinks :: (Show a,Ord a) => Grid a -> [String]
 lintLinks grid = mapM_ checkLinks (links grid)
   where
-        checkLinks c@(n,(h,t,elems)) = do
-             F.foldl' (\i j -> do
-                   idia <- i
-                   case j of
-                      i ->  when (diametroE idia /= diametroE j) $
-                          tell $ ["diametro elem " ++ show idia ++ " is different from "++ show j ]
-                   return j) (return $ head elems)  (tail elems)
+    checkLinks c@(n, (h, t, elems)) = do
+      F.foldl'
+        ( \i j -> do
+            idia <- i
+            case j of
+              i ->
+                when (diametroE idia /= diametroE j)
+                  $ tell
+                  $ ["diametro elem " ++ show idia ++ " is different from " ++ show j]
+            return j
+        )
+        (return $ head elems)
+        (tail elems)
 
 nodeConnective grid = do
-  let   nds =  (fst <$> nodes grid )<>  (fst <$> nodesPosition grid)
-        hasNodes = filter (not .(`S.member` S.fromList nds).fst) (M.toList $ nodeUsage)
-        nodeMap = M.fromList (zip  nds (repeat []))
-        nodeUsage = foldr (\(l,(h,t,_))-> M.insertWith mappend h [l] .M.insertWith mappend  t [l] ) M.empty (links grid)
-        orphanNodes = filter ((<1) . length  . snd ) (M.toList nodeUsage)
-  mapM_ (\i -> tell $ ["No node for links" ++ show i ]) hasNodes
+  let nds = (fst <$> nodes grid) <> (fst <$> nodesPosition grid)
+      hasNodes = filter (not . (`S.member` S.fromList nds) . fst) (M.toList $ nodeUsage)
+      nodeMap = M.fromList (zip nds (repeat []))
+      nodeUsage = foldr (\(l, (h, t, _)) -> M.insertWith mappend h [l] . M.insertWith mappend t [l]) M.empty (links grid)
+      orphanNodes = filter ((< 1) . length . snd) (M.toList nodeUsage)
+  mapM_ (\i -> tell $ ["No node for links" ++ show i]) hasNodes
   mapM_ (\i -> tell $ ["OrphanNode " <> show i]) orphanNodes
 
 lintGridElements grid = snd $ runIdentity $ runWriterT $ do
---    lintLinks grid
-    nodeConnective grid
-
+  --    lintLinks grid
+  nodeConnective grid
 
 {-lintInitialConditions iter = snd $ runIdentity $ runWriterT $ do
   lintInitialTee iter-}
-
 
 {-
 lintInitialTee  iter  = do
@@ -61,7 +65,6 @@ lintInitTee flowMap  t =  do
           | bs > 0 && rrs > 0 && rls >0 = tell ["no case for all branch list positive " ++ show  t ++ show bl ]
           | bs == 0 && rrs == 0 && rls == 0 = tell ["no case for all branch list zero " ++ show  t ++ show bl]
           | otherwise =  tell ["no case for this branch list " ++ show  t ++ show bl ]
-
 
 -- lintTee :: (Show a,Ord a) => Grid a -> [String]
 lintTee grid =   mapM_ checkLinks tees
