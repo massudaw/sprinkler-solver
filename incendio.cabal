@@ -37,6 +37,7 @@ library
     ,Lint
     ,Equation
     ,Plane
+    ,Search
   build-depends:        base >=4.7 
                       , hmatrix
                       , hmatrix-gsl
@@ -48,18 +49,16 @@ library
                       , array
                       , containers
                       , distributive
-                      , triangulate
                       , ad 
                       , semigroups
                       , comonad 
                       , reflection 
                       , mtl
                       , transformers 
-                      -- , diagrams-core
-                      -- , diagrams-svg
-                      -- , diagrams-lib
                       , mecha 
                       , transformers
+                      , hgeometry
+                      , hgeometry-combinatorial
                       , lens 
                       , void
                       , simple-reflect

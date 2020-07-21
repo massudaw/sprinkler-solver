@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE TupleSections #-}
@@ -9,7 +10,7 @@
 module Project where
 
 import Backend.DXF
-import Backend.Mecha
+import Backend.Mecha hiding (Polygon(..))
 import Control.Applicative
 import Control.Applicative.Lift
 import Control.Lens
@@ -38,8 +39,9 @@ import Grid
 import Hydraulic
 import Linear.V2
 import Linear.V3
-import Point2 hiding ((<*>))
-import Polygon
+import Data.Ext
+import Data.Geometry.Polygon as Geom
+import Data.Geometry.Point
 import Position
 import Rotation.SO3 hiding (rotM)
 import Search
@@ -80,13 +82,13 @@ stdCurves Light = light
 comodityCurves _ = undefined
 
 regionRiskDensity (Region _ _ _ (b, _) (Standard i)) =
-  eval (abs $ Polygon.area (convPoly b)) (stdCurves i)
+  eval (abs $ area (convPoly b)) (stdCurves i)
 regionRiskDensity (Region _ _ _ (b, _) (MiscelaneousStorage i h))
   | h > 3.7 = errorWithStackTrace "altura maior que 3.7"
-  | otherwise = eval (abs $ Polygon.area (convPoly b)) (stdCurves i)
-regionRiskDensity (Region _ _ _ (b, _) (HighpilledStorage i h)) -- = errorWithStackTrace "not implemented"
-  | h >= 3.7 = errorWithStackTrace "altura maior que 3.7"
-  | otherwise = eval (abs $ Polygon.area (convPoly b)) (stdCurves i)
+  | otherwise = eval (abs $ area (convPoly b)) (stdCurves i)
+regionRiskDensity (Region _ _ _ (b, _) (HighpilledStorage i h)) = errorWithStackTrace "not implemented"
+  -- | h >= 3.7 = errorWithStackTrace "altura maior que 3.7"
+  -- | otherwise = eval (abs $ area (convPoly b)) (stdCurves i)
 
 data Author = Author
   { authorName :: String,
@@ -139,15 +141,15 @@ sprinklerRegionActivate ids grid = fst $ upgradeGrid 0 1 $ prune (fst $ upgradeG
 
 filterBounded (poly, _) grid = fst $ upgradeGrid 0 1 $ prune (fst $ upgradeGrid 0 1 (compactNodes $ grid {nodes = spks})) tar
   where
-    pcon = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a, b)) poly
+    pcon = convPoly  poly
     spks =
       fmap
         ( \(i, v) ->
             let (V3 x y _, _) = var i (M.fromList (nodesPosition grid))
-             in (i, if Polygon.contains pcon (Point2 (x, y)) then v else if isSprinkler v then Open 0 else v)
+             in (i, if insidePolygon (Point2 x y) pcon then v else if isSprinkler v then Open 0 else v)
         )
         (nodes grid)
-    tar = fst <$> filter (Polygon.contains pcon . (\(V3 x y z) -> Point2 (x, y)) . fst . snd) (nodesPosition grid)
+    tar = fst <$> filter (flip insidePolygon pcon . (\(V3 x y z) -> Point2 x y) . fst . snd) (nodesPosition grid)
 
 gridSize g = (length (nodes g), length (links g))
 
@@ -278,7 +280,8 @@ sf2 = show -- formatFloatN 2
 
 sf3 = show -- formatFloatN 3
 
-convPoly poly = PolygonCCW $ fmap (\(V2 a b) -> Point2 (a, b)) poly
+convPoly :: [V2 a] -> Polygon Geom.Simple  () a
+convPoly poly = fromPoints ((\(V2 i j ) -> Point2 i j :+ ()) <$> poly)
 
 reportIter :: a ~ Double => ProjectHeader -> Region -> Int -> Ambient a -> Grid Element a -> M.Map Int (LinkDomain Element a) -> M.Map Int (NodeDomain Element a) -> IO ()
 reportIter header rinfo i env a f h = do
@@ -382,14 +385,14 @@ reportIter header rinfo i env a f h = do
           ([reportEnviroment env] <> maybeToList (display <$> bomba) <> reportGrelha <> reportResev {-<> [ unlines $ L.intercalate "," <$> regionReport rinfo ]-})
         <> "\n\n"
         <> residuos
-    regionReport r = [["Nome da Região", regionName r], ["Classe de Risco", riskName $ regionRisk r], ["Área da Região", sf2 area, "m²"], ["Densidade de Água", sf2 density, "L/min/m²"], ["Vazão Mínima Área", sf2 minimalFlow, "L/min"], ["Quantidade de Bicos", show nspk, "un"], ["Id", "Pressão", "Vazão", "Vazão Min", "Área"], ["", "kpa", "L/min", "L/min", "m²"]] <> spkReport
+    regionReport r = [["Nome da Região", regionName r], ["Classe de Risco", riskName $ regionRisk r], ["Área da Região", sf2 area', "m²"], ["Densidade de Água", sf2 density, "L/min/m²"], ["Vazão Mínima Área", sf2 minimalFlow, "L/min"], ["Quantidade de Bicos", show nspk, "un"], ["Id", "Pressão", "Vazão", "Vazão Min", "Área"], ["", "kpa", "L/min", "L/min", "m²"]] <> spkReport
       where
         riskName (Standard i) = show i
         riskName (MiscelaneousStorage i _) = show i
         nspk = L.length sprinklers
-        area = abs $ Polygon.area (convPoly $ fst $ regionBoundary r)
+        area' = abs $ area (convPoly $ fst $ regionBoundary r)
         density = regionRiskDensity r
-        minimalFlow = density * area
+        minimalFlow = density * area'
         spkReport = (\(ix, p, e@(Sprinkler ((d, k)) (dl) f a)) -> [show ix, sf2 (p ^. _x), sf2 (p ^. _y), sf2 $ coverageArea f * density, sf2 $ coverageArea f]) <$> sprinklers
     nodeLosses = M.fromList . concat . fmap (\(n, Tee t conf) -> (\(ti, v) -> ((n, ti), v)) <$> fittingsCoefficient env hm sflow n t) . filter (isTee . snd) $ nodes a
     nmap = (\ni n@(_, e) -> L.intercalate "," $ ["N-" <> show ni, formatFloatN 4 $ p ni, formatFloatN 4 $h ni, "", ""] ++ expandNode (p ni) e)
