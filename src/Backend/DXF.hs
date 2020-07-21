@@ -92,7 +92,8 @@ convert2 (p,SO3 r)  = ( nz,   arbritaryAxis nz !* p  )
 
 
 instance RBackend [EntityTy]  where
-  type TCoord [EntityTy] = V3 Double
+  type TCoord [EntityTy] = V3 
+  type TField [EntityTy] = Double
   transformElement v l = transformEl v <$>  l
     where
       transformEl (v,SO3 r ) (INSERT n p s ro ax  attr) = (INSERT n ( p ^+^ v) s ro ax attr)

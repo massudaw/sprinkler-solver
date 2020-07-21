@@ -4,7 +4,7 @@ import Eletric
 import Domains
 import Input
 import Project
-import Graphviz
+import Backend.Graphviz
 import Grid hiding (var)
 import Equation
 
@@ -28,6 +28,6 @@ testResistor = fst $ runInput $ (mdo
 
 main = do
   putStrLn (displayEquation testResistor circuitEq)
-  let iter = solveIter (initIter testResistor) circuitEq
+  let iter = solveIter (initIter testResistor 0) circuitEq
   print $ iter
   renderGraph (drawIterGraph  testResistor ) "testResistor.png"

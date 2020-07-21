@@ -1,14 +1,17 @@
-
-{-# LANGUAGE FlexibleInstances,RecursiveDo,TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
+{-# LANGUAGE RankNTypes,TypeApplications,ScopedTypeVariables,FlexibleInstances,RecursiveDo,TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
 module Main where
 
 import Debug.Trace
+import qualified Data.Text as T
 import Plane
+import Data.Functor.Identity
+import Data.Functor.Compose
 import Data.Monoid
 import Control.Applicative
 import Control.Arrow
 import Linear.V3
 import Equation
+import Backend.Graphviz
 import Domains
 import Grid
 import Project
@@ -16,31 +19,37 @@ import Position
 import Force
 import Input
 import qualified Data.Foldable as F
+import Backend.Mecha (openSCAD)
 
 import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
 
-main = mapM solve$ zip [0..] [hexahedron8]
+main = do 
+  solve example6
 
-solve (i,ex) = do
-  let (g,e) = upgradeGrid 0 1 ex
+solve ::  (forall a . (RealFloat a, Show a ) => Grid Force a) -> IO ()
+solve gmodel  = do
+  print gmodel
+  let (g,e) = upgradeGrid 0 1 gmodel
+  print g 
   putStrLn (unlines $ either (fmap show) (fmap show) $ showErr e)
-  let ini = makeIter 0 1 ex
-      preres = printResidual ini momentForceEquations
-  let iter = solveIter ( makeIter 0 1 ex) momentForceEquations
+  let
+  let iter = solveIter ( initIter (fst $ upgradeGrid 0 1 gmodel) 2)momentForceEquations
       posres = printResidual iter momentForceEquations
-  displayModel ("force-model" <> show i ,g)
+  displayModel ("force-model-initial" , g)
+  writeFile "force-model-iter.scad" (T.unpack $ openSCAD  (drawIter iter ) )
+  return ()
 
-  putStrLn $ "Jacobian: " <> show (printJacobian (realToFrac <$> ini) momentForceEquations)
-  putStrLn $ "Pre Resídual: " <>  show preres
-  putStrLn $ "Pos Resídual: " <>  show posres
-  putStrLn $ "Resídual Improvement: " <>  show (zipWith (/) posres  preres)
+  -- putStrLn $ "Jacobian: " <> show (printJacobian ( initIter 2 ) (momentForceEquations ) )
+  -- putStrLn $ "Pre Resídual: " <>  show preres
+  -- putStrLn $ "Pos Resídual: " <>  show posres
+  -- putStrLn $ "Resídual Improvement: " <>  show (zipWith (/) posres  preres)
   -- putStrLn $ "Node Forces:" <>  show (printResidual iter forces)
   -- putStrLn $ "Link Forces:" <>  show (printResidual iter forces)
-  displayBended ("force-model-bend" <> show i ,iter )
+  -- displayBended ("force-model-bend" <> show i ,iter )
   -- displaySolve ("force-model-bend" <> show i ,iter )
-  print (pressures iter)
+  -- print (pressures iter)
 
 
 {-
@@ -83,12 +92,13 @@ example4  = fst $ runInput $ mdo
 
 
 example5 = fst $ runInput $ mdo
-  x1 <- node (Support (Tag (V3 0 0 0) 0 (V3 Nothing Nothing 0 ) 0 ) )
-  x2 <- node (Support (Tag (V3  Nothing 0 0 ) 0 (V3 0 Nothing 0) 0 ))
-  x3 <- node (Support (Tag (V3 Nothing Nothing 0) 0 (V3 2 1 0) 0 ))
-  link [aco 10 1,BTurn (0,1/2)] x1 x2
-  link [aturn 10 (-10),aco (sqrt (10^2 + 10^2)) (2*sqrt 2),aturn (-10) (-10)] x2 x3
-  link [BTurn (0,1/4),aco 10 0.5,BTurn (0,-1/4)] x3 x1
+  x1 <- conn [turn l1 1 0,turn l3 0 1] (Tag (V3 0 0 0 ) 0 (V3  Nothing Nothing 0 )0)
+  x2 <- conn [turn l2 1 1,turn l1 1 0] (Tag (V3  Nothing 0 0 ) 0 (V3 0 Nothing 0) 0)
+  x3 <- conn [turn l2 1 1,turn l3 0 1] (Tag (V3 Nothing Nothing 0) 0 (V3 2 1 0) 0 )
+  l1 <- link [aco 10 1] x1 x2
+  l2 <- link [aco (sqrt (10^2 + 10^2)) (2*sqrt 2)] x2 x3
+  l3 <- link [aco 10 0.5] x3 x1
+  return ()
 
 
 example6 = fst $ runInput $ mdo
@@ -97,15 +107,14 @@ example6 = fst $ runInput $ mdo
   x3 <- node (Support (Tag (V3 Nothing Nothing 0) 0 (V3 2 1 0) 0 ))
   link [aco 10 1,BTurn (0,1/2)] x1 x2
   link [aturn  10 (-10) , aco (sqrt (10^2 + 10^2)) (2*sqrt 2),aturn (-10) (-10)] x2 x3
-  link [BTurn (0,1/4),aco 10 0.5,BTurn (0,-1/4)] x3 x1
+  link [BTurn (0,1/2),aco 10 0.5,BTurn (0,-1/2)] x3 x1
 
 
 fixed = node (Support (Tag (V3 0 0 0 ) 0 (V3  Nothing Nothing 0 )0 ))
 pin = node (Support (Tag (V3 Nothing Nothing 0) 0 0 0 ))
 roller = node (Support (Tag (V3  Nothing 0 0) 0 (V3 0 Nothing 0) 0 ))
 aload load = node (Support (Tag (V3 Nothing Nothing 0) 0 (V3 0 (-load ) 0) 0 ))
-aturn x y =BTurn (0, atan2 x y / (2*pi))
-aturn2 x y z =BTurn (-atan2 z x /(2*pi), atan2 y x / (2*pi))
+aturn x y = BTurn (0, atan2 x y / (2*pi))
 
 turn l x y = (l , (0,0,atan2 x y /(2*pi)))
 rise l x y =(l, (0,atan2 x y / (2*pi),0))
@@ -241,6 +250,7 @@ ContourBandPlotNodeFuncOver2DMesh[NodeCoordinates,ElemNodes,sxy,{sxymin,sxymax,s
   {True,True,True,False,True,True},{2,2},aspect,"Stress sigma-xy"];
 
 -}
+quad9ex ::  RealFloat a  => Grid Force a  
 quad9ex = fst $ runInput $ mdo
   let em = 10000
       a = 5
@@ -355,20 +365,20 @@ tetragon = fst $ runInput $ mdo
     sf = FaceLoop
     free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 10 100 10) 0
     free= Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 0 ) 0
-  x1 <- conn [turn l1 0 1 ,rise l5  (-1) 1  ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
-  l1 <- link [Link a ] x1 x2
-  x2 <- conn [turn l1  0 1  ,turn l2 (-1) 0,rise l6 (-1) 0 ] (Tag (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
-  l2 <- link [Link a  ] x2 x3
-  x3 <- conn [turn l2 1 0, turn l3 (1) (1) ,(l7,(0,-1/4,1/8))]  (Tag (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
+  x1 <- conn [turn l1 0 1 ,rise l4  (-1) 1 ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
+  l1 <- link [Link a] x1 x2
+  x2 <- conn [turn l1 0 1, turn l2 (-1) 0, rise l5 (-1) 0] (Tag (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
+  l2 <- link [Link a] x2 x3
+  x3 <- conn [turn l2 1 0, turn l3 1 1, (l6,(0,-1/4,-1/8))]  (Tag (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
   l3 <- link [Link d] x3 x1
-  l5 <- link [Link d] x1 x6
-  l6 <- link [Link a] x2 x6
-  l7 <- link [Link d] x3 x6
-  x6 <- conn [(l7,(0,1/4,-1/8))]  free2
+  l4 <- link [Link d] x1 x4
+  l5 <- link [Link a] x2 x4
+  l6 <- link [Link d] x3 x4
+  x4 <- conn [(l6,(0,1/4,-1/8)), rise l4 1 (1), rise l5 1 0]  free2
   s1 <- surface sf [cw l1,cw l2,cw l3]
-  s3 <- surface sf [cw l1,cw l6 , ccw l5]
-  s4 <- surface sf [cw l2,cw l7 , ccw l6]
-  s6 <- surface sf [ccw l7,cw l3 , cw l5]
+  s3 <- surface sf [cw l1,cw l5 , ccw l4]
+  s4 <- surface sf [cw l2,cw l6 , ccw l5]
+  s6 <- surface sf [ccw l6,cw l3 , cw l4]
   polyhedra (Tetra4 (ematT em v)) $ cw <$> [s1,s3,s4,s6]
   return ()
 

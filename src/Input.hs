@@ -69,21 +69,13 @@ surface e ls = do
 
 polyhedra :: sys e -> [((Bool, Int), sys e)] -> InputM sys e (Int, sys e)
 polyhedra e ls = do
-  un <- getUniqueS
+  un <- getUniqueV
   modify (\(g, i) -> (g {volumes = (un, (fst <$> ls, e)) : volumes g}, i))
   return (un, e)
 
 runInput t = snd $ runState t (Grid [] [] [] [] [] [] [] [], (-1, 0, 0, 0))
 
-{-
-unroll :: (Ord a,Fractional a,Show a) => [Element a] -> State (Grid Element a,(Int,Int,Int)) ()
-unroll l = do
-  (g,(a,b,c)) <- get
-  -- runState (unrollNode (0,Open 0) l  )
-  let ((_,st),((_,ai),(_,ao))) = runState (unrollNode (0,Open 0) (Origem l) ) ((Open 0,a),(Open 0 ,b))
-  put (Grid [] (fmap (\(i,h,t,e) -> (i,(h,t,e))) (snd st) <> links g)[]  [] (  fst st <> nodes g),(ai,ao))
--}
-
+  
 (>~>) ::
   MonadFix m =>
   ((t, t1) -> m (t2, t5)) ->

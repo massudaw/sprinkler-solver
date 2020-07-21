@@ -42,10 +42,11 @@ showErr (Pure i) = Right i
 
 subSp (i, b) (j, c) = (i ^-^ j, SO3 $ distribute (unSO3 c) !*! (unSO3 b))
 
-nextS :: (Show (f Double), Coord f (V3 Double)) => Int -> [Int] -> f Double -> [(Int, (V3 Double, SO3 Double))]
+nextS :: (RealFloat b ,Show (f b), Coord f V3 ) => Int -> [Int] -> f b -> [(Int, (V3 b, SO3 b))]
+nextS l p v | traceShow (l,p,v) False = undefined
 nextS l p v = fmap (\i -> (i, nElement i p v)) $ filter (/= l) p
 
-nextE :: (Show (f Double), Coord f (V3 Double)) => Int -> [Int] -> f Double -> [(Int, (V3 Double, SO3 Double))]
+nextE :: (RealFloat b, Show (f b), Coord f V3 ) => Int -> [Int] -> f b -> [(Int, (V3 b, SO3 b))]
 nextE l p v = fmap (\i -> (i, subSp (nElement i p v) ini)) $ filter (/= l) p
   where
     ini = tElement l p v
@@ -53,17 +54,17 @@ nextE l p v = fmap (\i -> (i, subSp (nElement i p v) ini)) $ filter (/= l) p
 -- tElement :: Show (f Double) => Int -> f Double -> TCoord (f Double)
 tElementInfer l i e = fmap snd . M.lookup l . thisElement i $ e
 
-tElement l i e = snd . justError (" no element " <> show l <> " in " <> show e) . M.lookup l . thisElement i $ e
+tElement l i e = snd . justError (" no element link " <> show l <> " in " <> show e) . M.lookup l . thisElement i $ e
 
-nElement l i e = case justError (" no element " <> show (l, e)) . M.lookup l . thisElement i $ e of
+nElement l i e = case justError (" no element node" <> show (l, i, e)) . M.lookup l . thisElement i $ e of
   (0, v) -> untrans (0, so3 (V3 pi 0 0)) v
   (1, v) -> untrans (0, so3 (V3 0 pi 0)) v
   (2, v) -> untrans (0, so3 (V3 0 0 pi)) v
 
 angDist i j = unRot $ SO3 $ distribute $ (distribute $ unSO3 i) !*! (unSO3 j)
 
-instance PreCoord (V3 Double) where
-  type Ang (V3 Double) = SO3 Double
+instance PreCoord V3  where
+  type Ang V3 = SO3 
   dist (i, ir) (j, jr) = (distance (i) (j), norm $ angDist ir jr)
   trans (l, i) (lo, a) = (l + unSO3 i !* lo, SO3 $ unSO3 i !*! unSO3 a)
   untrans (l, i) (lo, a) = (l ^-^ unSO3 i !* lo, SO3 $ unSO3 i !*! distribute (unSO3 a))
@@ -86,21 +87,22 @@ upi i = i / (2 * pi)
 unrot = unRot . SO3 . distribute . unSO3
 
 locateGrid ::
-  (SO3 Double ~ (Ang a), a ~ V3 Double, Coord f a, Show (f Double), Show (Ang a), Show a, Num a, Monad m) =>
-  M.Map Int (Int, Int, [f Double]) ->
-  M.Map Int ([Int], f Double) ->
+  (RealFloat b, SO3 ~ Ang a, a ~ V3 , Coord f a, Show (f b), Show (Ang a b), Show (a  b), Num (a b), Monad m) =>
+  M.Map Int (Int, Int, [f b]) ->
+  M.Map Int ([Int], f b) ->
   Int ->
-  (a, Ang a) ->
+  (a  b, Ang a b) ->
   Int ->
   Either
-    (Int, Int, [f Double])
-    ([Int], f Double) ->
-  StateT (M.Map Int (a, Ang a), M.Map Int [(a, Ang a)]) m (Errors [(Int, Int, String, Double)] [(Int, Int, (a, Ang a))])
+    (Int, Int, [f  b])
+    ([Int], f  b) ->
+  StateT (M.Map Int (a  b, Ang a b), M.Map Int [(a b, Ang a b)]) m (Errors [(Int, Int, String, b)] [(Int, Int, (a b , Ang a b))])
 locateGrid lmap nmap l r n (Right oe@(s, e)) = do
   let t = tElement l s e
       rnew = trans r t
   modify (<> (M.singleton n rnew, mempty))
-  let trav ne@(i, coo) = do
+  let 
+    trav ne@(i, coo) = do
         let pos = trans rnew coo
         locateGrid lmap nmap n pos i (Left $ var i lmap)
   l <- mapM trav (nextS l s e)
@@ -112,7 +114,7 @@ locateGrid lmap nmap n r l ll@(Left (hn, tn, e))
       let es = var tn . M.fromList . nextE hn [hn, tn] <$> e
           sn = scanl trans r es
       err <- nextNode (last sn) tn
-      return (init sn, err)
+      return (traceShow (n,l,sn,es) $ init sn, err)
     modify (<> (mempty, M.singleton l i))
     return err
   -- render Link Reverse
@@ -151,10 +153,12 @@ locateGrid lmap nmap n r l ll@(Left (hn, tn, e))
 rotM = rotD
 
 drawGrid ::
-  ( Show (sys Double),
+  ( 
+    TField a ~ Double,
+    Show (sys Double),
     Target sys a,
-    TCoord a ~ V3 Double,
-    Ang (TCoord a) ~ SO3 Double
+    TCoord a  ~ V3 ,
+    Ang (TCoord a) ~ SO3 
   ) =>
   Grid sys Double ->
   a
@@ -301,11 +305,11 @@ drawIterGraph iter = statements $ nds <> lds
           (links (it))
 
 upgradeGrid ::
-  (Show (f Double), Coord f (V3 Double)) =>
+  (Show a,RealFloat a,Show (f a), Coord f V3 ) =>
   Int ->
   Int ->
-  Grid f Double ->
-  (Grid f Double, Errors [(Int, Int, String, Double)] [(Int, Int, (V3 Double, SO3 Double))])
+  Grid f a->
+  (Grid f a, Errors [(Int, Int, String, a)] [(Int, Int, (V3 a, SO3 a))])
 upgradeGrid ni li a = (a {nodesPosition = M.toList nodesPos, linksPosition = M.toList linksPos}, err)
   where
     (err, (nodesPos, linksPos)) =
@@ -338,6 +342,7 @@ recurse render ni r@(Left n@(lks, e)) = do
   ti <- mapM (\i -> recurse render i . Right . flip var nodemap $ i) nexts
   return $ render ni r : concat ti
 
+findNodesLinks :: Grid b a -> [(Int, b1)] -> [(Int, ([Int], b1))]
 findNodesLinks grid = fmap (\(i, n) -> (i, (var i nodeMapSet, n)))
   where
     nodeMapSet = fmap L.nub $ M.fromListWith mappend $ concat $ (\(l, (h, t, _)) -> [(h, [l]), (t, [l])]) <$> links grid

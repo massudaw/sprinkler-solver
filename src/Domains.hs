@@ -74,13 +74,13 @@ data FIteration n l o b a = Iteration
   deriving (Show, Functor)
 
 class PreCoord a where
-  type Ang a
-  trans :: (a, Ang a) -> (a, Ang a) -> (a, Ang a)
-  untrans :: (a, Ang a) -> (a, Ang a) -> (a, Ang a)
-  dist :: (a, Ang a) -> (a, Ang a) -> (Double, Double)
+  type Ang a  :: * -> *
+  trans :: RealFloat b =>(a b, Ang a b) -> (a b, Ang a b) -> (a b, Ang a b)
+  untrans :: RealFloat b =>(a b, Ang a b ) -> (a b, Ang a b) -> (a b, Ang a b)
+  dist :: RealFloat b => (a b, Ang a b) -> (a b, Ang a b) -> (b, b)
 
 class (PreSys sys, PreCoord a) => Coord sys a where
-  thisElement :: [Int] -> sys Double -> M.Map Int (Int, (a, Ang a))
+  thisElement :: RealFloat b => [Int] -> sys b -> M.Map Int (Int, (a b, Ang a b))
 
 varM i j = case M.lookup i j of
   Nothing -> Nothing
@@ -107,8 +107,9 @@ instance Fractional a => Fractional (Maybe a) where
   fromRational i = Just (fromRational i)
 
 class RBackend a where
-  type TCoord a
-  transformElement :: (TCoord a, Ang (TCoord a)) -> a -> a
+  type TCoord a :: * -> *
+  type TField a :: *
+  transformElement :: (TCoord a (TField a), Ang (TCoord a) (TField a)) -> a -> a
   errorItem :: a
   statements :: [a] -> a
 

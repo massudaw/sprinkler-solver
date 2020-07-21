@@ -20,7 +20,8 @@ import Control.Applicative
 import Data.Semigroup
 
 instance RBackend Mecha.Solid where
-  type TCoord Mecha.Solid = V3 Double
+  type TCoord Mecha.Solid = V3 
+  type TField Mecha.Solid = Double
   errorItem = Mecha.torus 0.2 0.1
   transformElement (r@(V3 mx my mz),s)=  Mecha.affine (F.toList $ fmap F.toList v)
     where v = (\(V3 x y z ) -> V4 x y z (V4 0 0 0 1)) $ liftA2 (\(V3 x y z) m -> V4 x  y z m ) (unSO3 s) r

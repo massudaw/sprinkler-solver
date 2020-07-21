@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -103,6 +104,7 @@ trigbandSegment p1@(V2 x1 y1) p2@(V2 x2 y2) p3@(V2 x3 y3) [f1, f2, f3] fv eps
     p32 = V2 (x3 * s323 + x2 * s322) (y3 * s323 + y2 * s322)
 
 instance PreSys Force where
+  type Enviroment Force = Identity
   type NodeDomain Force = Forces
   type LinkDomain Force = Compose [] Forces
   type SurfaceDomain Force = V3
@@ -127,7 +129,7 @@ instance PreSys Force where
       constr i = (Just <$> 0, Just <$> 0)
   postprocess i = M.toList $ printResidual i forces
 
-momentForceEquations :: (g ~ Force, Show a, Ord a, Floating a) => Grid g a -> M.Map Int (LinkDomain g a) -> M.Map Int (NodeDomain g a) -> [a]
+momentForceEquations :: forall a . (Show a, Ord a, Floating a) => Grid Force a -> M.Map Int (LinkDomain Force a) -> M.Map Int (NodeDomain Force a) -> [a]
 momentForceEquations = (\l v h -> momentForce l v h)
 
 rotor :: Floating a => V3 a -> V3 a -> V3 a -> M3 a
@@ -320,7 +322,10 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
     smap = M.fromListWith (liftA2 (+)) $ concat $ surfaceLink nodesIn (M.fromList $ nodesPosition g) (M.fromList l) . snd <$> surfaces g
     cmap = M.fromListWith (liftA2 (+)) $ concat $ volumeLink nodesIn (M.fromList $ nodesPosition g) (M.fromList l) (M.fromList (surfaces g)) . snd <$> volumes g
 
-instance Coord Force (V3 Double) where
+instance Coord Force V3  where
+  thisElement [h,t] (BTurn (x,y) ) = (1,) <$> M.fromList [(h,(V3 0 0 0,so3 0 )), (t,(V3 0 0 0,so3 (V3 (pi + opi x) (pi + opi y) 0 ) )) ]
+  thisElement [h,t] (Link i ) = (2,) <$> M.fromList [(h,(V3 0 0 0,so3 0 )), (t,(V3 i 0 0,so3 (V3 0 0 pi) )) ]
+  thisElement [h,t] (Bar l _ _) = (2,) <$> M.fromList [(h,(V3 0 0 0,so3 0 )), (t,(V3 l 0 0,so3 (V3 0 0 pi) )) ]
   thisElement l i = (\(u, m, j) -> (if u /= 0 then 0 else if m /= 0 then 1 else if j /= 0 then 2 else 2, (0, SO3 . P.rotM $ (V3 (opi u) (opi m) (opi j))))) <$> thisF l i
 
 {-elemTrans t = (lengthE t , angleE t)

@@ -4,7 +4,7 @@ import Thermal
 import Domains
 import Input
 import Project
-import Graphviz
+import Backend.Graphviz
 import Grid hiding (var)
 import Equation
 import Data.GraphViz.Types.Generalised
@@ -26,7 +26,7 @@ testResistor = fst $ runInput $ (mdo
 
 main = do
   putStrLn (displayEquation testResistor thermalEq )
-  let iter = solveIter (initIter testResistor) thermalEq
+  let iter = solveIter (initIter testResistor 0) thermalEq
   print (drawIterGraph testResistor :: [DotStatement Int])
   renderGraph (drawIterGraph  testResistor) "testThermal.png"
   print $ iter

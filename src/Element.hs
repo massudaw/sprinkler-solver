@@ -193,7 +193,7 @@ airDensity tdew temp pressure height = rho * 100
     c8 = 0.11112018e-16
     c9 = -0.30994571e-19
 
-instance Coord Element (V3 Double) where
+instance Coord Element V3  where
   thisElement [a, b] (Bomba _ _) = (2,) <$> M.fromList [(a, (0, so3 0)), (b, (V3 0 0 0, so3 (V3 0 0 pi)))]
   thisElement [a, b] (Perda _) = (2,) <$> M.fromList [(a, (0, so3 0)), (b, (V3 0 0 0, so3 (V3 0 0 pi)))]
   thisElement [a, b] (Tubo _ c _) = (2,) <$> M.fromList [(a, (0, so3 0)), (b, (V3 (c) 0 0, so3 (V3 0 0 pi)))]
@@ -224,7 +224,7 @@ instance Coord Element (V3 Double) where
             [(a, 0), (b, 1 / 2)]
           els ([a], i) =
             [(a, 0)]
-          els i = errorWithStackTrace $ show ("thisElement", i)
+          els i = errorWithStackTrace  "thisElement"
 
 pipeElement am ps v e | v < 0 = negate $ pipeElement am ps (abs v) e
 pipeElement am ps v (Bomba (pn, vn) (Poly l)) = res

@@ -28,6 +28,7 @@ data Eletric a
   deriving (Show, Eq, Ord, Functor)
 
 instance PreSys Eletric where
+  type Enviroment Eletric = Identity
   type NodeDomain Eletric = Identity
   type LinkDomain Eletric = Identity
   constrained (Ground) = Identity (Just 0)
@@ -60,6 +61,7 @@ circuitContinuity g v pm = fmap (\(i, e) -> sum (flipped i $ links g) + (sum (co
     genFlow _ Ground = 0
     nflow i e = genFlow (var i pm) e
 
+circuitEq :: (Show a, Ord a, Floating a) => Grid Eletric a -> M.Map Int (Identity a) -> M.Map Int (Identity a) -> [a]
 circuitEq = (\l v h -> circuitPotential l (runIdentity <$> v) (runIdentity <$> h) <> circuitContinuity l (runIdentity <$> v) (runIdentity <$> h))
 
 circuitElement v (Resistor i) = v * i

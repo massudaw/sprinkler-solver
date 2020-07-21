@@ -263,6 +263,9 @@ solveModel (header, model, region) = do
   callCommand sofficec
   print $ "renderReport: " <> fname <> ".xls"
   drawSCAD fname (drawGrid (grid iter)) -- <> drawRegion region )
+ 
+displayModel (file,grid) = drawSCAD file (drawGrid grid)
+
 
 drawSCAD fname grid = do
   let scadFile = openSCAD grid
