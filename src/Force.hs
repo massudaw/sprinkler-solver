@@ -325,6 +325,7 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
 instance Coord Force V3  where
   thisElement [h,t] (BTurn (x,y) ) = (1,) <$> M.fromList [(h,(V3 0 0 0,so3 0 )), (t,(V3 0 0 0,so3 (V3 (pi + opi x) (pi + opi y) 0 ) )) ]
   thisElement [h,t] (Link i ) = (2,) <$> M.fromList [(h,(V3 0 0 0,so3 0 )), (t,(V3 i 0 0,so3 (V3 0 0 pi) )) ]
+  thisElement [h,t] (Beam i _ _ _ _ ) = (2,) <$> M.fromList [(h,(V3 0 0 0,so3 0 )), (t,(V3 i 0 0,so3 (V3 0 0 pi) )) ]
   thisElement [h,t] (Bar l _ _) = (2,) <$> M.fromList [(h,(V3 0 0 0,so3 0 )), (t,(V3 l 0 0,so3 (V3 0 0 pi) )) ]
   thisElement l i = (\(u, m, j) -> (if u /= 0 then 0 else if m /= 0 then 1 else if j /= 0 then 2 else 2, (0, SO3 . P.rotM $ (V3 (opi u) (opi m) (opi j))))) <$> thisF l i
 
@@ -516,5 +517,5 @@ instance Target Force Solid where
       st quad = foldl Union si (fmap (\(c, p) -> color c (extrude p 0.11)) quad)
       nls = M.fromList $ zip (fst <$> L.nub nds) [0 ..]
       npos = (fst . snd <$> L.nub nds)
-      paths = fmap (\n -> fromJust $ M.lookup n nls) $ path $ (\(b, (h, t, l)) -> if b then (h, t) else (t, h)) <$> ls
+      -- paths = fmap (\n -> fromJust $ M.lookup n nls) $ path $ (\(b, (h, t, l)) -> if b then (h, t) else (t, h)) <$> ls
   renderSurfaceSolve v ls nds (FaceLoop) si = si
