@@ -1,10 +1,10 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -16,7 +16,6 @@ import Control.Applicative
 import Control.Arrow
 import Control.Lens
 import qualified Data.Foldable as F
-import Data.Functor.Classes
 import Data.Functor.Compose
 import qualified Data.List as L
 import qualified Data.Map as M
@@ -47,7 +46,6 @@ data Support a
   | Roller
   | Friction a
   | Pin
-  | Tag (V3 (Maybe a)) (V3 (Maybe a)) (V3 (Maybe a)) (V3 (Maybe a))
   | Cable a
   | SmoothSurface
   | BallAndSocket
@@ -60,8 +58,8 @@ tag (Support i) = i
 tag (Connection _ i) = i
 
 data Force a
-  = Support (Support a)
-  | Connection [(Int, (a, a, a))] (Support a)
+  = Support (Forces (Maybe a))
+  | Connection [(Int, (a, a, a))] (Forces (Maybe a))
   | FaceLoop
   | Quad4 {em :: M3 a, thickness :: a}
   | Hexa8 {emt :: Compose V2 V3 (Compose V2 V3 a)}
@@ -74,7 +72,13 @@ data Force a
   | BTurn (a, a)
   deriving (Eq, Ord, Functor, Show)
 
-newtype Forces a = Forces {unForces :: (V3 a, V3 a, V3 a, V3 a)} deriving (Foldable, Functor, Traversable, Show)
+data Forces a = Forces
+  { linearDeformation :: V3 a,
+    angularDeformation :: V3 a,
+    linearForces :: V3 a,
+    angularMomemtum :: V3 a
+  }
+  deriving (Eq, Ord, Foldable, Functor, Traversable, Show)
 
 contourband xyc@[V2 xc1 yc1, V2 xc2 yc2, V2 xc3 yc3] f@[fc1, fc2, fc3] fmin fmax finc eps
   | fmax < fmin || finc < 0 = []
@@ -108,28 +112,29 @@ instance PreSys Force where
   type NodeDomain Force = Forces
   type LinkDomain Force = Compose [] Forces
   type SurfaceDomain Force = V3
-  lconstrained = Compose . fmap (Forces . constr)
+  lconstrained = Compose . fmap (constr)
     where
-      constr Load = (V3 Nothing (Just 0) (Just 0), 0, Just <$> 0, 0)
-      constr i = (Just <$> 0, 0, Just <$> 0, 0)
-  constrained (Support (Tag t a l m)) = Forces (t, a, l, m)
-  constrained (Connection _ (Tag t a l m)) = Forces (t, a, l, m)
-  constrained a = Forces . (\(a, b) -> (a, 0, b, 0)) . constr $ a
-    where
-      constr (Support s) =
-        case s of
-          FixedSupport2D -> (V3 Nothing Nothing (Just 0), V3 (Just 0) (Just 0) Nothing)
-          FixedSupport3D -> (V3 Nothing Nothing Nothing, V3 Nothing Nothing Nothing)
-          SmoothSurface -> (V3 (Just 0) (Just 0) Nothing, V3 (Just 0) (Just 0) (Just 0))
-          Pin -> (V3 Nothing Nothing (Just 0), V3 (Just 0) (Just 0) (Just 0))
-          Pin3D -> (V3 Nothing Nothing Nothing, V3 (Just 0) (Just 0) (Just 0))
-          SinglePin -> (V3 Nothing Nothing Nothing, V3 Nothing Nothing (Just 0))
-          Roller -> (V3 0 Nothing 0, V3 0 0 0)
-          Friction x -> (V3 0 Nothing 0, V3 0 0 0)
-      constr i = (Just <$> 0, Just <$> 0)
+      constr Load = Forces (V3 Nothing (Just 0) (Just 0)) 0 (Just <$> 0) 0
+      constr i = Forces (Just <$> 0) 0 (Just <$> 0) 0
+  constrained (Support f) = f
+  constrained (Connection _ f) = f
+
+  --constrained a = (\(a, b) -> Forces a 0 b 0) . constr $ a
+  --  where
+  --    constr (Support s) =
+  --      case s of
+  --        FixedSupport2D -> (V3 Nothing Nothing (Just 0), V3 (Just 0) (Just 0) Nothing)
+  --        FixedSupport3D -> (V3 Nothing Nothing Nothing, V3 Nothing Nothing Nothing)
+  --        SmoothSurface -> (V3 (Just 0) (Just 0) Nothing, V3 (Just 0) (Just 0) (Just 0))
+  --        Pin -> (V3 Nothing Nothing (Just 0), V3 (Just 0) (Just 0) (Just 0))
+  --        Pin3D -> (V3 Nothing Nothing Nothing, V3 (Just 0) (Just 0) (Just 0))
+  --        SinglePin -> (V3 Nothing Nothing Nothing, V3 Nothing Nothing (Just 0))
+  --        Roller -> (V3 0 Nothing 0, V3 0 0 0)
+  --        Friction x -> (V3 0 Nothing 0, V3 0 0 0)
+  --    constr i = (Just <$> 0, Just <$> 0)
   postprocess i = M.toList $ printResidual i forces
 
-momentForceEquations :: forall a . (Show a, Ord a, Floating a) => Grid Force a -> M.Map Int (LinkDomain Force a) -> M.Map Int (NodeDomain Force a) -> [a]
+momentForceEquations :: forall a. (Show a, Ord a, Floating a) => Grid Force a -> M.Map Int (LinkDomain Force a) -> M.Map Int (NodeDomain Force a) -> [a]
 momentForceEquations = (\l v h -> momentForce l v h)
 
 rotor :: Floating a => V3 a -> V3 a -> V3 a -> M3 a
@@ -193,7 +198,7 @@ linkForces g linkInPre nodesInPre =
   where
     lmap = M.fromList $ eqLink nvars <$> links g
     nvars = M.fromList $ fmap (\((ix, i), v) -> (ix, (i, v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition g)
-    nodesIn = unForces <$> nodesInPre
+    nodesIn = nodesInPre
 
 bendIter iter@(Iteration r i e g) =
   Iteration r i e (g {nodesPosition = editNodes <$> nodesPosition g, linksPosition = editLinks <$> linksPosition g})
@@ -201,7 +206,7 @@ bendIter iter@(Iteration r i e g) =
     lmap = M.fromList (links (grid iter))
     npmap = M.fromList (nodesPosition (grid iter))
     var2 i = fmap (fromMaybe 0) . (\(i, _, _, _) -> i) . var i
-    nmap = unForces . getCompose <$> M.fromList (pressures iter)
+    nmap = getCompose <$> M.fromList (pressures iter)
     editNodes (i, (np, nr)) = (i, (np ^+^ d, nr))
       where
         d = var2 i nmap
@@ -237,7 +242,7 @@ volumeLink nvars npos lmap smap (ls, Tetra4 e) = zip p (getZipList $ getCompose 
     res = fmap (\(b, (h, t, e)) -> if b then (h, t) else (t, h)) <$> lks
     p = L.nub $ concat $ path <$> res
     coords = fmap (\i -> fst $ var i npos) p
-    vars = fmap (\i -> (\(v, _, _, _) -> v) $ var i nvars) p
+    vars = fmap (\i -> linearDeformation $ var i nvars) p
 volumeLink nvars npos lmap smap (ls, Hexa8 e) = zip p (getZipList $ getCompose $ kres !* Compose (ZipList vars))
   where
     kres = hexa8stiffness coords e
@@ -248,7 +253,7 @@ volumeLink nvars npos lmap smap (ls, Hexa8 e) = zip p (getZipList $ getCompose $
     res = fmap (\(b, (h, t, e)) -> if b then (h, t) else (t, h)) <$> lks
     p = L.nub $ concat $ path <$> res
     coords = fmap (\i -> fst $ var i npos) p
-    vars = fmap (\i -> (\(v, _, _, _) -> v) $ var i nvars) p
+    vars = fmap (\i -> linearDeformation $ var i nvars) p
 
 surfaceStress nvars npos lmap (ls, Quad4 e h) = zip p (kres vars)
   where
@@ -257,7 +262,7 @@ surfaceStress nvars npos lmap (ls, Quad4 e h) = zip p (kres vars)
     res = (\(b, (h, t, e)) -> if b then (h, t) else (t, h)) <$> lks
     p = reverse $ path res
     coords = fmap (\i -> (\(V3 x y _) -> V2 x y) $ fst $ var i npos) p
-    vars = fmap (\i -> (\(V3 x y _, _, _, _) -> V2 x y) $ var i nvars) p
+    vars = fmap (\i -> (\(Forces (V3 x y _) _ _ _) -> V2 x y) $ var i nvars) p
 
 surfaceLink _ _ _ (_, FaceLoop) = []
 surfaceLink nvars npos lmap (ls, Quad4 e h) = zip p (getZipList $ getCompose $ kres !* Compose (ZipList vars))
@@ -267,14 +272,14 @@ surfaceLink nvars npos lmap (ls, Quad4 e h) = zip p (getZipList $ getCompose $ k
     res = (\(b, (h, t, e)) -> if b then (h, t) else (t, h)) <$> lks
     p = path res
     coords = fmap (\i -> (\(V3 x y _) -> V2 x y) $ fst $ var i npos) p
-    vars = fmap (\i -> (\(V3 x y _, _, _, _) -> V2 x y) $ var i nvars) p
+    vars = fmap (\i -> (\(Forces (V3 x y _) _ _ _) -> V2 x y) $ var i nvars) p
 
 eqLink nvars (i, (h, t, [el@(Link l)])) = (i, (h, t, (pure 0, pure 0), (pure 0, pure 0), el))
 eqLink nvars (i, (h, t, l)) = (i, (h, t, (rtb !* resh, rtb !* mesh), (rtb !* rest, rtb !* mest), el))
   where
     el = justError "no beam" $ L.find isBeam l
-    ((fh, mhp, _, _), (ph, _)) = nvarsEl h
-    ((ft, mtp, _, _), (pt, _)) = nvarsEl t
+    ((Forces fh mhp _ _), (ph, _)) = nvarsEl h
+    ((Forces ft mtp _ _), (pt, _)) = nvarsEl t
     pd = force el
     rt = rotor (V3 0 1 0) pt ph
     rtb = transpose rt
@@ -288,7 +293,7 @@ eqLink nvars (i, (h, t, l)) = (i, (h, t, (rtb !* resh, rtb !* mesh), (rtb !* res
     isBeam _ = False
     -- Energy Conservation
     bend = bending el
-    bendt = transpose $bending el
+    bendt = transpose bend
     btor = torsor el
     ctor = crosstorsor el
     resh = (pd !* (fhl ^-^ ftl)) ^+^ (bend !* (mh ^+^ mt))
@@ -297,24 +302,25 @@ eqLink nvars (i, (h, t, l)) = (i, (h, t, (rtb !* resh, rtb !* mesh), (rtb !* res
     mest = (btor !* mt ^+^ ctor !* mh) ^+^ (bendt !* (fhl ^-^ ftl))
     nvarsEl h = var h nvars
 
+forces :: (Show a, Floating a) => Grid Force a -> p -> M.Map Int (Forces a) -> M.Map Int (V3 a)
 forces g linkInPre nodesInPre = sfmap
   where
     lmap = M.fromList $ eqLink nvars <$> links g
     nvars = M.fromList $ fmap (\((ix, i), v) -> (ix, (i, v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition g)
     smap = M.fromList $ eqLink nvars <$> links g
-    nodesIn = unForces <$> nodesInPre
+    nodesIn = nodesInPre
     sfmap = M.fromListWith (liftA2 (+)) $ concat $ surfaceStress nodesIn (M.fromList $ nodesPosition g) (M.fromList (links g)) . snd <$> surfaces g
 
--- momentForce :: Floating a => Grid Force a -> M.Map Int ([(V3 a,V3 a)]) -> M.Map Int (V3 a ,V3 a)  -> [a]
+momentForce :: (Show a, Floating a) => Grid Force a -> M.Map Int (Compose [] Forces a) -> M.Map Int (Forces a) -> [a]
 momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
   where
-    nodesIn = unForces <$> nodesInPre
+    nodesIn = nodesInPre
     nvars = M.fromList $ fmap (\((ix, i), v) -> (ix, (i, v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition g)
     l = reverse $ links g
     nodeMerge (ix, (s, el)) = catMaybes . zipWith3 (\i f j -> if isNothing i || isNothing f then Just j else Nothing) (F.toList a <> F.toList aa) (F.toList fv <> F.toList mv) . zipWith (+) (F.toList m <> F.toList ma) . fmap sum . L.transpose $ (linkEls <> sEls <> vEls)
       where
-        (_, _, m, ma) = var ix nodesIn
-        Tag a aa fv mv = tag el
+        Forces _ _ m ma = var ix nodesIn
+        Forces a aa fv mv = tag el
         linkEls = (\(a, b) -> F.toList a <> F.toList b) . (\(h, t, resh, rest, a) -> if ix == h then resh else (if ix == t then rest else error "wrong index")) . flip var lmap <$> F.toList s
         sEls = maybeToList ((<> replicate 4 0) . F.toList <$> M.lookup ix smap)
         vEls = maybeToList ((<> replicate 3 0) . F.toList <$> M.lookup ix cmap)
@@ -322,11 +328,11 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
     smap = M.fromListWith (liftA2 (+)) $ concat $ surfaceLink nodesIn (M.fromList $ nodesPosition g) (M.fromList l) . snd <$> surfaces g
     cmap = M.fromListWith (liftA2 (+)) $ concat $ volumeLink nodesIn (M.fromList $ nodesPosition g) (M.fromList l) (M.fromList (surfaces g)) . snd <$> volumes g
 
-instance Coord Force V3  where
-  thisElement [h,t] (BTurn (x,y) ) = (1,) <$> M.fromList [(h,(V3 0 0 0,so3 0 )), (t,(V3 0 0 0,so3 (V3 (pi + opi x) (pi + opi y) 0 ) )) ]
-  thisElement [h,t] (Link i ) = (2,) <$> M.fromList [(h,(V3 0 0 0,so3 0 )), (t,(V3 i 0 0,so3 (V3 0 0 pi) )) ]
-  thisElement [h,t] (Beam i _ _ _ _ ) = (2,) <$> M.fromList [(h,(V3 0 0 0,so3 0 )), (t,(V3 i 0 0,so3 (V3 0 0 pi) )) ]
-  thisElement [h,t] (Bar l _ _) = (2,) <$> M.fromList [(h,(V3 0 0 0,so3 0 )), (t,(V3 l 0 0,so3 (V3 0 0 pi) )) ]
+instance Coord Force V3 where
+  thisElement [h, t] (BTurn (x, y)) = (1,) <$> M.fromList [(h, (V3 0 0 0, so3 0)), (t, (V3 0 0 0, so3 (V3 (pi + opi x) (pi + opi y) 0)))]
+  thisElement [h, t] (Link i) = (2,) <$> M.fromList [(h, (V3 0 0 0, so3 0)), (t, (V3 i 0 0, so3 (V3 0 0 pi)))]
+  thisElement [h, t] (Beam i _ _ _ _) = (2,) <$> M.fromList [(h, (V3 0 0 0, so3 0)), (t, (V3 i 0 0, so3 (V3 0 0 pi)))]
+  thisElement [h, t] (Bar l _ _) = (2,) <$> M.fromList [(h, (V3 0 0 0, so3 0)), (t, (V3 l 0 0, so3 (V3 0 0 pi)))]
   thisElement l i = (\(u, m, j) -> (if u /= 0 then 0 else if m /= 0 then 1 else if j /= 0 then 2 else 2, (0, SO3 . P.rotM $ (V3 (opi u) (opi m) (opi j))))) <$> thisF l i
 
 {-elemTrans t = (lengthE t , angleE t)
@@ -391,7 +397,7 @@ contourBandplotquad4 xyc@[p1, p2, p3, p4] fmin fmax finc eps =
     ftab l = contourBandplotTrig3 b a fmin fmax finc eps
       where
         (a, b) = unzip l
-contourBandplotquad4 i _ _ _ _ = errorWithStackTrace $ show (i, L.length i)
+contourBandplotquad4 i _ _ _ _ = error $ show (i, L.length i)
 
 trigbandsegment :: (Show a, Ord a, Fractional a) => [V2 a] -> [a] -> a -> a -> ((V2 a, V2 a), Int)
 trigbandsegment [p1@(V2 x1 y1), p2@(V2 x2 y2), p3@(V2 x3 y3)] fs@[f1', f2, f3'] fv eps
@@ -416,6 +422,7 @@ trigbandsegment [p1@(V2 x1 y1), p2@(V2 x2 y2), p3@(V2 x3 y3)] fs@[f1', f2, f3'] 
     s322 = 1 - s323
     p32 = V2 (x3 * s323 + x2 * s322) (y3 * s323 + y2 * s322)
 
+contourBandColor :: (Fractional b, Num d, Ord b, Num c) => b -> b -> b -> (b, b, c, d)
 contourBandColor f fmin fmax
   | fmax == 0 || fmin >= fmax = (1, 2, 1, 1)
   | f > fmax || f < fmin = (1, 0, 0, 1)
@@ -463,9 +470,9 @@ axis i@(V3 x y z) = (scale (is, is, is) <$> arrow3dl x "x") <> (scale (js, js, j
     ni = norm i
 
 instance Target Force Solid where
-  renderNode ni (Support (Tag _ _ _ _)) = color (0, 1, 0, 1) $ sphere 0.1 <> (scale (0.03, 0.03, 0.03) (text (show ni)))
+  renderNode ni (Support _) = color (0, 1, 0, 1) $ sphere 0.1 <> (scale (0.03, 0.03, 0.03) (text (show ni)))
   renderNode ni _ = color (0, 1, 0, 1) $ sphere 0.1 <> (moveY 0.2 $ scale (0.03, 0.03, 0.03) (text (show ni))) -- <> fromJust (axis (V3 1 1 1))
-  renderNodeSolve (Forces (V3 _ _ _, _, i@(V3 x y z), m@(V3 mx my mz))) ix _ =
+  renderNodeSolve (Forces (V3 _ _ _) _ i@(V3 x y z) m@(V3 mx my mz)) ix _ =
     moveZ 2 $ color (0, 1, 0, 1) $ fromOnly (moveY 0.2 $ scale (0.03, 0.03, 0.03) (text (show ix))) $
       (scale (is, is, is) <$> arrow3d x) <> (scale (js, js, js) . rotateZ (pi / 2) <$> arrow3d y) <> (scale (ls, ls, ls) . rotateY (pi / 2) <$> arrow3d z) <> (scale (mzs, mzs, mzs) <$> marrow3d mz <> (scale (mys, mys, mys) . rotateY (pi / 2) <$> marrow3d my) <> (scale (mxs, mxs, mxs) . rotateX (pi / 2) <$> marrow3d mx))
     where
@@ -517,5 +524,4 @@ instance Target Force Solid where
       st quad = foldl Union si (fmap (\(c, p) -> color c (extrude p 0.11)) quad)
       nls = M.fromList $ zip (fst <$> L.nub nds) [0 ..]
       npos = (fst . snd <$> L.nub nds)
-      -- paths = fmap (\n -> fromJust $ M.lookup n nls) $ path $ (\(b, (h, t, l)) -> if b then (h, t) else (t, h)) <$> ls
   renderSurfaceSolve v ls nds (FaceLoop) si = si

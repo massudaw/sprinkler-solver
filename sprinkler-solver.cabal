@@ -26,7 +26,6 @@ library
     ,Hydraulic
     ,Grid
     ,Input
-    ,Sprinkler
     ,Tee
     ,Position
     ,Backend.Graphviz
@@ -68,6 +67,7 @@ library
                       ,async
                       ,graphviz
   -- hs-source-dirs:
+  ghc-options: -Wall
   default-language:    Haskell2010
   hs-source-dirs: src
 
@@ -113,19 +113,3 @@ executable EletricCircuit
                       ,text
   default-language:    Haskell2010
   hs-source-dirs: example
-
-
---executable Test
---  main-is:             Test.hs
---  ghc-options :   -O2 -threaded
---  build-depends:       base >=4.7 && <4.9
---                      ,async
---                      ,sprinkler-solver
---                      ,text
---                      ,mtl
---  default-language:    Haskell2010
---  hs-source-dirs: example
---
-
---
---

@@ -24,6 +24,7 @@ import Control.Applicative
 import Control.Monad.State
 import Data.Functor.Compose
 import qualified Data.Map as M
+import Data.Map (Map)
 import Data.Monoid
 import GHC.Stack
 import Linear.V3
@@ -74,14 +75,15 @@ data FIteration n l o b a = Iteration
   deriving (Show, Functor)
 
 class PreCoord a where
-  type Ang a  :: * -> *
-  trans :: RealFloat b =>(a b, Ang a b) -> (a b, Ang a b) -> (a b, Ang a b)
-  untrans :: RealFloat b =>(a b, Ang a b ) -> (a b, Ang a b) -> (a b, Ang a b)
+  type Ang a :: * -> *
+  trans :: RealFloat b => (a b, Ang a b) -> (a b, Ang a b) -> (a b, Ang a b)
+  untrans :: RealFloat b => (a b, Ang a b) -> (a b, Ang a b) -> (a b, Ang a b)
   dist :: RealFloat b => (a b, Ang a b) -> (a b, Ang a b) -> (b, b)
 
 class (PreSys sys, PreCoord a) => Coord sys a where
   thisElement :: RealFloat b => [Int] -> sys b -> M.Map Int (Int, (a b, Ang a b))
 
+varM :: Ord k => k -> Map k a -> Maybe a
 varM i j = case M.lookup i j of
   Nothing -> Nothing
   i -> i
@@ -89,9 +91,9 @@ varM i j = case M.lookup i j of
 var :: (Ord b, Show b, Show a) => b -> M.Map b a -> a
 var i m = case M.lookup i m of
   Just i -> i
-  Nothing -> errorWithStackTrace $ "no variable " ++ show i ++ " " ++ show m
+  Nothing -> error $ "no variable " ++ show i ++ " " ++ show m
 
-justError e Nothing = errorWithStackTrace ("justError" <> e)
+justError e Nothing = error ("justError" <> e)
 justError _ (Just i) = i
 
 nodesSet grid = fmap (\(i, n) -> (i, (var i nodeMapSet, n))) (nodes grid)
@@ -102,9 +104,14 @@ instance Num a => Num (Maybe a) where
   fromInteger i = Just (fromInteger i)
   i + j = liftA2 (+) i j
   negate = fmap negate
+  abs = fmap abs
+  i * j = liftA2 (*) i j
+  signum = fmap signum
 
 instance Fractional a => Fractional (Maybe a) where
   fromRational i = Just (fromRational i)
+  recip = fmap recip
+  i / j = liftA2 (/) i j
 
 class RBackend a where
   type TCoord a :: * -> *

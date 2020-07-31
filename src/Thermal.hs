@@ -67,7 +67,7 @@ thermalContinuity g v pm = fmap (\(i, e) -> sum (flipped i $ links g) + (sum (co
     genFlow _ ThermalNode = 0
     nflow i e = genFlow (var i pm) e
 
-thermalEq :: (Show a, Ord a,Floating a)=> Grid Thermal a -> M.Map Int (Identity a) -> M.Map Int (Identity a) -> [a]
+thermalEq :: (Show a, Ord a, Floating a) => Grid Thermal a -> M.Map Int (Identity a) -> M.Map Int (Identity a) -> [a]
 thermalEq = (\l v h -> thermalPotential l (runIdentity <$> v) (runIdentity <$> h) <> thermalContinuity l (runIdentity <$> v) (runIdentity <$> h))
 
 thermalElement v (Conductor i) = v * i

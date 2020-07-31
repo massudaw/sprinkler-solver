@@ -10,10 +10,13 @@ import Control.Monad.Fix
 import Control.Monad.Trans.State
 import Domains
 
-data ElemState = ElemState { _nodeCounter :: Int
-                           , _linkCounter ::  Int
-                           , _surfaceCounter :: Int
-                           , _volumeCounter :: Int}
+data ElemState = ElemState
+  { _nodeCounter :: Int,
+    _linkCounter :: Int,
+    _surfaceCounter :: Int,
+    _volumeCounter :: Int
+  }
+
 makeLenses 'ElemState
 
 type InputM sys e = State (Grid sys e, ElemState)
@@ -24,11 +27,10 @@ getUniqueL = getUniqueGen linkCounter
 getUniqueS = getUniqueGen surfaceCounter
 getUniqueV = getUniqueGen volumeCounter
 
-getUniqueGen :: Lens   ElemState ElemState Int Int -> InputM sys e Int
+getUniqueGen :: Lens ElemState ElemState Int Int -> InputM sys e Int
 getUniqueGen l = do
-  modify (over (_2 . l ) (+ 1))
+  modify (over (_2 . l) (+ 1))
   view (_2 . l) <$> get
-
 
 node' efun = do
   un <- getUniqueN
@@ -39,24 +41,30 @@ node' efun = do
 node :: sys e -> StateT (Grid sys e, ElemState) Identity (Int, sys e)
 node e = node' (const e)
 
-link' :: [sys e]
-      -> (Int, b)
-      -> (Int, b1)
-      -> InputM
-           sys e (Int, (Int, Int), [sys e])
+link' ::
+  [sys e] ->
+  (Int, b) ->
+  (Int, b1) ->
+  InputM
+    sys
+    e
+    (Int, (Int, Int), [sys e])
 link' e (h, _) (t, _) = do
   un <- getUniqueL
   modify (\(g, i) -> (g {links = (un, (h, t, e)) : links g}, i))
   return (un, (h, t), e)
 
-link :: [sys e]
-      -> (Int, b)
-      -> (Int, b1)
-      -> InputM
-           sys e (Int, [sys e])
-link e h t =  do
-  (un, _ , e) <- link' e h t
-  return (un ,e)
+link ::
+  [sys e] ->
+  (Int, b) ->
+  (Int, b1) ->
+  InputM
+    sys
+    e
+    (Int, [sys e])
+link e h t = do
+  (un, _, e) <- link' e h t
+  return (un, e)
 
 surface :: sys e -> [((Bool, Int), [sys e])] -> InputM sys e (Int, sys e)
 surface e ls = do
@@ -70,11 +78,11 @@ polyhedra e ls = do
   modify (\(g, i) -> (g {volumes = (un, (fst <$> ls, e)) : volumes g}, i))
   return (un, e)
 
-runInput :: State (Grid b a, ElemState) a1
-                      -> (Grid b a, ElemState)
+runInput ::
+  State (Grid b a, ElemState) a1 ->
+  (Grid b a, ElemState)
 runInput t = snd $ runState t (Grid [] [] [] [] [] [] [] [], (ElemState (-1) 0 0 0))
 
-  
 (>~>) ::
   MonadFix m =>
   ((t, t1) -> m (t2, t5)) ->

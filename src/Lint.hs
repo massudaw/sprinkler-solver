@@ -11,7 +11,7 @@ import qualified Data.Set as S
 import Domains
 import Hydraulic
 
---lintLinks :: (Show a,Ord a) => Grid a -> [String]
+lintLinks :: (Monad m, Eq a, Show a, Floating a) => Grid Element a -> WriterT [[Char]] m ()
 lintLinks grid = mapM_ checkLinks (links grid)
   where
     checkLinks c@(n, (h, t, elems)) = do
@@ -28,6 +28,7 @@ lintLinks grid = mapM_ checkLinks (links grid)
         (return $ head elems)
         (tail elems)
 
+nodeConnective :: Monad m => Grid b a -> WriterT [[Char]] m ()
 nodeConnective grid = do
   let nds = (fst <$> nodes grid) <> (fst <$> nodesPosition grid)
       hasNodes = filter (not . (`S.member` S.fromList nds) . fst) (M.toList $ nodeUsage)
@@ -37,6 +38,7 @@ nodeConnective grid = do
   mapM_ (\i -> tell $ ["No node for links" ++ show i]) hasNodes
   mapM_ (\i -> tell $ ["OrphanNode " <> show i]) orphanNodes
 
+lintGridElements :: Grid b a -> [[Char]]
 lintGridElements grid = snd $ runIdentity $ runWriterT $ do
   --    lintLinks grid
   nodeConnective grid

@@ -2,9 +2,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoMonoLocalBinds #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 
 module Grid where
@@ -20,11 +20,12 @@ import GHC.Stack
 import Numeric.AD
 import Numeric.GSL.Root
 
-printJacobian :: 
-       forall t m c. (Functor t, Show m, Ord m, Floating m, RealFloat m, Traversable (NodeDomain c), Traversable (LinkDomain c), PreSys c) 
-    => (forall a. (Show a, Ord a, Floating a, RealFloat a) => Iteration c a) 
-    -> (forall b. (Show b, Ord b, Floating b, RealFloat b) => Grid c b -> M.Map Int (LinkDomain c b) -> M.Map Int (NodeDomain c b) -> t b) 
-    -> t [m]
+printJacobian ::
+  forall t m c.
+  (Functor t, Show m, Ord m, Floating m, RealFloat m, Traversable (NodeDomain c), Traversable (LinkDomain c), PreSys c) =>
+  (forall a. (Show a, Ord a, Floating a, RealFloat a) => Iteration c a) ->
+  (forall b. (Show b, Ord b, Floating b, RealFloat b) => Grid c b -> M.Map Int (LinkDomain c b) -> M.Map Int (NodeDomain c b) -> t b) ->
+  t [m]
 printJacobian iter@(Iteration fl f e a) modeler = jacobian (prepareModel (grid iter) modeler) $ (inNodes <> inLinks)
   where
     inNodes = (concat $ (catMaybes . F.toList . getCompose) . snd <$> f)
@@ -51,16 +52,17 @@ printResidual iter@(Iteration fl f e a) modeler = (prepareModel a modeler) (inNo
     inNodes = (concat $ (catMaybes . F.toList . getCompose) . snd <$> f)
     inLinks = (concat $ (catMaybes . F.toList . getCompose) . snd <$> fl)
 
-solveIter 
-  :: forall d c. (Show d, Ord d, Floating d, RealFloat d, Traversable (NodeDomain c), Traversable (LinkDomain c), PreSys c) 
-  => (forall a. (Show a, Ord a, Floating a , RealFloat a) => Iteration c a) 
-  -> (forall b. (Show b, Ord b, Floating b, Real b, RealFloat b) => Grid c b -> M.Map Int (LinkDomain c b) -> M.Map Int (NodeDomain c b) -> [b]) 
-  -> Iteration c d 
-solveIter iter@(Iteration fl f e g) modeler = Iteration outLinks outNodes (environment iter ) (grid iter)
+solveIter ::
+  forall d c.
+  (Show d, Ord d, Floating d, RealFloat d, Traversable (NodeDomain c), Traversable (LinkDomain c), PreSys c) =>
+  (forall a. (Show a, Ord a, Floating a, RealFloat a) => Iteration c a) ->
+  (forall b. (Show b, Ord b, Floating b, Real b, RealFloat b) => Grid c b -> M.Map Int (LinkDomain c b) -> M.Map Int (NodeDomain c b) -> [b]) ->
+  Iteration c d
+solveIter iter@(Iteration fl f e g) modeler = Iteration outLinks outNodes (environment iter) (grid iter)
   where
     (outNodes, outLinks) = (fst $ runState ((,) <$> nodesOutP g <*> linksOutP g) res)
     nodesOutP g = traverse (traverse (fmap (fmap realToFrac) . fmap Compose . uarseT . constrained)) (nodes g)
-    linksOutP g = traverse (traverse (fmap (fmap realToFrac) .fmap Compose . traverse uarse . lconstrained)) (fmap (\(i, (_, _, p)) -> (i, p)) $ links g)
+    linksOutP g = traverse (traverse (fmap (fmap realToFrac) . fmap Compose . traverse uarse . lconstrained)) (fmap (\(i, (_, _, p)) -> (i, p)) $ links g)
     inNodes = (concat $ (catMaybes . F.toList . getCompose) . snd <$> f)
     inLinks = (concat $ (catMaybes . F.toList . getCompose) . snd <$> fl)
     res = fst . rootJ HybridsJ 1e-3 1000 mod jmod $ inNodes <> inLinks
@@ -71,16 +73,21 @@ solveIter iter@(Iteration fl f e g) modeler = Iteration outLinks outNodes (envir
 printMatrix :: Show a => [a] -> IO ()
 printMatrix = putStr . unlines . fmap show
 
-prepareModel
-  :: (Show b, PreSys sys, Num b, Traversable (LinkDomain sys),
-      Traversable (NodeDomain sys)) =>
-     Grid sys b
-     -> (Grid sys b
-         -> M.Map Int (LinkDomain sys b)
-         -> M.Map Int (NodeDomain sys b)
-         -> t)
-     -> [b]
-     -> t
+prepareModel ::
+  ( Show b,
+    PreSys sys,
+    Num b,
+    Traversable (LinkDomain sys),
+    Traversable (NodeDomain sys)
+  ) =>
+  Grid sys b ->
+  ( Grid sys b ->
+    M.Map Int (LinkDomain sys b) ->
+    M.Map Int (NodeDomain sys b) ->
+    t
+  ) ->
+  [b] ->
+  t
 prepareModel l model vh = model l v h
   where
     v = M.fromList linksIn

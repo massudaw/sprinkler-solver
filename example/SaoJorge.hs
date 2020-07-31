@@ -1,4 +1,3 @@
-
 {-# LANGUAGE RecursiveDo,TypeFamilies,FlexibleContexts,TupleSections, NoMonomorphismRestriction #-}
 module Main where
 
@@ -6,7 +5,6 @@ import Data.Monoid
 import Hydraulic
 import Project
 import Domains
-import Sprinkler
 import Input
 import Element
 

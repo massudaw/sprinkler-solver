@@ -9,49 +9,40 @@
 
 module Project where
 
-import Backend.DXF
-import Backend.Mecha hiding (Polygon(..))
+import Backend.Mecha hiding (Polygon (..), Vertex)
 import Control.Applicative
-import Control.Applicative.Lift
+import Numeric
 import Control.Lens
 import Control.Monad
-import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
-import DXF
 import qualified Data.Array as A
+import Data.Ext
 import qualified Data.Foldable as F
-import Data.Functor.Compose
-import Data.Functor.Identity
+import Data.Geometry.Point
 import Data.Graph
+import Data.Geometry.Polygon as Geom
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
-import Data.Semigroup
 import qualified Data.Set as S
-import qualified Data.Text as T
+import Data.Set (Set)
 import qualified Data.Text.IO as T
-import Debug.Trace
 import Domains
 import Element
-import GHC.Stack
 import Grid
 import Hydraulic
 import Linear.V2
 import Linear.V3
-import Data.Ext
-import Data.Geometry.Polygon as Geom
-import Data.Geometry.Point
 import Position
-import Rotation.SO3 hiding (rotM)
 import Search
-import Sprinkler
 import System.Process
-import Tee
 
 path i h t l = (i, h, t, l)
 
 jd dir d = Joelho dir (TabelaPerda (Circular d) ("Conexao", "Joelho", "90") 100)
+
+formatFloatN numOfDecimals floatNum = showFFloat (Just numOfDecimals) floatNum ""
 
 data ProjectHeader = ProjectHeader
   { projectName :: String,
@@ -84,11 +75,9 @@ comodityCurves _ = undefined
 regionRiskDensity (Region _ _ _ (b, _) (Standard i)) =
   eval (abs $ area (convPoly b)) (stdCurves i)
 regionRiskDensity (Region _ _ _ (b, _) (MiscelaneousStorage i h))
-  | h > 3.7 = errorWithStackTrace "altura maior que 3.7"
+  | h > 3.7 = error "altura maior que 3.7"
   | otherwise = eval (abs $ area (convPoly b)) (stdCurves i)
-regionRiskDensity (Region _ _ _ (b, _) (HighpilledStorage i h)) = errorWithStackTrace "not implemented"
-  -- | h >= 3.7 = errorWithStackTrace "altura maior que 3.7"
-  -- | otherwise = eval (abs $ area (convPoly b)) (stdCurves i)
+regionRiskDensity (Region _ _ _ (b, _) (HighpilledStorage i h)) = error "not implemented"
 
 data Author = Author
   { authorName :: String,
@@ -141,7 +130,7 @@ sprinklerRegionActivate ids grid = fst $ upgradeGrid 0 1 $ prune (fst $ upgradeG
 
 filterBounded (poly, _) grid = fst $ upgradeGrid 0 1 $ prune (fst $ upgradeGrid 0 1 (compactNodes $ grid {nodes = spks})) tar
   where
-    pcon = convPoly  poly
+    pcon = convPoly poly
     spks =
       fmap
         ( \(i, v) ->
@@ -202,17 +191,20 @@ compactNodes g = res
     lg = buildG (0, maximum (fst <$> nodes g)) $ fmap (\(l, (h, t, e)) -> (h, t)) (links g)
 
 -- Search incrementally for new connected nodes
+process :: Vertex -> Vertex -> ([Edge], Set Vertex) -> ([(Vertex, Vertex)], Set Vertex)
 process maxn n (b, o) = (filter (\(i, b) -> not (S.member i sc && S.member b sc)) b, sc)
   where
     nc = concat $ fmap (\(i, j) -> [i, j]) $ concat $ concat $ (\i -> connected i n (buildG (0, maxn) b)) <$> S.toList o
     sc = o <> S.fromList nc
 
+processG :: Vertex -> Vertex -> ([Edge], Set Vertex) -> ([(Vertex, Vertex)], Set Vertex)
 processG maxn n (b, o) = (filter (\(i, b) -> not (S.member i sc && S.member b sc)) b, sc)
   where
     nc = reachable (buildG (0, maxn) b) n
     sc = o <> S.fromList nc
 
 -- Filter connected
+prune :: Fractional a => Grid Element a -> [Int] -> Grid Element a
 prune g nodeSet = g {nodes = out1nodes <> nn, links = out1links <> nt}
   where
     l = concat $ (\(h, t, v) -> [(h, t)] <> (if L.any isValvulaGoverno v then [] else [(t, h)])) . snd <$> links g
@@ -237,6 +229,7 @@ prune g nodeSet = g {nodes = out1nodes <> nn, links = out1links <> nt}
           | S.member h out1S = ((l, (h, t, [tubod 0.025 0.1])), (t, Open 0))
           | S.member t out1S = ((l, (h, t, [tubod 0.025 0.1])), (h, Open 0))
 
+renderModel :: Ambient Double -> p1 -> p2 -> (ProjectHeader, Grid Element Double) -> IO ()
 renderModel env regionRisk range (header, model) = do
   let fname = baseFile header
       dxfname = fname <> ".DXF"
@@ -253,6 +246,7 @@ renderModel env regionRisk range (header, model) = do
   --   solveModel (header , initIter (filterBounded (regionBoundary r) modelg) env,r))  (regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
   solveModel (header, initIter (sprinklerRegionActivate [372 .. 378] modelg) env, undefined)
 
+solveModel :: Real a => (ProjectHeader, FIteration V3 Identity Ambient Element a, Region) -> IO ()
 solveModel (header, model, region) = do
   let fname = "regionName" -- regionFile region
       iter = solveIter (fmap realToFrac model) (jacobianEqNodeHeadGrid (fmap realToFrac $ environment model))
@@ -263,10 +257,11 @@ solveModel (header, model, region) = do
   callCommand sofficec
   print $ "renderReport: " <> fname <> ".xls"
   drawSCAD fname (drawGrid (grid iter)) -- <> drawRegion region )
- 
-displayModel (file,grid) = drawSCAD file (drawGrid grid)
 
+displayModel :: (Show (sys Double), Target sys Solid) => (FilePath, Grid sys Double) -> IO ()
+displayModel (file, grid) = drawSCAD file (drawGrid grid)
 
+drawSCAD :: FilePath -> Solid -> IO ()
 drawSCAD fname grid = do
   let scadFile = openSCAD grid
   T.writeFile (fname <> "-temp.scad") scadFile
@@ -283,8 +278,8 @@ sf2 = show -- formatFloatN 2
 
 sf3 = show -- formatFloatN 3
 
-convPoly :: [V2 a] -> Polygon Geom.Simple  () a
-convPoly poly = fromPoints ((\(V2 i j ) -> Point2 i j :+ ()) <$> poly)
+convPoly :: [V2 a] -> Polygon Geom.Simple () a
+convPoly poly = fromPoints ((\(V2 i j) -> Point2 i j :+ ()) <$> poly)
 
 reportIter :: a ~ Double => ProjectHeader -> Region -> Int -> Ambient a -> Grid Element a -> M.Map Int (LinkDomain Element a) -> M.Map Int (NodeDomain Element a) -> IO ()
 reportIter header rinfo i env a f h = do

@@ -91,10 +91,11 @@ example4  = fst $ runInput $ mdo
 
 
 
+
 example5 = fst $ runInput $ mdo
-  x1 <- conn [turn l1 1 0,turn l3 0 1] (Tag (V3 0 0 0 ) 0 (V3  Nothing Nothing 0 )0)
-  x2 <- conn [turn l2 1 1,turn l1 1 0] (Tag (V3  Nothing 0 0 ) 0 (V3 0 Nothing 0) 0)
-  x3 <- conn [turn l2 1 1,turn l3 0 1] (Tag (V3 Nothing Nothing 0) 0 (V3 2 1 0) 0 )
+  x1 <- conn [turn l1 1 0,turn l3 0 1] (Forces (V3 0 0 0 ) 0 (V3  Nothing Nothing 0 )0)
+  x2 <- conn [turn l2 1 1,turn l1 1 0] (Forces (V3  Nothing 0 0 ) 0 (V3 0 Nothing 0) 0)
+  x3 <- conn [turn l2 1 1,turn l3 0 1] (Forces (V3 Nothing Nothing 0) 0 (V3 2 1 0) 0 )
   l1 <- link [aco 10 1] x1 x2
   l2 <- link [aco (sqrt (10^2 + 10^2)) (2*sqrt 2)] x2 x3
   l3 <- link [aco 10 0.5] x3 x1
@@ -102,26 +103,27 @@ example5 = fst $ runInput $ mdo
 
 
 example6 = fst $ runInput $ mdo
-  x1 <- node (Support (Tag (V3 Nothing (-0.4) 0) 0 (V3 0 Nothing 0 ) 0 ))
-  x2 <- node (Support (Tag (V3 0 0.5 0 ) 0 (V3 Nothing Nothing 0) 0 ))
-  x3 <- node (Support (Tag (V3 Nothing Nothing 0) 0 (V3 2 1 0) 0 ))
+  x1 <- support (Forces (V3 Nothing (-0.4) 0) 0 (V3 0 Nothing 0 ) 0 )
+  x2 <- support (Forces (V3 0 0.5 0 ) 0 (V3 Nothing Nothing 0) 0 )
+  x3 <- support (Forces (V3 Nothing Nothing 0) 0 (V3 2 1 0) 0 )
   link [aco 10 1,BTurn (0,1/2)] x1 x2
   link [aturn  10 (-10) , aco (sqrt (10^2 + 10^2)) (2*sqrt 2),aturn (-10) (-10)] x2 x3
   link [BTurn (0,1/2),aco 10 0.5,BTurn (0,-1/2)] x3 x1
 
 
-fixed = node (Support (Tag (V3 0 0 0 ) 0 (V3  Nothing Nothing 0 )0 ))
-pin = node (Support (Tag (V3 Nothing Nothing 0) 0 0 0 ))
-roller = node (Support (Tag (V3  Nothing 0 0) 0 (V3 0 Nothing 0) 0 ))
-aload load = node (Support (Tag (V3 Nothing Nothing 0) 0 (V3 0 (-load ) 0) 0 ))
+support f = node (Support f)
+fixed = support (Forces (V3 0 0 0 ) 0 (V3  Nothing Nothing 0 )0 )
+pin = support (Forces (V3 Nothing Nothing 0) 0 0 0 )
+roller = support (Forces (V3  Nothing 0 0) 0 (V3 0 Nothing 0) 0 )
+aload load = support (Forces (V3 Nothing Nothing 0) 0 (V3 0 (-load ) 0) 0 )
 aturn x y = BTurn (0, atan2 x y / (2*pi))
 
 turn l x y = (l , (0,0,atan2 x y /(2*pi)))
 rise l x y =(l, (0,atan2 x y / (2*pi),0))
 
 example9 = fst $ runInput $ mdo
-  x1 <- conn [turn l1 4 3] (Tag (V3 Nothing Nothing 0 ) 0 0 0)
-  x0 <- conn [turn l1 (-4) 3] (Tag (V3 Nothing Nothing 0 ) 0 0 0)
+  x1 <- conn [turn l1 4 3] (Forces (V3 Nothing Nothing 0 ) 0 0 0)
+  x0 <- conn [turn l1 (-4) 3] (Forces (V3 Nothing Nothing 0 ) 0 0 0)
   let b = Bar 50 1000 5
   l1 <- link [b] x1 x0
   return ()
@@ -129,16 +131,16 @@ example9 = fst $ runInput $ mdo
 conn l c = node (Connection  ((\((i,_),a) -> (i,a)) <$> l ) c)
 
 example10 = fst $ runInput $ mdo
-  x0 <- node (Support (Tag (V3 0 0 0) (V3 0 0 0 ) (V3 Nothing Nothing Nothing ) (V3  Nothing Nothing Nothing ) ))
+  x0 <- support (Forces (V3 0 0 0) (V3 0 0 0 ) (V3 Nothing Nothing Nothing ) (V3  Nothing Nothing Nothing ))
   l1 <- link ([ BTurn (-0.1,0.1) ] <> replicate 5 (Beam 7 100 5 250 250)) x0 x1
-  x1 <- node (Support (Tag (V3 Nothing  Nothing Nothing ) (V3 0 0 0 ) (V3 (-10) (-10) (-10)) 0 ))
+  x1 <- support (Forces (V3 Nothing  Nothing Nothing ) (V3 0 0 0 ) (V3 (-10) (-10) (-10)) 0 )
   return ()
 
 
 example8 = fst $ runInput $ mdo
-  x0 <- node (Support (Tag (V3 Nothing Nothing  0) (V3 0 0 Nothing ) (V3 0 0 0 ) (V3  0 0 0 ) ))
+  x0 <- support (Forces (V3 Nothing Nothing  0) (V3 0 0 Nothing ) (V3 0 0 0 ) (V3  0 0 0 ) )
   link [aturn 4 3, Beam 5 100 125 250 250,aturn 4 (-3)] x0 x1
-  x1 <- node (Support (Tag (V3 Nothing  Nothing 0 ) (V3 0 0 Nothing ) (V3 0 (0) 0) 0))
+  x1 <- support (Forces (V3 Nothing  Nothing 0 ) (V3 0 0 Nothing ) (V3 0 (0) 0) 0)
   return ()
 
 example7 = fst $ runInput $ mdo
@@ -258,13 +260,13 @@ quad9ex = fst $ runInput $ mdo
       nu = 1/4
       th = 3
       nsub = 4
-  x1 <- conn [turn l1 0 1] (Tag 0 0  (V3 Nothing Nothing 0 ) 0)
+  x1 <- conn [turn l1 0 1] (Forces 0 0  (V3 Nothing Nothing 0 ) 0)
   l1 <- link [Link a] x1 x2
-  x2 <- conn [turn l1 0 1 ,turn l2 1 0] (Tag (V3 Nothing 0 0) 0 (V3 0 Nothing 0 ) 0)
+  x2 <- conn [turn l1 0 1 ,turn l2 1 0] (Forces (V3 Nothing 0 0) 0 (V3 0 Nothing 0 ) 0)
   l2 <- link [Link ba] x2 x3
-  x3 <- conn [turn l2  (-1) 0 , turn l3 0 1] (Tag (V3 Nothing Nothing  0) 0 (V3 20 75 0) 0)
+  x3 <- conn [turn l2  (-1) 0 , turn l3 0 1] (Forces (V3 Nothing Nothing  0) 0 (V3 20 75 0) 0)
   l3 <- link [Link a] x3 x4
-  x4 <- conn [turn l3 0 (-1),turn l4 (-1) 0] (Tag (V3 0 Nothing 0)  0 (V3 Nothing 75 0 ) 0 )
+  x4 <- conn [turn l3 0 (-1),turn l4 (-1) 0] (Forces (V3 0 Nothing 0)  0 (V3 Nothing 75 0 ) 0 )
   l4 <- link [Link ba] x4 x1
   surface (Quad4 (ematQ em nu) th ) [cw l1,cw l2,cw l3,cw l4]
   return ()
@@ -277,13 +279,13 @@ exampleSurf = fst $ runInput $ mdo
       ba = 6
       nu = 1/4
       th = 3
-  x1 <- conn [turn l1 0 1] (Tag 0 0  (V3 Nothing Nothing 0 ) 0)
+  x1 <- conn [turn l1 0 1] (Forces 0 0  (V3 Nothing Nothing 0 ) 0)
   l1 <- link [Link a] x1 x2
-  x2 <- conn [turn l1 0 1 ,turn l2 1 0] (Tag (V3 Nothing 0 0) 0 (V3 0 Nothing 0 ) 0)
+  x2 <- conn [turn l1 0 1 ,turn l2 1 0] (Forces (V3 Nothing 0 0) 0 (V3 0 Nothing 0 ) 0)
   l2 <- link [Link ba] x2 x3
-  x3 <- conn [turn l2  (-1) 0 , turn l3 0 1] (Tag (V3 Nothing Nothing  0) 0 (V3 0 75 0) 0)
+  x3 <- conn [turn l2  (-1) 0 , turn l3 0 1] (Forces (V3 Nothing Nothing  0) 0 (V3 0 75 0) 0)
   l3 <- link [Link a] x3 x4
-  x4 <- conn [turn l3 0 (-1),turn l4 (-1) 0] (Tag (V3 0 Nothing 0)  0 (V3 Nothing 75 0 ) 0 )
+  x4 <- conn [turn l3 0 (-1),turn l4 (-1) 0] (Forces (V3 0 Nothing 0)  0 (V3 Nothing 75 0 ) 0 )
   l4 <- link [Link ba] x4 x1
   surface (Quad4 (ematQ em nu) th ) [cw l1,cw l2,cw l3,cw l4]
   return ()
@@ -294,7 +296,7 @@ incr a  ~((s1,(l1,l2,l3,l4),(x1,x2,x3,x4)),(l13,l14,l15,l16)) = mdo
     em = 480
     v=1/3
     sf = FaceLoop
-    free= Tag (V3 Nothing Nothing Nothing ) 0  (V3  0 0 0 ) 0
+    free= Forces (V3 Nothing Nothing Nothing ) 0  (V3  0 0 0 ) 0
   l5 <- link [Link a] x1 x5
   l6 <- link [Link a] x2 x6
   l7 <- link [Link a] x3 x7
@@ -322,15 +324,15 @@ hexahedron8 = fst $ runInput $ mdo
     em=480
     v=1/3
     sf = FaceLoop
-    free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 30 0 0 ) 0
-    free= Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 0 ) 0
-  x1 <- conn [turn l1 0 1 ,{-turn l4 (-1) 0,-}rise b5  (-1) 0  ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
+    free2 = Forces (V3 Nothing Nothing Nothing ) 0  (V3 30 0 0 ) 0
+    free= Forces (V3 Nothing Nothing Nothing ) 0  (V3 0 0 0 ) 0
+  x1 <- conn [turn l1 0 1 ,{-turn l4 (-1) 0,-}rise b5  (-1) 0  ] (Forces 0 0  (V3 Nothing Nothing Nothing ) 0)
   l1 <- link [Link a ] x1 x2
-  x2 <- conn [turn l1 0 (-1) ,turn l2 (1) 0,rise b6 (-1) 0 ] (Tag (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
+  x2 <- conn [turn l1 0 (-1) ,turn l2 (1) 0,rise b6 (-1) 0 ] (Forces (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
   l2 <- link [Link a ] x2 x3
-  x3 <- conn [turn l2 1 0 , turn l3 0 (1)  ,rise b7 (-1) 0 ]  (Tag (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
+  x3 <- conn [turn l2 1 0 , turn l3 0 (1)  ,rise b7 (-1) 0 ]  (Forces (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
   l3 <- link [Link a ] x3 x4
-  x4 <- conn [turn l3 0 (-1) ,turn l4 (1) 0,rise b8 (-1) 0 ]  (Tag  (V3 0 0 0)  0 (V3  Nothing Nothing Nothing ) 0 )
+  x4 <- conn [turn l3 0 (-1) ,turn l4 (1) 0,rise b8 (-1) 0 ]  (Forces  (V3 0 0 0)  0 (V3  Nothing Nothing Nothing ) 0 )
   l4 <- link [Link a ] x4 x1
   s0 <- surface sf [ccw l1,ccw l2,ccw l3,ccw l4]
   ((s1,(f1,f2,f3,f4),(a1,a2,a3,a4)),(b5,b6,b7,b8)) <- (incr 4 ) ((s0,(l1,l2,l3,l4),(x1,x2,x3,x4)),(l5,l6,l7,l8))
@@ -363,13 +365,13 @@ tetragon = fst $ runInput $ mdo
     v=1/3
     d = (sqrt $ 2*a*a)
     sf = FaceLoop
-    free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 10 100 10) 0
-    free= Tag (V3 Nothing Nothing Nothing ) 0  (V3 0 0 0 ) 0
-  x1 <- conn [turn l1 0 1 ,rise l4  (-1) 1 ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
+    free2 = Forces (V3 Nothing Nothing Nothing ) 0  (V3 10 100 10) 0
+    free= Forces (V3 Nothing Nothing Nothing ) 0  (V3 0 0 0 ) 0
+  x1 <- conn [turn l1 0 1 ,rise l4  (-1) 1 ] (Forces 0 0  (V3 Nothing Nothing Nothing ) 0)
   l1 <- link [Link a] x1 x2
-  x2 <- conn [turn l1 0 1, turn l2 (-1) 0, rise l5 (-1) 0] (Tag (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
+  x2 <- conn [turn l1 0 1, turn l2 (-1) 0, rise l5 (-1) 0] (Forces (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
   l2 <- link [Link a] x2 x3
-  x3 <- conn [turn l2 1 0, turn l3 1 1, (l6,(0,-1/4,-1/8))]  (Tag (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
+  x3 <- conn [turn l2 1 0, turn l3 1 1, (l6,(0,-1/4,-1/8))]  (Forces (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
   l3 <- link [Link d] x3 x1
   l4 <- link [Link d] x1 x4
   l5 <- link [Link a] x2 x4
@@ -389,12 +391,12 @@ thexahedron = fst $ runInput $ mdo
     v=1/3
     d = (sqrt $ 2*a*a)
     sf = FaceLoop
-    free2 = Tag (V3 Nothing Nothing Nothing ) 0  (V3 100 (100)  100) 0
-  x1 <- conn [turn l1 0 1 ,rise c1 (-1) 0 ,rise l5  (-1) 1 ,(d5,(0,-3/8,1/4)) ] (Tag 0 0  (V3 Nothing Nothing Nothing ) 0)
+    free2 = Forces (V3 Nothing Nothing Nothing ) 0  (V3 100 (100)  100) 0
+  x1 <- conn [turn l1 0 1 ,rise c1 (-1) 0 ,rise l5  (-1) 1 ,(d5,(0,-3/8,1/4)) ] (Forces 0 0  (V3 Nothing Nothing Nothing ) 0)
   l1 <- link [Link a ] x1 x2
-  x2 <- conn [turn l1  0 1  ,turn l2 (-1) 0,rise l6 (-1) 0  ] (Tag (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
+  x2 <- conn [turn l1  0 1  ,turn l2 (-1) 0,rise l6 (-1) 0  ] (Forces (V3 0 0 0 ) 0 (V3 Nothing Nothing Nothing ) 0)
   l2 <- link [Link a  ] x2 x3
-  x3 <- conn [turn l2 1 0, turn l3 (1) (1) ,(d7,(-1/4,1/2,-1/8)),(l7,(0,-1/4,1/8)),turn f4 0 1,rise e1 (-1) 0]  (Tag (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
+  x3 <- conn [turn l2 1 0, turn l3 (1) (1) ,(d7,(-1/4,1/2,-1/8)),(l7,(0,-1/4,1/8)),turn f4 0 1,rise e1 (-1) 0]  (Forces (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
   l3 <- link [Link d] x3 x1
   l5 <- link [Link d] x1 x6
   l6 <- link [Link a] x2 x6
@@ -406,7 +408,7 @@ thexahedron = fst $ runInput $ mdo
   s6 <- surface sf [ccw l7,cw l3 , cw l5]
 
   -- t2
-  x4 <-  conn [turn f4  0 1  ,turn f5 (-1) 0,rise l8 (-1) 0  ]  (Tag (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
+  x4 <-  conn [turn f4  0 1  ,turn f5 (-1) 0,rise l8 (-1) 0  ]  (Forces (V3 0 0 0 )  (V3 0 0 0  )(V3 Nothing Nothing  Nothing ) 0)
   x6 <- conn [turn c4 (-1) 1 ,(l7,(0,1/4,-1/8))]  free2
   x7 <- conn [turn c4 1 1 ]  free2
   f4 <- link [Link a  ] x3 x4

@@ -72,7 +72,7 @@ fittingLosses fluid tblmap flowMap t@(TeeConfig [ix, ox] [isec, osec] el) =
     Transition theta -> case (osec, isec) of
       (Circular _, Rectangular _ _) -> lossess "Er4-3" transition
       (Rectangular _ _, Circular _) -> lossess "Er4-3" transition
-      i -> errorWithStackTrace $ "no transition " <> show i
+      i -> error $ "no transition " <> show i
       where
         transition = [(ox, biinterp (theta, areaS osec / areaS isec))]
     FireDamper -> lossess "Cd9-3" [(ox, constantInterp . buildTable0D)]
@@ -89,7 +89,7 @@ fittingLosses fluid tblmap flowMap t@(TeeConfig [ix, ox] [isec, osec] el) =
         (90, Gored 3) -> lossess "Cd3-12" elbow
         (60, Gored 3) -> lossess "Cd3-13" elbow
         (45, Gored 3) -> lossess "Cd3-14" elbow
-        i -> errorWithStackTrace $ "elbow not implemented" <> show i
+        i -> error $ "elbow not implemented" <> show i
       where
         elbow = [(ox, liinterp (hydraulicDiameter osec * 1000))]
     FanSystemInteraction (Elbow ang radius constr) len fan ->

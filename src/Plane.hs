@@ -8,19 +8,14 @@
 module Plane where
 
 import Control.Applicative
-import Control.Lens
 import Data.Complex
 import Data.Distributive
-import Data.Distributive.Generic
 import qualified Data.Foldable as F
 import Data.Functor.Classes
 import Data.Functor.Compose
 import qualified Data.List as L
 import qualified Data.Map as M
-import Data.Maybe
-import Data.Monoid
 import Data.Ord
-import Debug.Trace
 import Domains
 import Linear.Matrix
 import Linear.Metric
