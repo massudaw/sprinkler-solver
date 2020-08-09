@@ -28,9 +28,9 @@ lintLinks grid = mapM_ checkLinks (links grid)
         (return $ head elems)
         (tail elems)
 
-nodeConnective :: Monad m => Grid b a -> WriterT [[Char]] m ()
-nodeConnective grid = do
-  let nds = (fst <$> nodes grid) <> (fst <$> nodesPosition grid)
+nodeConnective :: Monad m => CoordinateGrid p a -> Grid b a -> WriterT [[Char]] m ()
+nodeConnective p grid = do
+  let nds = (fst <$> nodes grid) <> (fst <$> nodesPosition p )
       hasNodes = filter (not . (`S.member` S.fromList nds) . fst) (M.toList $ nodeUsage)
       nodeMap = M.fromList (zip nds (repeat []))
       nodeUsage = foldr (\(l, (h, t, _)) -> M.insertWith mappend h [l] . M.insertWith mappend t [l]) M.empty (links grid)
@@ -38,10 +38,10 @@ nodeConnective grid = do
   mapM_ (\i -> tell $ ["No node for links" ++ show i]) hasNodes
   mapM_ (\i -> tell $ ["OrphanNode " <> show i]) orphanNodes
 
-lintGridElements :: Grid b a -> [[Char]]
-lintGridElements grid = snd $ runIdentity $ runWriterT $ do
+lintGridElements :: CoordinateGrid p a -> Grid b a -> [[Char]]
+lintGridElements p grid = snd $ runIdentity $ runWriterT $ do
   --    lintLinks grid
-  nodeConnective grid
+  nodeConnective p grid 
 
 {-lintInitialConditions iter = snd $ runIdentity $ runWriterT $ do
   lintInitialTee iter-}

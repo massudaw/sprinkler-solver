@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE TupleSections #-}
@@ -12,6 +13,9 @@ module Project where
 import Backend.Mecha hiding (Polygon (..), Vertex)
 import Control.Applicative
 import Numeric
+import Equation
+import Data.Functor.Classes
+import MultiLinear.Class
 import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Reader
@@ -31,6 +35,7 @@ import qualified Data.Text.IO as T
 import Domains
 import Element
 import Grid
+import Linear.Vector
 import Hydraulic
 import Linear.V2
 import Linear.V3
@@ -124,21 +129,24 @@ joelho45L e = Joelho left45 (pj45 e)
 
 -- testResistor :: SR.Expr
 
-sprinklerRegionActivate ids grid = fst $ upgradeGrid 0 1 $ prune (fst $ upgradeGrid 0 1 $ (compactNodes $ grid {nodes = spks})) ids
+sprinklerRegionActivate ids grid = (prune compactGrid ids,pos)
   where
+    pos = (fst $ upgradeGrid 0 1 compactGrid )
+    compactGrid = (compactNodes $ grid {nodes = spks})
     spks = map (\(i, v) -> (i, if i `elem` ids then v else if isSprinkler v then Open 0 else v)) (nodes grid)
 
-filterBounded (poly, _) grid = fst $ upgradeGrid 0 1 $ prune (fst $ upgradeGrid 0 1 (compactNodes $ grid {nodes = spks})) tar
+filterBounded :: (RealFloat a, Show a) => ([V2 a], b) -> CoordinateGrid V3 a -> Grid Element a -> (Grid Element a, CoordinateGrid V3 a)
+filterBounded (poly, _) coord grid = sprinklerRegionActivate tar grid
   where
     pcon = convPoly poly
     spks =
       fmap
         ( \(i, v) ->
-            let (V3 x y _, _) = var i (M.fromList (nodesPosition grid))
+            let (V3 x y _, _) = var i (M.fromList (nodesPosition coord))
              in (i, if insidePolygon (Point2 x y) pcon then v else if isSprinkler v then Open 0 else v)
         )
         (nodes grid)
-    tar = fst <$> filter (flip insidePolygon pcon . (\(V3 x y z) -> Point2 x y) . fst . snd) (nodesPosition grid)
+    tar = fst <$> filter (flip insidePolygon pcon . (\(V3 x y z) -> Point2 x y) . fst . snd) (nodesPosition coord)
 
 gridSize g = (length (nodes g), length (links g))
 
@@ -150,7 +158,7 @@ recursiveSubs m l = join (recursiveSubs m <$> lk) <|> lk
 -- Compact links with open nodes
 compactNodes g = res
   where
-    res = g {nodes = fmap (substitute subs) <$> filter (not . flip S.member removed . fst) (nodes g), links = fmap (\(l, h, t, e) -> (l, (h, t, e))) (F.toList lks), nodesPosition = [], linksPosition = []}
+    res = g {nodes = fmap (substitute subs) <$> filter (not . flip S.member removed . fst) (nodes g), links = fmap (\(l, h, t, e) -> (l, (h, t, e))) (F.toList lks)}
     substitute subs (Tee (TeeConfig a b c) t) = (Tee (TeeConfig ((\i -> fromMaybe i . recursiveSubs subs $ i) <$> a) b c) t)
     substitute subs i = i
     (_, _, subs, removed, lks) = execState (edit (0, 2)) (S.singleton 0, L.maximum $ fst <$> links g, M.empty, S.empty, M.fromList $ fmap (\(l, (h, t, e)) -> ((h, t), (l, h, t, e))) (links g))
@@ -240,13 +248,14 @@ renderModel env regionRisk range (header, model) = do
       --    where label =  L.find (\(Entity  _ _ (TEXT (V3 x y zt)  _ _ _ _)) -> Polygon.contains  (PolygonCW $ fmap (\(V2 i j) -> Point2 (i,j)) b) (Point2 (x,y)) && (zt < z + 1 || zt > z-1) )$  filter ((== "area_label").layer. eref) $ entities f
       --          name = maybe (show i) (\(Entity _ _ (TEXT _ _ l   _ _)) -> l) label
       modelg = fst $ upgradeGrid 0 1 $ model
-  drawSCAD (baseFile header) (drawGrid modelg)
+  drawSCAD (baseFile header) (drawGrid modelg model)
   -- renderDXF  (baseFile header) fname  (drawGrid  modelg  )
   --mapM (\r -> do
   --   solveModel (header , initIter (filterBounded (regionBoundary r) modelg) env,r))  (regions <$> filter ((`elem` range ). fst) (zip [0..] (projBounds <$> calc_bounds)))
-  solveModel (header, initIter (sprinklerRegionActivate [372 .. 378] modelg) env, undefined)
+  let (newg,pos) = sprinklerRegionActivate [372 .. 378] model 
+  solveModel (header, initIter  newg pos env, undefined)
 
-solveModel :: Real a => (ProjectHeader, FIteration V3 Identity Ambient Element a, Region) -> IO ()
+solveModel :: Real a => (ProjectHeader, FIteration V3 V3 Identity Ambient Element a, Region) -> IO ()
 solveModel (header, model, region) = do
   let fname = "regionName" -- regionFile region
       iter = solveIter (fmap realToFrac model) (jacobianEqNodeHeadGrid (fmap realToFrac $ environment model))
@@ -256,10 +265,10 @@ solveModel (header, model, region) = do
   putStrLn sofficec
   callCommand sofficec
   print $ "renderReport: " <> fname <> ".xls"
-  drawSCAD fname (drawGrid (grid iter)) -- <> drawRegion region )
+  drawSCAD fname (drawGrid (position iter) (grid iter)) -- <> drawRegion region )
 
-displayModel :: (Show (sys Double), Target sys Solid) => (FilePath, Grid sys Double) -> IO ()
-displayModel (file, grid) = drawSCAD file (drawGrid grid)
+displayModel :: (Show1 sys, Coord sys V3, Show (sys Double), Target sys Solid) => (FilePath, Grid sys Double) -> IO ()
+displayModel (file, grid) = drawSCAD file (drawGrid (fst $ upgradeGrid 0 1 grid) grid)
 
 drawSCAD :: FilePath -> Solid -> IO ()
 drawSCAD fname grid = do
@@ -281,8 +290,8 @@ sf3 = show -- formatFloatN 3
 convPoly :: [V2 a] -> Polygon Geom.Simple () a
 convPoly poly = fromPoints ((\(V2 i j) -> Point2 i j :+ ()) <$> poly)
 
-reportIter :: a ~ Double => ProjectHeader -> Region -> Int -> Ambient a -> Grid Element a -> M.Map Int (LinkDomain Element a) -> M.Map Int (NodeDomain Element a) -> IO ()
-reportIter header rinfo i env a f h = do
+reportIter :: a ~ Double => ProjectHeader -> Region -> Int -> Ambient a -> CoordinateGrid V3 a -> Grid Element a -> M.Map Int (LinkDomain Element a) -> M.Map Int (NodeDomain Element a) -> IO ()
+reportIter header rinfo i env p a f h = do
   let name = "regionName" -- regionFile $ rinfo
   writeFile
     (name <> ".csv")
@@ -308,7 +317,7 @@ reportIter header rinfo i env a f h = do
          <> (L.intercalate "\n" $ lsmap <$> (links a))
      )
   where
-    residual = jacobianEqNodeHeadGrid env a f h
+    residual = jacobianEqNodeHeadGrid env p a f h
     reportEnviroment env =
       L.intercalate "\n" $
         L.intercalate ","
@@ -415,8 +424,8 @@ reportIter header rinfo i env a f h = do
         els = e -- addTee (h,ni) <> e <> addTee (t ,ni)
     fm = runIdentity <$> f
     hm = h
-    pm = M.fromList (nodesPosition a)
-    lpos = M.fromList (linksPosition a)
+    pm = M.fromList (nodesPosition p)
+    lpos = M.fromList (linksPosition p)
     nodeHeader = ["ID", "Pressão (kpa)", "Altura (m)", "Vazão (L/min)", "Perda (kpa)", "Elemento"]
     expandNode p (Sprinkler ((d, k)) (dl) f a) = ["Sprinkler"]
     expandNode _ (Reservatorio _) = ["Reservatorio"]
@@ -434,3 +443,21 @@ reportIter header rinfo i env a f h = do
     expandLink ps st f i dg b@(Bomba (d, _) dl) = [st <> show i, "", sf2 dg, sf2 $ pipeElement env ps f b, "Bomba"]
     expandLink ps st f i dg j@(Joelho _ (TabelaPerda (d) (_, _, c) _)) = [st <> show i, sf3 d, sf2 dg, sf2 $ktubo env ps joelhos j (abs f), "Joelho " <> c]
     expandLink ps st f i dg j@(Perda (TabelaPerda (d) (s, m, c) _)) = [st <> show i, sf3 d, sf2 dg, sf2 $ktubo env ps joelhos j (abs f), s <> m <> c]
+
+
+solveSystem :: (Show d,RealFloat d,Coord b t, Show1 b, Show1 (Ang t),Show1 t , PreSys b, Additive t, MultiLinear (Ang t), Traversable (LinkDomain b) , Traversable (NodeDomain b), Additive (Enviroment b))
+            => (forall a . (Show a,RealFloat a) => Grid b a ) 
+            -> (forall a . (Show a,RealFloat a) => CoordinateGrid t a -> Grid b a -> M.Map Int (LinkDomain b a) -> M.Map Int (NodeDomain b a) -> [a] )  
+            -> IO  (Iteration t b d) 
+solveSystem testResistor thermalEq = do 
+  putStrLn "System:"
+  putStrLn (renderEquations $ displayEquation  testResistor (thermalEq (fst $ upgradeGrid 0 1 testResistor)) )
+  let iter = solveIter (initIter  testResistor (fst $ upgradeGrid 0 1 testResistor) zero) thermalEq
+  putStrLn "Solution:"
+  putStrLn $ renderResults iter
+  putStrLn "Residuals:"
+  let posres = printResidual iter thermalEq 
+  putStrLn (unlines ((\(ix,v) -> show ix <> ". " <> showFFloat (Just 4) v "") <$> zip [0..] posres))
+  return iter
+
+

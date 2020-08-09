@@ -13,7 +13,8 @@ import Domains
 import Control.Monad
 import Control.Concurrent.Async (mapConcurrently)
 
-main = mapM (displayModel . fmap (grid . initIter 0 1) ) [testGrid,testGrid2]
+main = do 
+  mapM (displayModel . fmap (grid . initIter 0 1) ) [testGrid,testGrid2]
 
 testGrid2 = ("simple2",) $ fst $ runInput $ mdo
    let dm = 0.08

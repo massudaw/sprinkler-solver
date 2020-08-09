@@ -14,6 +14,7 @@ import Equation
 import Backend.Graphviz
 import Domains
 import Grid
+import Numeric
 import Project
 import Position
 import Force
@@ -26,19 +27,11 @@ import Control.Concurrent.Async (mapConcurrently)
 
 
 main = do 
-  solve example6
+  solve example8
 
 solve ::  (forall a . (RealFloat a, Show a ) => Grid Force a) -> IO ()
 solve gmodel  = do
-  print gmodel
-  let (g,e) = upgradeGrid 0 1 gmodel
-  print g 
-  putStrLn (unlines $ either (fmap show) (fmap show) $ showErr e)
-  let
-  let iter = solveIter ( initIter (fst $ upgradeGrid 0 1 gmodel) 2)momentForceEquations
-      posres = printResidual iter momentForceEquations
-  displayModel ("force-model-initial" , g)
-  writeFile "force-model-iter.scad" (T.unpack $ openSCAD  (drawIter iter ) )
+  solveSystem gmodel momentForceEquations
   return ()
 
   -- putStrLn $ "Jacobian: " <> show (printJacobian ( initIter 2 ) (momentForceEquations ) )

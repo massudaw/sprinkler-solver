@@ -1,7 +1,8 @@
 {-# LANGUAGE RecursiveDo #-}
 module Main where
 import Thermal
-import Domains
+import Numeric
+import Domains hiding (var)
 import Input
 import Project
 import Backend.Graphviz
@@ -11,7 +12,7 @@ import Data.GraphViz.Types.Generalised
 
 import Position
 
-testResistor :: Fractional a => Grid Thermal a
+testResistor :: RealFloat a => Grid Thermal a
 testResistor = fst $ runInput $ (mdo
     n1 <- node (Ambient (-10))
     n4 <- node (Ambient 20)
@@ -24,9 +25,9 @@ testResistor = fst $ runInput $ (mdo
     link [Conductor 0.36,Conductor 0.16 ] n5 n4
     return ())
 
+
 main = do
-  putStrLn (displayEquation testResistor thermalEq )
-  let iter = solveIter (initIter testResistor 0) thermalEq
-  print (drawIterGraph testResistor :: [DotStatement Int])
-  renderGraph (drawIterGraph  testResistor) "testThermal.png"
+  iter <- solveSystem testResistor thermalEq
+  renderGraph (drawIter iter ) "testThermal.png"
+  print (drawIter iter :: Statements)
   print $ iter

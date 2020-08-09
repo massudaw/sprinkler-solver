@@ -1,11 +1,13 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TupleSections #-}
 
 module Hydraulic where
 
 import Control.Arrow
 import Control.Lens ((^.))
+import Data.Functor.Classes
 import Control.Monad
 import qualified Data.Foldable as F
 import Data.Functor.Identity
@@ -203,7 +205,7 @@ data Element a
         areaGrelha :: a,
         velocidadeMin :: a
       }
-  deriving (Eq, Show, Functor)
+  deriving (Eq, Show,Show1, Functor)
 
 data Tree a
   = Te

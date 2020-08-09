@@ -1,7 +1,9 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses#-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Thermal where
@@ -13,6 +15,8 @@ import Data.Functor.Compose
 import Data.Functor.Identity
 import qualified Data.List as L
 import qualified Data.Map as M
+import Linear.V3
+import Position
 import Data.Monoid
 import Domains
 
@@ -32,15 +36,20 @@ data Thermal a
   | Ambient
       { ambient :: a
       }
-  deriving (Show, Eq, Ord, Functor)
+  deriving (Show, Eq, Ord, Functor,Show1)
 
 instance PreSys Thermal where
   type Enviroment Thermal = Identity
   type NodeDomain Thermal = Identity
   type LinkDomain Thermal = Identity
+  type SurfaceDomain Thermal = Identity
   constrained (Ambient i) = Identity (Just i)
   constrained i = Identity $ Nothing
   lconstrained i = Identity $ Nothing
+
+instance Coord Thermal V3 where
+ thisElement [h,t] (Conductor _ )  =  M.fromList [(h,(0,(0,so3 0))),(t,(0,(0,so3 0)))]
+ thisElement l i  =  M.fromList ((\ix -> (ix,(0,(0,so3 0)))) <$> l )
 
 isAmbient (Ambient i) = True
 isAmbient i = False
@@ -67,8 +76,8 @@ thermalContinuity g v pm = fmap (\(i, e) -> sum (flipped i $ links g) + (sum (co
     genFlow _ ThermalNode = 0
     nflow i e = genFlow (var i pm) e
 
-thermalEq :: (Show a, Ord a, Floating a) => Grid Thermal a -> M.Map Int (Identity a) -> M.Map Int (Identity a) -> [a]
-thermalEq = (\l v h -> thermalPotential l (runIdentity <$> v) (runIdentity <$> h) <> thermalContinuity l (runIdentity <$> v) (runIdentity <$> h))
+thermalEq :: (Show a, Ord a, RealFloat a) => CoordinateGrid V3 a -> Grid Thermal a -> M.Map Int (Identity a) -> M.Map Int (Identity a) -> [a]
+thermalEq _ = (\l v h -> thermalPotential l (runIdentity <$> v) (runIdentity <$> h) <> thermalContinuity l (runIdentity <$> v) (runIdentity <$> h))
 
 thermalElement v (Conductor i) = v * i
 thermalElement _ (HeatFlow i) = i

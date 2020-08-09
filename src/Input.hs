@@ -81,7 +81,7 @@ polyhedra e ls = do
 runInput ::
   State (Grid b a, ElemState) a1 ->
   (Grid b a, ElemState)
-runInput t = snd $ runState t (Grid [] [] [] [] [] [] [] [], (ElemState (-1) 0 0 0))
+runInput t = snd $ runState t (Grid [] [] [] [] [] , (ElemState (-1) 0 0 0))
 
 (>~>) ::
   MonadFix m =>

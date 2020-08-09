@@ -116,7 +116,7 @@ instance PreSys Element where
 
   -- Link Variables
   type LinkDomain Element = Identity
-  initIter g = (\e -> Iteration (fmap Compose <$> varsL) (fmap Compose <$> varsN) e g)
+  initIter g p = (\e -> Iteration (fmap Compose <$> varsL) (fmap Compose <$> varsN) e g p )
     where
       varsN = fst $ runState (((traverse (traverse (traverse conv . constrained)))) $ nodes g) 50
       conv (Just i) = return Nothing
@@ -259,10 +259,10 @@ jacobianContinuity g v pm = fmap (\(i, e) -> sum (flipped i $ links g) + (sum (c
     -- nodeFlow
     nflow i e = var i pm ^. _y
 
-zoneEquations am g pm = catMaybes $ uncurry nflow <$> nodes g
+zoneEquations am p g pm = catMaybes $ uncurry nflow <$> nodes g
   where
     nflow i e = do
-      fl <- genFlow (var i (M.fromList (nodesPosition g)) ^. _1 . _z) e
+      fl <- genFlow (var i (M.fromList (nodesPosition p)) ^. _1 . _z) e
       return $ var i pm ^. _x - fl
     genFlow idf (Grelha _ _ _ _) = Just $ airPressure (idf + altitude am)
     genFlow idf (Tee (TeeConfig _ _ (RoundEntry _ _)) _) = Just $ airPressure (idf + altitude am)
@@ -271,17 +271,17 @@ zoneEquations am g pm = catMaybes $ uncurry nflow <$> nodes g
     genFlow idf (Reservatorio _) = Just $ airPressure (idf + altitude am)
     genFlow _ i = Nothing
 
-thermalEquations am g pm = catMaybes $ uncurry nflow <$> nodes g
+thermalEquations am p g pm = catMaybes $ uncurry nflow <$> nodes g
   where
     nflow i e = do
-      fl <- genFlow (var i (M.fromList (nodesPosition g)) ^. _1 . _z) (var i pm ^. _x) e
+      fl <- genFlow (var i (M.fromList (nodesPosition p)) ^. _1 . _z) (var i pm ^. _x) e
       return $ var i pm ^. _z - fl
     genFlow _ _ i = Just $ temperaturaAmbiente am
 
-leakEquations am g pm = catMaybes $ uncurry nflow <$> nodes g
+leakEquations am p g pm = catMaybes $ uncurry nflow <$> nodes g
   where
     nflow i e = do
-      fl <- genFlow (var i (M.fromList (nodesPosition g)) ^. _1 . _z) (var i pm) e
+      fl <- genFlow (var i (M.fromList (nodesPosition p)) ^. _1 . _z) (var i pm) e
       return $ var i pm ^. _y - fl
     genFlow h (V3 p v t) (Sprinkler (_, k) _ _ _) = Just $ (if p <= 0 then negate else id) flow
       where
@@ -311,8 +311,8 @@ fittingsCoefficient am nh sflow n t = case fluidName (fluido am) of
     flowMap = (fmap (\x -> x / 1000 / 60) $ var n sflow)
 
 -- Generic Solver | Node + Head Method
-jacobianNodeHeadEquation :: (Show a, Ord a, Floating a, Real a) => Ambient a -> Grid Element a -> M.Map Int a -> M.Map Int (V3 a) -> [a]
-jacobianNodeHeadEquation am grid vm nh = term <$> l
+jacobianNodeHeadEquation :: (Show a, Ord a, Floating a, Real a) => Ambient a -> CoordinateGrid V3 a -> Grid Element a -> M.Map Int a -> M.Map Int (V3 a) -> [a]
+jacobianNodeHeadEquation am p grid vm nh = term <$> l
   where
     l = links grid
     sflow = signedFlow grid vm
@@ -321,7 +321,7 @@ jacobianNodeHeadEquation am grid vm nh = term <$> l
     addTee k = maybe 0 id (M.lookup k nodeLosses)
     term (l, (h, t, e)) = sum (pipeElement am (var h nh, var t nh) (var l vm) <$> e) + stackEffect (var h nh, var t nh) am (var t nhs ^. _z) (var h nhs ^. _z) (var l vm) + (var t nh ^. _x - var h nh ^. _x) + addTee (h, l) + addTee (t, l)
       where
-        nhs = fmap fst (M.fromList $ nodesPosition grid)
+        nhs = fmap fst (M.fromList $ nodesPosition p )
 
 testStack i am h1 h2 f = (gravityEffect i am (h2 - h1), stackEffect i am h1 h2 f)
 
@@ -380,8 +380,8 @@ ktubo env (V3 p _ tk, _) joelhos t q = perda / 1000 * fluidDensity p tk env (flu
     -- note : abs na vazão pois gera NaNs para valores negativos durante iterações
     perda = 10.67 * (distanciaE t) / (c ** 1.85) / (d ** 4.87)
 
-jacobianEqNodeHeadGrid :: (Show a, Ord a, Floating a, Real a) => Ambient a -> Grid Element a -> M.Map Int (LinkDomain Element a) -> M.Map Int (NodeDomain Element a) -> [a]
-jacobianEqNodeHeadGrid e l v h = jacobianNodeHeadEquation e l (runIdentity <$> v) h <> jacobianContinuity l (runIdentity <$> v) h <> leakEquations e l h <> zoneEquations e l h <> thermalEquations e l h
+jacobianEqNodeHeadGrid :: (Show a, Ord a, Floating a, Real a) => Ambient a -> CoordinateGrid V3 a -> Grid Element a -> M.Map Int (LinkDomain Element a) -> M.Map Int (NodeDomain Element a) -> [a]
+jacobianEqNodeHeadGrid e p l v h = jacobianNodeHeadEquation e p l (runIdentity <$> v) h <> jacobianContinuity l (runIdentity <$> v) h <> leakEquations e p l h <> zoneEquations e p l h <> thermalEquations e p l h
 
 --------------------------
 -- Mecha Backend        --
@@ -415,7 +415,7 @@ renderLinkMecha nis _ o = Mecha.sphere 0.02
 
 instance Target Element Mecha.Solid where
   renderNode = renderElemMecha
-  renderLink = renderLinkMecha
+  renderLink _ = renderLinkMecha
 
 drawRegion (Region n _ _ (i, h) _) = moveZ h (color (1, 0, 0, 0.1) $extrude (Mecha.polygon ((\(V2 i j) -> [i, j]) <$> i) [[0 .. (length i)]]) 1) <> tpos (text n)
   where
@@ -431,9 +431,9 @@ editDiametro v i = i
 ---
 
 instance Target Element [EntityTy] where
-  renderLink nis ni (Tubo (Circular d) c _) = [TEXT (V3 (c / 2) 0.3 0) 0.2 (show $ round (d * 1000)) Nothing Nothing, LINE 0 (V3 c 0 0)]
-  renderLink nis ni (Joelho _ (TabelaPerda (d) c _)) = []
-  renderLink nis ni i = [CIRCLE 0 0.2]
+  renderLink _ nis ni (Tubo (Circular d) c _) = [TEXT (V3 (c / 2) 0.3 0) 0.2 (show $ round (d * 1000)) Nothing Nothing, LINE 0 (V3 c 0 0)]
+  renderLink _ nis ni (Joelho _ (TabelaPerda (d) c _)) = []
+  renderLink _ nis ni i = [CIRCLE 0 0.2]
   renderNode nis (Sprinkler _ _ _ _) = [INSERT "spk" 0 (Just 1) Nothing Nothing []]
   renderNode nis (Tee _ _) = []
   renderNode nis (Open _) = []

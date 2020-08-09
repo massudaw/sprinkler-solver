@@ -1,4 +1,6 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -13,6 +15,7 @@ module Force where
 
 import Backend.Mecha as Mecha
 import Control.Applicative
+import Data.Functor.Classes
 import Control.Arrow
 import Control.Lens
 import qualified Data.Foldable as F
@@ -70,7 +73,7 @@ data Force a
   | Beam {length :: a, material :: a, section :: a, inertia :: V3 a, tmodulus :: a}
   | BeamTurn a
   | BTurn (a, a)
-  deriving (Eq, Ord, Functor, Show)
+  deriving (Eq, Ord, Functor, Show, Show1)
 
 data Forces a = Forces
   { linearDeformation :: V3 a,
@@ -132,10 +135,10 @@ instance PreSys Force where
   --        Roller -> (V3 0 Nothing 0, V3 0 0 0)
   --        Friction x -> (V3 0 Nothing 0, V3 0 0 0)
   --    constr i = (Just <$> 0, Just <$> 0)
-  postprocess i = M.toList $ printResidual i forces
+  -- postprocess i = M.toList $ printResidual i forces
 
-momentForceEquations :: forall a. (Show a, Ord a, Floating a) => Grid Force a -> M.Map Int (LinkDomain Force a) -> M.Map Int (NodeDomain Force a) -> [a]
-momentForceEquations = (\l v h -> momentForce l v h)
+momentForceEquations :: forall a. (Show a, Ord a, Floating a) => CoordinateGrid V3 a -> Grid Force a -> M.Map Int (LinkDomain Force a) -> M.Map Int (NodeDomain Force a) -> [a]
+momentForceEquations =  momentForce 
 
 rotor :: Floating a => V3 a -> V3 a -> V3 a -> M3 a
 rotor l0@(V3 x0 y0 z0) l1 l2 = V3 tx ty tz
@@ -193,18 +196,18 @@ torsor (Beam l e a (V3 ix iy iz) g) =
 nodeForces lmap nvars (ix, (s, el)) =
   foldr1 (\(a, b) (c, d) -> (a ^+^ c, b ^+^ d)) $ (\(h, t, resh, rest, a) -> if ix == h then resh else (if ix == t then rest else error "wrong index")) . flip var lmap <$> F.toList s
 
-linkForces g linkInPre nodesInPre =
+linkForces p g linkInPre nodesInPre =
   fmap (\(h, t, resh, rest, a) -> (norm resh, norm resh)) <$> M.toList lmap
   where
     lmap = M.fromList $ eqLink nvars <$> links g
-    nvars = M.fromList $ fmap (\((ix, i), v) -> (ix, (i, v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition g)
+    nvars = M.fromList $ fmap (\((ix, i), v) -> (ix, (i, v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition p)
     nodesIn = nodesInPre
 
-bendIter iter@(Iteration r i e g) =
-  Iteration r i e (g {nodesPosition = editNodes <$> nodesPosition g, linksPosition = editLinks <$> linksPosition g})
+bendIter iter@(Iteration r i e g p) =
+  Iteration r i e g (p {nodesPosition = editNodes <$> nodesPosition p, linksPosition = editLinks <$> linksPosition p})
   where
     lmap = M.fromList (links (grid iter))
-    npmap = M.fromList (nodesPosition (grid iter))
+    npmap = M.fromList (nodesPosition p)
     var2 i = fmap (fromMaybe 0) . (\(i, _, _, _) -> i) . var i
     nmap = getCompose <$> M.fromList (pressures iter)
     editNodes (i, (np, nr)) = (i, (np ^+^ d, nr))
@@ -232,7 +235,7 @@ bendingRatio d l
   | norm (cross l (l ^+^ d)) < 1e-6 = identV3
   | otherwise = localToGlobal l (l ^+^ d)
 
-volumeLink nvars npos lmap smap (ls, Tetra4 e) = zip p (getZipList $ getCompose $ ((kres) !* Compose (ZipList vars)))
+volumeLink nvars npos lmap smap (ls, Tetra4 e) = zip p (getZipList $ getCompose $ (kres !* Compose (ZipList vars)))
   where
     kres = tetrastiffness coords e
     sfs = (\(l, i) -> if l then fst $ var i smap else first neg <$> (fst $ var i smap)) <$> ls
@@ -302,20 +305,23 @@ eqLink nvars (i, (h, t, l)) = (i, (h, t, (rtb !* resh, rtb !* mesh), (rtb !* res
     mest = (btor !* mt ^+^ ctor !* mh) ^+^ (bendt !* (fhl ^-^ ftl))
     nvarsEl h = var h nvars
 
-forces :: (Show a, Floating a) => Grid Force a -> p -> M.Map Int (Forces a) -> M.Map Int (V3 a)
-forces g linkInPre nodesInPre = sfmap
+forces :: (Show a, Floating a) => CoordinateGrid V3 a -> Grid Force a -> g -> M.Map Int (Forces a) -> M.Map Int (V3 a)
+forces p g linkInPre nodesInPre = sfmap
   where
     lmap = M.fromList $ eqLink nvars <$> links g
-    nvars = M.fromList $ fmap (\((ix, i), v) -> (ix, (i, v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition g)
+    nvars = M.fromList $ fmap (\((ix, i), v) -> (ix, (i, v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition p)
     smap = M.fromList $ eqLink nvars <$> links g
     nodesIn = nodesInPre
-    sfmap = M.fromListWith (liftA2 (+)) $ concat $ surfaceStress nodesIn (M.fromList $ nodesPosition g) (M.fromList (links g)) . snd <$> surfaces g
+    sfmap = M.fromListWith (liftA2 (+)) $ concat $ surfaceStress nodesIn (M.fromList $ nodesPosition p) (M.fromList (links g)) . snd <$> surfaces g
 
-momentForce :: (Show a, Floating a) => Grid Force a -> M.Map Int (Compose [] Forces a) -> M.Map Int (Forces a) -> [a]
-momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
+instance Show1 Forces where
+  liftShowsPrec i _ pre v = showsPrec pre (($"") <$> (i pre <$> v) )
+
+momentForce :: (Show a, Floating a) => CoordinateGrid  V3  a -> Grid Force a -> M.Map Int (Compose [] Forces a) -> M.Map Int (Forces a) -> [a]
+momentForce p g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
   where
     nodesIn = nodesInPre
-    nvars = M.fromList $ fmap (\((ix, i), v) -> (ix, (i, v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition g)
+    nvars = M.fromList $ fmap (\((ix, i), v) -> (ix, (i, v))) $ zip (M.toList nodesIn) (snd <$> nodesPosition p)
     l = reverse $ links g
     nodeMerge (ix, (s, el)) = catMaybes . zipWith3 (\i f j -> if isNothing i || isNothing f then Just j else Nothing) (F.toList a <> F.toList aa) (F.toList fv <> F.toList mv) . zipWith (+) (F.toList m <> F.toList ma) . fmap sum . L.transpose $ (linkEls <> sEls <> vEls)
       where
@@ -325,8 +331,8 @@ momentForce g linksInPre nodesInPre = concat $ nodeMerge <$> nodesSet g
         sEls = maybeToList ((<> replicate 4 0) . F.toList <$> M.lookup ix smap)
         vEls = maybeToList ((<> replicate 3 0) . F.toList <$> M.lookup ix cmap)
     lmap = M.fromList $ eqLink nvars <$> l
-    smap = M.fromListWith (liftA2 (+)) $ concat $ surfaceLink nodesIn (M.fromList $ nodesPosition g) (M.fromList l) . snd <$> surfaces g
-    cmap = M.fromListWith (liftA2 (+)) $ concat $ volumeLink nodesIn (M.fromList $ nodesPosition g) (M.fromList l) (M.fromList (surfaces g)) . snd <$> volumes g
+    smap = M.fromListWith (liftA2 (+)) $ concat $ surfaceLink nodesIn (M.fromList $ nodesPosition p) (M.fromList l) . snd <$> surfaces g
+    cmap = M.fromListWith (liftA2 (+)) $ concat $ volumeLink nodesIn (M.fromList $ nodesPosition p) (M.fromList l) (M.fromList (surfaces g)) . snd <$> volumes g
 
 instance Coord Force V3 where
   thisElement [h, t] (BTurn (x, y)) = (1,) <$> M.fromList [(h, (V3 0 0 0, so3 0)), (t, (V3 0 0 0, so3 (V3 (pi + opi x) (pi + opi y) 0)))]
@@ -334,6 +340,7 @@ instance Coord Force V3 where
   thisElement [h, t] (Beam i _ _ _ _) = (2,) <$> M.fromList [(h, (V3 0 0 0, so3 0)), (t, (V3 i 0 0, so3 (V3 0 0 pi)))]
   thisElement [h, t] (Bar l _ _) = (2,) <$> M.fromList [(h, (V3 0 0 0, so3 0)), (t, (V3 l 0 0, so3 (V3 0 0 pi)))]
   thisElement l i = (\(u, m, j) -> (if u /= 0 then 0 else if m /= 0 then 1 else if j /= 0 then 2 else 2, (0, SO3 . P.rotM $ (V3 (opi u) (opi m) (opi j))))) <$> thisF l i
+  
 
 {-elemTrans t = (lengthE t , angleE t)
   where
@@ -484,29 +491,30 @@ instance Target Force Solid where
       mys = my / norm m
       mxs = mx / norm m
 
-  renderLink nis ni (Link i) = color (0.2, 0.2, 1, 1) $(rotateY (pi / 2) $ cylinder d (abs $ i * 0.99)) <> (move (i / 2, d / 2, d / 2) $ scale (st, st, st) (text (show (ni))))
+  renderLink _ nis ni (Link i) = color (0.2, 0.2, 1, 1) $(rotateY (pi / 2) $ cylinder d (abs $ i * 0.99)) <> (move (i / 2, d / 2, d / 2) $ scale (st, st, st) (text (show (ni))))
     where
       d = 0.03 -- 2* (sqrt$ a/pi)
       st = 0.03
-  renderLink nis ni (Link i) = color (0.2, 0.2, 1, 1) $(rotateY (pi / 2) $ cylinder d (abs $ i * 0.99)) <> (move (i / 2, d / 2, d / 2) $ scale (st, st, st) (text (show (ni))))
+  renderLink _ nis ni (Link i) = color (0.2, 0.2, 1, 1) $(rotateY (pi / 2) $ cylinder d (abs $ i * 0.99)) <> (move (i / 2, d / 2, d / 2) $ scale (st, st, st) (text (show (ni))))
     where
       d = 0.03 -- 2* (sqrt$ a/pi)
       st = 0.03
-  renderLink nis ni (Bar i _ a) = color (0.2, 0.2, 1, 1) $(rotateY (pi / 2) $ cylinder d (abs $ i * 0.99)) <> (move (i / 2, d / 2, d / 2) $ scale (st, st, st) (text (show ni)))
+  renderLink _ nis ni (Bar i _ a) = color (0.2, 0.2, 1, 1) $(rotateY (pi / 2) $ cylinder d (abs $ i * 0.99)) <> (move (i / 2, d / 2, d / 2) $ scale (st, st, st) (text (show ni)))
     where
       d = 2 * (sqrt $ a / pi)
       st = 0.09
-  renderLink nis ni (Beam i _ a _ _) = color (0.2, 0.2, 1, 1) $((moveX (i / 2) $ scale (i, sqrt a, sqrt a) (cube 1))) <> (move (i / 2, d / 2, d / 2) $ scale (st, st, st) (text (show ni)))
+  renderLink _ nis ni (Beam i _ a _ _) = color (0.2, 0.2, 1, 1) $((moveX (i / 2) $ scale (i, sqrt a, sqrt a) (cube 1))) <> (move (i / 2, d / 2, d / 2) $ scale (st, st, st) (text (show ni)))
     where
       d = 0.03 -- 2* (sqrt$ a/pi)
       st = 0.09
-  renderLink nis ni (BeamTurn _) = sphere d
+  renderLink _ nis ni (BeamTurn _) = sphere d
     where
       d = 0.03
-  renderLink nis ni (BTurn _) = sphere d
+  renderLink _ nis ni (BTurn _) = sphere d
     where
       d = 0.03
-  renderLink nis ni (Load) = color (0, 1, 0, 1) $ (rotateZ (pi) $ moveX (-0.3) $ rotateY (pi / 2) (cone 0.12 0 0.3)) <> rotateY (pi / 2) (cylinder 0.03 1) <> (moveY 0.2 $ scale (0.03, 0.03, 0.03) (text (show (ni, nis))))
+  renderLink _ nis ni (Load) = color (0, 1, 0, 1) $ (rotateZ (pi) $ moveX (-0.3) $ rotateY (pi / 2) (cone 0.12 0 0.3)) <> rotateY (pi / 2) (cylinder 0.03 1) <> (moveY 0.2 $ scale (0.03, 0.03, 0.03) (text (show (ni, nis))))
+  renderLinkSolve _ _ _ _  _= sphere 0.01 
   renderSurface ls nds (FaceLoop) = sphere 0.01
   renderSurface ls nds (Quad4 _ _) = sphere 0.01 --  color (0,1,1,0.1) $  extrude ( polygon (F.toList <$> npos) [paths])  0.1
     where
